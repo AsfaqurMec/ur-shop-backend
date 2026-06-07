@@ -83,6 +83,7 @@ export const env = {
     productFolder: (process.env.CLOUDINARY_PRODUCT_FOLDER ?? 'ur-shop/products').trim(),
     proofFolder: (process.env.CLOUDINARY_PROOF_FOLDER ?? 'ur-shop/payment-proofs').trim(),
     settingsFolder: (process.env.CLOUDINARY_SETTINGS_FOLDER ?? 'ur-shop/settings').trim(),
+    bannerFolder: (process.env.CLOUDINARY_BANNER_FOLDER ?? 'ur-shop/banners').trim(),
   },
 
   mail: {

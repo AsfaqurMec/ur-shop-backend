@@ -60,3 +60,4 @@ export const StoreSettingsModel = makeModel<AnyDoc>('StoreSettings', 'store_sett
 export const PaymentOptionModel = makeModel<AnyDoc>('PaymentOption', 'payment_options');
 export const EmailLogModel = makeModel<AnyDoc>('EmailLog', 'email_logs');
 export const AuditLogModel = makeModel<AnyDoc>('AuditLog', 'audit_logs');
+export const BannerModel = makeModel<AnyDoc>('Banner', 'banners');

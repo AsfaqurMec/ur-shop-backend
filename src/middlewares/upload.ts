@@ -12,6 +12,7 @@ const PRODUCT_FILES_DIR = path.join(UPLOAD_BASE, 'products', 'files');
 const PAYMENT_PROOFS_DIR = path.join(UPLOAD_BASE, 'payments', 'proofs');
 const TICKET_ATTACHMENTS_DIR = path.join(UPLOAD_BASE, 'tickets', 'attachments');
 const SETTINGS_LOGOS_DIR = path.join(UPLOAD_BASE, 'settings', 'logos');
+const BANNER_IMAGES_DIR = path.join(UPLOAD_BASE, 'banners', 'images');
 
 const maxSizeBytes = env.upload.maxFileSizeMb * 1024 * 1024;
 
@@ -160,6 +161,25 @@ export const uploadSettingsLogo = multer({
   fileFilter: imageFileFilter,
 }).single('logo');
 
+function bannerImageStorage(): multer.StorageEngine {
+  ensureDir(BANNER_IMAGES_DIR);
+  return multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, BANNER_IMAGES_DIR),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname) || '.jpg';
+      const base = sanitizeFileName(path.basename(file.originalname, path.extname(file.originalname)));
+      const name = `${base}-${Date.now()}${ext}`;
+      cb(null, name);
+    },
+  });
+}
+
+export const uploadBannerImage = multer({
+  storage: isCloudinaryConfigured() ? multer.memoryStorage() : bannerImageStorage(),
+  limits: { fileSize: maxSizeBytes },
+  fileFilter: imageFileFilter,
+}).single('background_image');
+
 /** Relative path for ticket attachment (store in DB). */
 export function getTicketAttachmentRelativePath(filename: string): string {
   return path.join('tickets', 'attachments', filename).replace(/\\/g, '/');
@@ -173,4 +193,8 @@ export function getTicketAttachmentAbsolutePath(relativePath: string): string {
 /** Relative path for settings logo (store in DB). */
 export function getSettingsLogoRelativePath(filename: string): string {
   return path.join('settings', 'logos', filename).replace(/\\/g, '/');
+}
+
+export function getBannerImageRelativePath(filename: string): string {
+  return path.join('banners', 'images', filename).replace(/\\/g, '/');
 }
