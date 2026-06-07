@@ -1,0 +1,428 @@
+import crypto from 'crypto';
+import { AppError } from '../middlewares/errorHandler';
+import * as authRepo from '../repositories/authRepository';
+import * as adminAuthRepo from '../repositories/adminAuthRepository';
+import { hashPassword, comparePassword } from '../utils/passwordHelpers';
+import {
+  hashToken,
+  generateAccessToken,
+  generateRefreshToken,
+  verifyRefreshToken,
+  getRefreshTokenExpiry,
+  ROLE_ADMIN,
+} from '../utils/tokenHelpers';
+import * as emailService from './emailService';
+import { env } from '../config';
+import type { SafeUser } from '../types/auth';
+
+const VERIFICATION_EXPIRY_HOURS = 24;
+const PASSWORD_RESET_EXPIRY_HOURS = 1;
+
+function toSafeUser(row: {
+  id: number;
+  email: string;
+  name: string;
+  email_verified_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}): SafeUser {
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    email_verified_at: row.email_verified_at ? row.email_verified_at.toISOString() : null,
+    created_at: row.created_at.toISOString(),
+    updated_at: row.updated_at.toISOString(),
+    role: 'user',
+  };
+}
+
+function toSafeAdmin(row: {
+  id: number;
+  email: string;
+  name: string;
+  created_at: Date;
+  updated_at: Date;
+}): SafeUser {
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    email_verified_at: null,
+    created_at: row.created_at.toISOString(),
+    updated_at: row.updated_at.toISOString(),
+    role: 'admin',
+  };
+}
+
+function randomToken(): string {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+export async function register(
+  email: string,
+  password: string,
+  name: string,
+  verificationBaseUrl?: string
+): Promise<{ user: SafeUser; message: string }> {
+  const existing = await authRepo.findUserByEmail(email);
+  if (existing) {
+    throw new AppError(409, 'Email already registered');
+  }
+  const passwordHash = await hashPassword(password);
+  const userId = await authRepo.createUser(email, passwordHash, name.trim() || email);
+  const user = await authRepo.findUserById(userId);
+  if (!user) throw new AppError(500, 'Failed to create user');
+
+  const token = randomToken();
+  const expiresAt = new Date(Date.now() + VERIFICATION_EXPIRY_HOURS * 60 * 60 * 1000);
+  await authRepo.createEmailVerification(userId, email, token, expiresAt);
+
+  if (verificationBaseUrl) {
+    const verifyUrl = `${verificationBaseUrl.replace(/\/$/, '')}?token=${token}`;
+    await emailService.sendVerifyEmail(email, { verifyUrl });
+  }
+
+  if (env.mail.sendWelcomeEmail) {
+    const base = env.frontendUrl.replace(/\/$/, '');
+    const loginUrl = base ? `${base}/login` : undefined;
+    const shopUrl = base ? `${base}/shop` : undefined;
+    await emailService.sendWelcomeEmail(email, {
+      name: user.name,
+      email: user.email,
+      loginUrl,
+      shopUrl,
+    });
+  }
+
+  return {
+    user: toSafeUser(user),
+    message: verificationBaseUrl
+      ? 'Registration successful. Please check your email to verify your account.'
+      : 'Registration successful. Use the verification token to verify your email.',
+  };
+}
+
+export async function login(
+  email: string,
+  password: string,
+  ip: string | null,
+  userAgent: string | null
+): Promise<{
+  user: SafeUser;
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: string;
+}> {
+  const user = await authRepo.findUserByEmail(email);
+  if (user) {
+    const valid = await comparePassword(password, user.password_hash);
+    if (!valid) {
+      throw new AppError(401, 'Invalid email or password');
+    }
+
+    const expiresAt = getRefreshTokenExpiry();
+    const placeholderHash = hashToken(crypto.randomBytes(24).toString('hex'));
+    const sessionId = await authRepo.createSession(
+      user.id,
+      placeholderHash,
+      expiresAt,
+      ip,
+      userAgent
+    );
+    const signedRefreshToken = generateRefreshToken({
+      id: user.id,
+      email: user.email,
+      sessionId,
+    });
+    const tokenHash = hashToken(signedRefreshToken);
+    await authRepo.updateSessionTokenHash(sessionId, tokenHash);
+
+    const accessToken = generateAccessToken({
+      id: user.id,
+      email: user.email,
+      sessionId,
+    });
+
+    return {
+      user: toSafeUser(user),
+      accessToken,
+      refreshToken: signedRefreshToken,
+      expiresAt: expiresAt.toISOString(),
+    };
+  }
+
+  const admin = await adminAuthRepo.findAdminByEmail(email);
+  if (!admin) {
+    throw new AppError(401, 'Invalid email or password');
+  }
+  const adminValid = await comparePassword(password, admin.password_hash);
+  if (!adminValid) {
+    throw new AppError(401, 'Invalid email or password');
+  }
+
+  const adminExpiresAt = getRefreshTokenExpiry();
+  const adminPlaceholderHash = hashToken(crypto.randomBytes(24).toString('hex'));
+  const adminSessionId = await adminAuthRepo.createAdminSession(
+    admin.id,
+    adminPlaceholderHash,
+    adminExpiresAt,
+    ip,
+    userAgent
+  );
+  const adminRefreshToken = generateRefreshToken(
+    {
+      id: admin.id,
+      email: admin.email,
+      sessionId: adminSessionId,
+    },
+    ROLE_ADMIN
+  );
+  const adminTokenHash = hashToken(adminRefreshToken);
+  await adminAuthRepo.updateAdminSessionTokenHash(adminSessionId, adminTokenHash);
+
+  const adminAccessToken = generateAccessToken(
+    {
+      id: admin.id,
+      email: admin.email,
+      sessionId: adminSessionId,
+    },
+    ROLE_ADMIN
+  );
+
+  return {
+    user: toSafeAdmin(admin),
+    accessToken: adminAccessToken,
+    refreshToken: adminRefreshToken,
+    expiresAt: adminExpiresAt.toISOString(),
+  };
+}
+
+export async function logout(sessionId: number, role: string): Promise<void> {
+  if (role === ROLE_ADMIN) {
+    await adminAuthRepo.deleteAdminSessionById(sessionId);
+    return;
+  }
+  await authRepo.deleteSessionById(sessionId);
+}
+
+export async function refresh(
+  refreshToken: string,
+  ip: string | null,
+  userAgent: string | null
+): Promise<{
+  user: SafeUser;
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: string;
+}> {
+  let payload;
+  try {
+    payload = verifyRefreshToken(refreshToken);
+  } catch {
+    throw new AppError(401, 'Invalid or expired refresh token');
+  }
+  const tokenHash = hashToken(refreshToken);
+
+  if (payload.role === ROLE_ADMIN) {
+    const session = await adminAuthRepo.findAdminSessionByTokenHash(tokenHash);
+    if (!session || new Date() > session.expires_at) {
+      throw new AppError(401, 'Session expired or invalid');
+    }
+    if (session.id !== payload.sessionId) {
+      throw new AppError(401, 'Invalid refresh token');
+    }
+    const admin = await adminAuthRepo.findAdminById(payload.id);
+    if (!admin) {
+      await adminAuthRepo.deleteAdminSessionById(session.id);
+      throw new AppError(401, 'Account no longer exists');
+    }
+
+    await adminAuthRepo.deleteAdminSessionById(session.id);
+    const expiresAt = getRefreshTokenExpiry();
+    const placeholderHash = hashToken(crypto.randomBytes(24).toString('hex'));
+    const newSessionId = await adminAuthRepo.createAdminSession(
+      admin.id,
+      placeholderHash,
+      expiresAt,
+      ip,
+      userAgent
+    );
+    const signedRefreshToken = generateRefreshToken(
+      {
+        id: admin.id,
+        email: admin.email,
+        sessionId: newSessionId,
+      },
+      ROLE_ADMIN
+    );
+    const newTokenHash = hashToken(signedRefreshToken);
+    await adminAuthRepo.updateAdminSessionTokenHash(newSessionId, newTokenHash);
+
+    const accessToken = generateAccessToken(
+      {
+        id: admin.id,
+        email: admin.email,
+        sessionId: newSessionId,
+      },
+      ROLE_ADMIN
+    );
+
+    return {
+      user: toSafeAdmin(admin),
+      accessToken,
+      refreshToken: signedRefreshToken,
+      expiresAt: expiresAt.toISOString(),
+    };
+  }
+
+  const session = await authRepo.findSessionByTokenHash(tokenHash);
+  if (!session || new Date() > session.expires_at) {
+    throw new AppError(401, 'Session expired or invalid');
+  }
+  if (session.id !== payload.sessionId) {
+    throw new AppError(401, 'Invalid refresh token');
+  }
+  const user = await authRepo.findUserById(payload.id);
+  if (!user) {
+    await authRepo.deleteSessionById(session.id);
+    throw new AppError(401, 'User no longer exists');
+  }
+
+  await authRepo.deleteSessionById(session.id);
+  const expiresAt = getRefreshTokenExpiry();
+  const newSessionId = await authRepo.createSession(
+    user.id,
+    '',
+    expiresAt,
+    ip,
+    userAgent
+  );
+  const signedRefreshToken = generateRefreshToken({
+    id: user.id,
+    email: user.email,
+    sessionId: newSessionId,
+  });
+  const newTokenHash = hashToken(signedRefreshToken);
+  await authRepo.updateSessionTokenHash(newSessionId, newTokenHash);
+
+  const accessToken = generateAccessToken({
+    id: user.id,
+    email: user.email,
+    sessionId: newSessionId,
+  });
+
+  return {
+    user: toSafeUser(user),
+    accessToken,
+    refreshToken: signedRefreshToken,
+    expiresAt: expiresAt.toISOString(),
+  };
+}
+
+export async function verifyEmail(token: string): Promise<{ user: SafeUser }> {
+  const verification = await authRepo.findEmailVerificationByToken(token.trim());
+  if (!verification) {
+    throw new AppError(400, 'Invalid or expired verification token');
+  }
+  // Idempotent: link open twice, React Strict Mode double-fetch, or user clicks Verify again.
+  if (verification.verified_at) {
+    const user = await authRepo.findUserById(verification.user_id);
+    if (!user) throw new AppError(500, 'User not found');
+    return { user: toSafeUser(user) };
+  }
+  if (new Date() > verification.expires_at) {
+    throw new AppError(400, 'Verification token has expired');
+  }
+  await authRepo.markEmailVerificationVerified(verification.id);
+  await authRepo.updateUserEmailVerified(verification.user_id);
+  const user = await authRepo.findUserById(verification.user_id);
+  if (!user) throw new AppError(500, 'User not found');
+  return { user: toSafeUser(user) };
+}
+
+export async function forgotPassword(email: string, resetBaseUrl?: string): Promise<{ message: string }> {
+  const user = await authRepo.findUserByEmail(email);
+  if (!user) {
+    return { message: 'If an account exists with this email, you will receive a reset link.' };
+  }
+  const token = randomToken();
+  const expiresAt = new Date(Date.now() + PASSWORD_RESET_EXPIRY_HOURS * 60 * 60 * 1000);
+  await authRepo.createPasswordReset(user.id, token, expiresAt);
+
+  if (resetBaseUrl) {
+    const resetUrl = `${resetBaseUrl.replace(/\/$/, '')}?token=${token}`;
+    await emailService.sendPasswordResetEmail(user.email, {
+      resetUrl,
+      expiresInHours: PASSWORD_RESET_EXPIRY_HOURS,
+    });
+  }
+
+  return {
+    message: 'If an account exists with this email, you will receive a reset link.',
+  };
+}
+
+export async function resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+  const reset = await authRepo.findPasswordResetByToken(token);
+  if (!reset) {
+    throw new AppError(400, 'Invalid or expired reset token');
+  }
+  if (new Date() > reset.expires_at) {
+    throw new AppError(400, 'Reset token has expired');
+  }
+  const passwordHash = await hashPassword(newPassword);
+  await authRepo.updateUserPassword(reset.user_id, passwordHash);
+  await authRepo.markPasswordResetUsed(reset.id);
+
+  const user = await authRepo.findUserById(reset.user_id);
+  if (user) {
+    const loginUrl = env.frontendUrl ? `${env.frontendUrl}/login` : undefined;
+    void emailService
+      .sendPasswordChangedEmail(user.email, {
+        name: user.name?.trim() || undefined,
+        loginUrl,
+      })
+      .catch((err) => {
+        if (env.nodeEnv !== 'test') console.error('[Mail] Password-changed email failed:', err);
+      });
+  }
+
+  return { message: 'Password has been reset successfully.' };
+}
+
+export async function getProfile(userId: number, role: string): Promise<SafeUser> {
+  if (role === ROLE_ADMIN) {
+    const admin = await adminAuthRepo.findAdminById(userId);
+    if (!admin) {
+      throw new AppError(404, 'User not found');
+    }
+    return toSafeAdmin(admin);
+  }
+  const user = await authRepo.findUserById(userId);
+  if (!user) {
+    throw new AppError(404, 'User not found');
+  }
+  return toSafeUser(user);
+}
+
+export async function updateProfileName(userId: number, role: string, name: string): Promise<SafeUser> {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    throw new AppError(400, 'Name is required');
+  }
+  if (role === ROLE_ADMIN) {
+    const admin = await adminAuthRepo.findAdminById(userId);
+    if (!admin) {
+      throw new AppError(404, 'User not found');
+    }
+    await adminAuthRepo.updateAdminName(userId, trimmed);
+  } else {
+    const user = await authRepo.findUserById(userId);
+    if (!user) {
+      throw new AppError(404, 'User not found');
+    }
+    await authRepo.updateUserName(userId, trimmed);
+  }
+  return getProfile(userId, role);
+}

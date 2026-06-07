@@ -1,0 +1,44 @@
+import { Router } from 'express';
+import healthRoutes from './health';
+import authRoutes from './auth';
+import categoryRoutes from './categories';
+import productRoutes from './products';
+import cartRoutes from './cart';
+import couponRoutes from './coupons';
+import checkoutRoutes from './checkout';
+import manualPaymentRoutes from './manualPayment';
+import deliveryRoutes from './delivery';
+import downloadRoutes from './downloads';
+import dashboardRoutes from './dashboard';
+import ticketRoutes from './tickets';
+import reviewRoutes from './reviews';
+import adminDashboardRoutes from './adminDashboard';
+import adminAdminsRoutes from './adminAdmins';
+import adminPaymentOptionsRoutes from './adminPaymentOptions';
+import adminStoreSettingsRoutes from './adminStoreSettings';
+import storeSettingsRoutes from './storeSettings';
+import cronRoutes from './cron';
+
+const router = Router();
+
+router.use('/health', healthRoutes);
+router.use('/auth', authRoutes);
+router.use('/categories', categoryRoutes);
+router.use('/products', productRoutes);
+router.use('/cart', cartRoutes);
+router.use('/coupons', couponRoutes);
+router.use('/checkout', checkoutRoutes);
+router.use('/payments', manualPaymentRoutes);
+router.use('/delivery', deliveryRoutes);
+router.use('/downloads', downloadRoutes);
+router.use('/dashboard', dashboardRoutes);
+router.use('/tickets', ticketRoutes);
+router.use('/reviews', reviewRoutes);
+router.use('/admin/dashboard', adminDashboardRoutes);
+router.use('/admin/admins', adminAdminsRoutes);
+router.use('/admin/payment-options', adminPaymentOptionsRoutes);
+router.use('/admin/store-settings', adminStoreSettingsRoutes);
+router.use('/store-settings', storeSettingsRoutes);
+router.use('/cron', cronRoutes);
+
+export default router;

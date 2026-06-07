@@ -1,0 +1,252 @@
+import type { PoolConnection } from 'mysql2/promise';
+import { AppError } from '../middlewares/errorHandler';
+import pool from '../database/pool';
+import * as attrRepo from '../repositories/productAttributeRepository';
+import * as variationRepo from '../repositories/productVariationRepository';
+import * as productRepo from '../repositories/productRepository';
+import type { AttributeReplaceInput, AttributeKind } from '../repositories/productAttributeRepository';
+import type { VariationReplaceInput } from '../repositories/productVariationRepository';
+import { combinationSignature } from '../utils/combinationSignature';
+
+const ATTR_KEY_RE = /^[a-z][a-z0-9_]{0,63}$/i;
+const VALUE_KEY_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/i;
+
+function cartesian(dims: { key: string; values: string[] }[]): Record<string, string>[] {
+  if (dims.length === 0) return [];
+  function rec(i: number, acc: Record<string, string>): Record<string, string>[] {
+    if (i >= dims.length) return [acc];
+    const out: Record<string, string>[] = [];
+    for (const vk of dims[i].values) {
+      out.push(...rec(i + 1, { ...acc, [dims[i].key]: vk }));
+    }
+    return out;
+  }
+  return rec(0, {});
+}
+
+/** Build variation dimensions from the same payload used to save attributes (no extra DB read in-txn). */
+function buildVariationDimsFromInputs(inputs: AttributeReplaceInput[]): { key: string; values: string[] }[] {
+  return inputs
+    .filter((a) => a.used_for_variations && a.kind === 'select' && a.values.length > 0)
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((a) => ({
+      key: a.attr_key,
+      values: a.values
+        .slice()
+        .sort((x, y) => x.sort_order - y.sort_order)
+        .map((v) => v.value_key),
+    }));
+}
+
+async function insertAllVariationCombinationsForInputs(
+  conn: PoolConnection,
+  productId: number,
+  inputs: AttributeReplaceInput[],
+  basePrice: number
+): Promise<number> {
+  const dims = buildVariationDimsFromInputs(inputs);
+  if (dims.length === 0) return 0;
+  const combos = cartesian(dims);
+  return variationRepo.insertGeneratedCombinations(conn, productId, combos, basePrice);
+}
+
+function parseAttributesFromBody(raw: unknown): AttributeReplaceInput[] {
+  if (!Array.isArray(raw)) throw new AppError(400, 'attributes must be an array');
+  return raw.map((item: Record<string, unknown>, idx: number) => {
+    const attr_key = String(item.attr_key ?? '').trim();
+    const name = String(item.name ?? '').trim();
+    const kind = (item.kind === 'text' ? 'text' : item.kind === 'email' ? 'email' : 'select') as AttributeKind;
+    if (!ATTR_KEY_RE.test(attr_key)) throw new AppError(400, `Invalid attr_key at index ${idx}`);
+    if (!name) throw new AppError(400, `Attribute name required at index ${idx}`);
+    const visible_on_page = item.visible_on_page !== false;
+    const used_for_variations = Boolean(item.used_for_variations);
+    if (used_for_variations && kind !== 'select') {
+      throw new AppError(400, `Only select attributes can be used for variations (${attr_key})`);
+    }
+    const valuesRaw = Array.isArray(item.values) ? item.values : [];
+    const values = valuesRaw.map((v: Record<string, unknown>, j: number) => {
+      const value_key = String(v.value_key ?? '').trim();
+      const label = String(v.label ?? '').trim();
+      if (!VALUE_KEY_RE.test(value_key)) throw new AppError(400, `Invalid value_key at ${attr_key}[${j}]`);
+      if (!label) throw new AppError(400, `Value label required at ${attr_key}[${j}]`);
+      return {
+        value_key,
+        label,
+        sort_order: typeof v.sort_order === 'number' ? v.sort_order : j,
+      };
+    });
+    if (kind === 'select' && used_for_variations && values.length === 0) {
+      throw new AppError(400, `Variation attribute "${name}" needs at least one value`);
+    }
+    if (kind !== 'select' && values.length > 0) {
+      throw new AppError(400, `Text/email attribute "${name}" cannot have preset values`);
+    }
+    return {
+      attr_key,
+      name,
+      kind,
+      visible_on_page,
+      used_for_variations,
+      sort_order: typeof item.sort_order === 'number' ? item.sort_order : idx,
+      values,
+    };
+  });
+}
+
+function parseVariationsFromBody(raw: unknown): VariationReplaceInput[] {
+  if (!Array.isArray(raw)) throw new AppError(400, 'variations must be an array');
+  return raw.map((item: Record<string, unknown>, idx: number) => {
+    const comboRaw = item.combination;
+    if (!comboRaw || typeof comboRaw !== 'object' || Array.isArray(comboRaw)) {
+      throw new AppError(400, `variation[${idx}] needs a combination object`);
+    }
+    const combination: Record<string, string> = {};
+    for (const [k, v] of Object.entries(comboRaw as Record<string, unknown>)) {
+      if (typeof v === 'string' && v.trim()) combination[k] = v.trim();
+    }
+    const price = Number(item.price ?? 0);
+    if (!Number.isFinite(price) || price < 0) throw new AppError(400, `Invalid price at variation ${idx}`);
+    const cap =
+      item.compare_at_price != null && item.compare_at_price !== ''
+        ? Number(item.compare_at_price)
+        : null;
+    if (cap != null && (!Number.isFinite(cap) || cap < 0)) {
+      throw new AppError(400, `Invalid compare_at_price at variation ${idx}`);
+    }
+    const sku = item.sku != null && String(item.sku).trim() !== '' ? String(item.sku).trim() : null;
+    const quantity =
+      item.quantity == null || item.quantity === '' ? null : Math.max(0, Math.floor(Number(item.quantity)));
+    if (quantity != null && !Number.isFinite(quantity)) {
+      throw new AppError(400, `Invalid quantity at variation ${idx}`);
+    }
+    return {
+      combination,
+      sku,
+      quantity,
+      price,
+      compare_at_price: cap,
+      enabled: item.enabled !== false,
+      sort_order: typeof item.sort_order === 'number' ? item.sort_order : idx,
+    };
+  });
+}
+
+async function assertVariationsMatchAttributes(
+  productId: number,
+  variations: VariationReplaceInput[]
+): Promise<void> {
+  const attrs = await attrRepo.findAttributesWithValuesByProductId(productId);
+  const varAttrKeys = new Set(
+    attrs.filter((a) => a.used_for_variations && a.kind === 'select').map((a) => a.attr_key)
+  );
+  if (varAttrKeys.size === 0) {
+    if (variations.length > 0) {
+      throw new AppError(400, 'Define variation attributes before saving variations');
+    }
+    return;
+  }
+  const sigs = new Set<string>();
+  for (let i = 0; i < variations.length; i += 1) {
+    const v = variations[i];
+    const keys = new Set(Object.keys(v.combination));
+    if (keys.size !== varAttrKeys.size || [...varAttrKeys].some((k) => !keys.has(k))) {
+      throw new AppError(400, `Variation ${i + 1} must include every variation attribute`);
+    }
+    for (const [ak, vk] of Object.entries(v.combination)) {
+      const a = attrs.find((x) => x.attr_key === ak);
+      if (!a || !a.values.some((val) => val.value_key === vk)) {
+        throw new AppError(400, `Invalid combination for variation ${i + 1}`);
+      }
+    }
+    const sig = combinationSignature(v.combination);
+    if (sigs.has(sig)) throw new AppError(400, 'Duplicate variation combination');
+    sigs.add(sig);
+  }
+}
+
+export async function replaceCatalogAttributes(productId: number, body: { attributes?: unknown }): Promise<void> {
+  const existing = await productRepo.findProductById(productId);
+  if (!existing) throw new AppError(404, 'Product not found');
+  const list = parseAttributesFromBody(body.attributes ?? []);
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    await variationRepo.deleteAllForProduct(conn, productId);
+    await attrRepo.replaceAttributesForProduct(conn, productId, list);
+    await insertAllVariationCombinationsForInputs(conn, productId, list, Number(existing.price));
+    await conn.commit();
+  } catch (e) {
+    await conn.rollback();
+    throw e;
+  } finally {
+    conn.release();
+  }
+}
+
+export async function replaceCatalogVariations(productId: number, body: { variations?: unknown }): Promise<void> {
+  const existing = await productRepo.findProductById(productId);
+  if (!existing) throw new AppError(404, 'Product not found');
+  const list = parseVariationsFromBody(body.variations ?? []);
+  await assertVariationsMatchAttributes(productId, list);
+  let previousDefaultSignature: string | null = null;
+  if (existing.default_variation_id != null) {
+    const previousDefault = await variationRepo.findVariationById(existing.default_variation_id);
+    if (previousDefault && previousDefault.product_id === productId) {
+      previousDefaultSignature = previousDefault.combination_signature;
+    }
+  }
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    await variationRepo.replaceVariationsForProduct(conn, productId, list);
+    await conn.commit();
+  } catch (e) {
+    await conn.rollback();
+    throw e;
+  } finally {
+    conn.release();
+  }
+  if (previousDefaultSignature == null) return;
+  const nextVariations = await variationRepo.findVariationsByProductId(productId);
+  const restoredDefault = nextVariations.find(
+    (row) => row.combination_signature === previousDefaultSignature && row.enabled === 1
+  );
+  await productRepo.updateProduct(productId, {
+    default_variation_id: restoredDefault?.id ?? null,
+  });
+}
+
+export async function generateCatalogVariations(productId: number): Promise<{ added: number }> {
+  const product = await productRepo.findProductById(productId);
+  if (!product) throw new AppError(404, 'Product not found');
+  const attrs = await attrRepo.findAttributesWithValuesByProductId(productId);
+  const dims = attrs
+      .filter((a) => a.used_for_variations && a.kind === 'select' && a.values.length > 0)
+      .sort((a, b) => a.sort_order - b.sort_order || a.id - b.id)
+      .map((a) => ({
+        key: a.attr_key,
+        values: a.values
+          .slice()
+          .sort((x, y) => x.sort_order - y.sort_order || x.id - y.id)
+          .map((v) => v.value_key),
+      }));
+  if (dims.length === 0) return { added: 0 };
+  const combos = cartesian(dims);
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const added = await variationRepo.insertGeneratedCombinations(
+      conn,
+      productId,
+      combos,
+      Number(product.price)
+    );
+    await conn.commit();
+    return { added };
+  } catch (e) {
+    await conn.rollback();
+    throw e;
+  } finally {
+    conn.release();
+  }
+}
