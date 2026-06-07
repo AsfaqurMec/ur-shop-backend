@@ -1,5 +1,3 @@
-import type { RowDataPacket } from 'mysql2';
-import pool from '../database/pool';
 import { env } from '../config';
 import * as orderRepo from '../repositories/orderRepository';
 import * as couponRepo from '../repositories/couponRepository';
@@ -9,16 +7,11 @@ import { isBkashMerchantCleanupActive } from './paymentOptionService';
 export async function cancelExpiredBkashPendingOrders(): Promise<number> {
   if (!(await isBkashMerchantCleanupActive())) return 0;
   const minutes = env.bkash.pendingExpiryMinutes;
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT o.id FROM orders o
-     INNER JOIN payments p ON p.order_id = o.id AND p.gateway = 'bkash' AND p.status = 'pending'
-     WHERE o.status = 'pending'
-     AND o.created_at < DATE_SUB(NOW(), INTERVAL ? MINUTE)`,
-    [minutes]
-  );
+  const olderThan = new Date(Date.now() - minutes * 60_000);
+  const orderIds = await orderRepo.findExpiredPendingBkashOrderIds(olderThan);
   let n = 0;
-  for (const r of rows as { id: number }[]) {
-    await cancelBkashPendingOrder(r.id);
+  for (const orderId of orderIds) {
+    await cancelBkashPendingOrder(orderId);
     n += 1;
   }
   return n;

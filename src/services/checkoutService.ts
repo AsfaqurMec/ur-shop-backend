@@ -1,4 +1,3 @@
-import pool from '../database/pool';
 import { env } from '../config';
 import { AppError } from '../middlewares/errorHandler';
 import * as cartRepo from '../repositories/cartRepository';
@@ -103,20 +102,10 @@ function toOrderPublic(
 async function restoreVariationQuantityForOrder(orderId: number): Promise<void> {
   const items = await orderRepo.findOrderItems(orderId);
   if (items.length === 0) return;
-  const conn = await pool.getConnection();
-  try {
-    await conn.beginTransaction();
-    for (const i of items) {
-      if (i.product_variation_id && i.product_type !== 'license_key') {
-        await variationRepo.adjustVariationQuantity(conn, i.product_variation_id, i.quantity);
-      }
+  for (const i of items) {
+    if (i.product_variation_id && i.product_type !== 'license_key') {
+      await variationRepo.adjustVariationQuantity(null, i.product_variation_id, i.quantity);
     }
-    await conn.commit();
-  } catch (e) {
-    await conn.rollback();
-    throw e;
-  } finally {
-    conn.release();
   }
 }
 
@@ -188,25 +177,23 @@ export async function createOrder(
 
   let orderId: number;
   let paymentId: number;
-  const conn = await pool.getConnection();
+  orderId = await orderRepo.createOrder(null, {
+    user_id: userId,
+    status: 'pending',
+    subtotal: subtotalRounded,
+    discount,
+    tax,
+    total,
+    currency: CURRENCY,
+  });
   try {
-    await conn.beginTransaction();
-    orderId = await orderRepo.createOrder(conn, {
-      user_id: userId,
-      status: 'pending',
-      subtotal: subtotalRounded,
-      discount,
-      tax,
-      total,
-      currency: CURRENCY,
-    });
-    await orderRepo.createOrderItems(conn, orderId, orderItemsInput);
+    await orderRepo.createOrderItems(null, orderId, orderItemsInput);
     for (const line of orderItemsInput) {
       if (line.product_variation_id != null && line.product_type !== 'license_key') {
-        await variationRepo.adjustVariationQuantity(conn, line.product_variation_id, -line.quantity);
+        await variationRepo.adjustVariationQuantity(null, line.product_variation_id, -line.quantity);
       }
     }
-    paymentId = await orderRepo.createPayment(conn, {
+    paymentId = await orderRepo.createPayment(null, {
       order_id: orderId,
       amount: total,
       currency: CURRENCY,
@@ -215,15 +202,14 @@ export async function createOrder(
       payment_option_id: optionRow?.id ?? null,
     });
     if (couponId != null) {
-      await couponRepo.recordUsageWithConnection(conn, couponId, orderId, userId, discountAmount);
-      await couponRepo.incrementUsedCountWithConnection(conn, couponId);
+      await couponRepo.recordUsageWithConnection(null, couponId, orderId, userId, discountAmount);
+      await couponRepo.incrementUsedCountWithConnection(null, couponId);
     }
-    await conn.commit();
   } catch (err) {
-    await conn.rollback();
+    await couponRepo.rollbackCouponsForOrder(orderId);
+    await restoreVariationQuantityForOrder(orderId);
+    await orderRepo.deleteOrderById(orderId);
     throw err;
-  } finally {
-    conn.release();
   }
 
   let bkashCheckoutUrl: string | null = null;
@@ -273,7 +259,7 @@ export async function createOrder(
       payment_method: gateway,
       sender_number: senderNumber,
     });
-    await pool.execute('UPDATE payments SET gateway_reference = ? WHERE id = ?', [gatewayRef, paymentId]);
+    await orderRepo.updatePaymentGatewayReference(paymentId, gatewayRef);
     await paymentProofRepo.create({
       order_id: orderId,
       user_id: userId,

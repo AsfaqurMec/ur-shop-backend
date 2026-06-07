@@ -1,10 +1,22 @@
-import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
-import type { PoolConnection } from 'mysql2/promise';
-import pool from '../database/pool';
+import { DownloadTokenModel } from '../database/models';
+import { nextId } from '../database/counter';
 import type { DownloadTokenRow } from '../types/download';
 
+function row(doc: any): DownloadTokenRow {
+  return {
+    id: Number(doc.id),
+    token: String(doc.token),
+    entitlement_id: Number(doc.entitlement_id),
+    user_id: Number(doc.user_id),
+    expires_at: doc.expires_at ? new Date(doc.expires_at) : new Date(),
+    max_uses: Number(doc.max_uses ?? 1),
+    use_count: Number(doc.use_count ?? 0),
+    created_at: doc.created_at ? new Date(doc.created_at) : new Date(),
+  };
+}
+
 export async function create(
-  conn: PoolConnection,
+  _conn: unknown,
   data: {
     token: string;
     entitlement_id: number;
@@ -13,29 +25,20 @@ export async function create(
     max_uses: number;
   }
 ): Promise<number> {
-  const [result] = await conn.execute<ResultSetHeader>(
-    `INSERT INTO download_tokens (token, entitlement_id, user_id, expires_at, max_uses)
-     VALUES (?, ?, ?, ?, ?)`,
-    [data.token, data.entitlement_id, data.user_id, data.expires_at, data.max_uses]
-  );
-  return result.insertId;
+  const id = await nextId('download_tokens');
+  await DownloadTokenModel.create({ id, ...data, use_count: 0 });
+  return id;
 }
 
 export async function findByToken(token: string): Promise<DownloadTokenRow | null> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT id, token, entitlement_id, user_id, expires_at, max_uses, use_count, created_at
-     FROM download_tokens WHERE token = ? LIMIT 1`,
-    [token]
-  );
-  return (rows[0] as DownloadTokenRow) ?? null;
+  const doc = await DownloadTokenModel.findOne({ token }).lean();
+  return doc ? row(doc) : null;
 }
 
-/** Atomically increment use_count if use_count < max_uses. Returns true if incremented. */
-export async function incrementUseCount(conn: PoolConnection, tokenId: number): Promise<boolean> {
-  const [result] = await conn.execute<ResultSetHeader>(
-    `UPDATE download_tokens SET use_count = use_count + 1
-     WHERE id = ? AND use_count < max_uses`,
-    [tokenId]
+export async function incrementUseCount(_conn: unknown, tokenId: number): Promise<boolean> {
+  const result = await DownloadTokenModel.updateOne(
+    { id: tokenId, $expr: { $lt: ['$use_count', '$max_uses'] } },
+    { $inc: { use_count: 1 } }
   );
-  return result.affectedRows > 0;
+  return result.modifiedCount > 0;
 }

@@ -1,5 +1,5 @@
-import type { RowDataPacket, ResultSetHeader } from 'mysql2';
-import pool from '../database/pool';
+import { PaymentOptionModel } from '../database/models';
+import { nextId } from '../database/counter';
 
 export type PaymentOptionKind = 'manual' | 'merchant';
 export type ManualFlow = 'mfs_reference' | 'bank_proof';
@@ -20,89 +20,65 @@ export interface PaymentOptionRow {
   updated_at: Date;
 }
 
-function parseRow(r: RowDataPacket): PaymentOptionRow {
-  let bank: Record<string, unknown> | null = null;
-  let merch: Record<string, unknown> | null = null;
-  if (r.bank_details != null) {
+function date(v: unknown): Date {
+  return v ? new Date(v as string | number | Date) : new Date();
+}
+
+function parseObject(v: unknown): Record<string, unknown> | null {
+  if (v == null) return null;
+  if (typeof v === 'object' && !Array.isArray(v)) return v as Record<string, unknown>;
+  if (typeof v === 'string') {
     try {
-      bank = typeof r.bank_details === 'string' ? JSON.parse(r.bank_details) : r.bank_details;
+      const parsed = JSON.parse(v);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
     } catch {
-      bank = null;
+      return null;
     }
   }
-  if (r.merchant_credentials != null) {
-    try {
-      merch = typeof r.merchant_credentials === 'string' ? JSON.parse(r.merchant_credentials) : r.merchant_credentials;
-    } catch {
-      merch = null;
-    }
-  }
+  return null;
+}
+
+function parseRow(r: any): PaymentOptionRow {
   return {
-    id: r.id,
-    kind: r.kind,
-    gateway_key: r.gateway_key,
-    name: r.name,
+    id: Number(r.id),
+    kind: r.kind === 'merchant' ? 'merchant' : 'manual',
+    gateway_key: String(r.gateway_key),
+    name: String(r.name),
     description: r.description ?? null,
-    is_enabled: Number(r.is_enabled),
-    sort_order: Number(r.sort_order),
+    is_enabled: Number(r.is_enabled ?? 1),
+    sort_order: Number(r.sort_order ?? 0),
     manual_flow: r.manual_flow ?? null,
-    bank_details: bank,
-    merchant_credentials: merch,
+    bank_details: parseObject(r.bank_details),
+    merchant_credentials: parseObject(r.merchant_credentials),
     ui_brand: r.ui_brand ?? null,
-    created_at: r.created_at,
-    updated_at: r.updated_at,
+    created_at: date(r.created_at),
+    updated_at: date(r.updated_at),
   };
 }
 
 export async function findAll(): Promise<PaymentOptionRow[]> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT id, kind, gateway_key, name, description, is_enabled, sort_order, manual_flow,
-            bank_details, merchant_credentials, ui_brand, created_at, updated_at
-     FROM payment_options ORDER BY sort_order ASC, id ASC`
-  );
-  return (rows as RowDataPacket[]).map(parseRow);
+  const rows = await PaymentOptionModel.find({}).sort({ sort_order: 1, id: 1 }).lean();
+  return rows.map(parseRow);
 }
 
 export async function findEnabledPublic(): Promise<PaymentOptionRow[]> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT id, kind, gateway_key, name, description, is_enabled, sort_order, manual_flow,
-            bank_details, merchant_credentials, ui_brand, created_at, updated_at
-     FROM payment_options WHERE is_enabled = 1 ORDER BY sort_order ASC, id ASC`
-  );
-  return (rows as RowDataPacket[]).map(parseRow);
+  const rows = await PaymentOptionModel.find({ is_enabled: 1 }).sort({ sort_order: 1, id: 1 }).lean();
+  return rows.map(parseRow);
 }
 
 export async function findById(id: number): Promise<PaymentOptionRow | null> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT id, kind, gateway_key, name, description, is_enabled, sort_order, manual_flow,
-            bank_details, merchant_credentials, ui_brand, created_at, updated_at
-     FROM payment_options WHERE id = ? LIMIT 1`,
-    [id]
-  );
-  const r = rows[0] as RowDataPacket | undefined;
-  return r ? parseRow(r) : null;
+  const row = await PaymentOptionModel.findOne({ id }).lean();
+  return row ? parseRow(row) : null;
 }
 
 export async function findByGatewayKey(gatewayKey: string): Promise<PaymentOptionRow | null> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT id, kind, gateway_key, name, description, is_enabled, sort_order, manual_flow,
-            bank_details, merchant_credentials, ui_brand, created_at, updated_at
-     FROM payment_options WHERE gateway_key = ? LIMIT 1`,
-    [gatewayKey]
-  );
-  const r = rows[0] as RowDataPacket | undefined;
-  return r ? parseRow(r) : null;
+  const row = await PaymentOptionModel.findOne({ gateway_key: gatewayKey }).lean();
+  return row ? parseRow(row) : null;
 }
 
 export async function findEnabledByGatewayKey(gatewayKey: string): Promise<PaymentOptionRow | null> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT id, kind, gateway_key, name, description, is_enabled, sort_order, manual_flow,
-            bank_details, merchant_credentials, ui_brand, created_at, updated_at
-     FROM payment_options WHERE gateway_key = ? AND is_enabled = 1 LIMIT 1`,
-    [gatewayKey]
-  );
-  const r = rows[0] as RowDataPacket | undefined;
-  return r ? parseRow(r) : null;
+  const row = await PaymentOptionModel.findOne({ gateway_key: gatewayKey, is_enabled: 1 }).lean();
+  return row ? parseRow(row) : null;
 }
 
 export interface CreatePaymentOptionInput {
@@ -119,24 +95,21 @@ export interface CreatePaymentOptionInput {
 }
 
 export async function createRow(input: CreatePaymentOptionInput): Promise<number> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    `INSERT INTO payment_options
-      (kind, gateway_key, name, description, is_enabled, sort_order, manual_flow, bank_details, merchant_credentials, ui_brand)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      input.kind,
-      input.gateway_key,
-      input.name,
-      input.description ?? null,
-      input.is_enabled === false ? 0 : 1,
-      input.sort_order ?? 0,
-      input.manual_flow ?? null,
-      input.bank_details != null ? JSON.stringify(input.bank_details) : null,
-      input.merchant_credentials != null ? JSON.stringify(input.merchant_credentials) : null,
-      input.ui_brand ?? 'generic',
-    ]
-  );
-  return result.insertId;
+  const id = await nextId('payment_options');
+  await PaymentOptionModel.create({
+    id,
+    kind: input.kind,
+    gateway_key: input.gateway_key,
+    name: input.name,
+    description: input.description ?? null,
+    is_enabled: input.is_enabled === false ? 0 : 1,
+    sort_order: input.sort_order ?? 0,
+    manual_flow: input.manual_flow ?? null,
+    bank_details: input.bank_details ?? null,
+    merchant_credentials: input.merchant_credentials ?? null,
+    ui_brand: input.ui_brand ?? 'generic',
+  });
+  return id;
 }
 
 export interface UpdatePaymentOptionInput {
@@ -151,68 +124,26 @@ export interface UpdatePaymentOptionInput {
 }
 
 export async function updateById(id: number, patch: UpdatePaymentOptionInput): Promise<boolean> {
-  const fields: string[] = [];
-  const vals: unknown[] = [];
-  if (patch.name !== undefined) {
-    fields.push('name = ?');
-    vals.push(patch.name);
+  const data: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(patch)) {
+    if (value !== undefined) data[key] = key === 'is_enabled' ? (value ? 1 : 0) : value;
   }
-  if (patch.description !== undefined) {
-    fields.push('description = ?');
-    vals.push(patch.description);
-  }
-  if (patch.is_enabled !== undefined) {
-    fields.push('is_enabled = ?');
-    vals.push(patch.is_enabled ? 1 : 0);
-  }
-  if (patch.sort_order !== undefined) {
-    fields.push('sort_order = ?');
-    vals.push(patch.sort_order);
-  }
-  if (patch.manual_flow !== undefined) {
-    fields.push('manual_flow = ?');
-    vals.push(patch.manual_flow);
-  }
-  if (patch.bank_details !== undefined) {
-    fields.push('bank_details = ?');
-    vals.push(patch.bank_details != null ? JSON.stringify(patch.bank_details) : null);
-  }
-  if (patch.merchant_credentials !== undefined) {
-    fields.push('merchant_credentials = ?');
-    vals.push(patch.merchant_credentials != null ? JSON.stringify(patch.merchant_credentials) : null);
-  }
-  if (patch.ui_brand !== undefined) {
-    fields.push('ui_brand = ?');
-    vals.push(patch.ui_brand);
-  }
-  if (fields.length === 0) return false;
-  vals.push(id);
-  const [result] = await pool.execute<ResultSetHeader>(
-    `UPDATE payment_options SET ${fields.join(', ')} WHERE id = ?`,
-    vals as (string | number | null)[]
-  );
-  return result.affectedRows > 0;
+  if (Object.keys(data).length === 0) return false;
+  const result = await PaymentOptionModel.updateOne({ id }, { $set: data });
+  return result.modifiedCount > 0;
 }
 
 export async function deleteById(id: number): Promise<boolean> {
-  const [result] = await pool.execute<ResultSetHeader>('DELETE FROM payment_options WHERE id = ?', [id]);
-  return result.affectedRows > 0;
+  const result = await PaymentOptionModel.deleteOne({ id });
+  return result.deletedCount > 0;
 }
 
 export async function countByGatewayKey(gatewayKey: string, excludeId?: number): Promise<number> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    excludeId != null
-      ? 'SELECT COUNT(*) AS c FROM payment_options WHERE gateway_key = ? AND id <> ?'
-      : 'SELECT COUNT(*) AS c FROM payment_options WHERE gateway_key = ?',
-    excludeId != null ? [gatewayKey, excludeId] : [gatewayKey]
-  );
-  return Number((rows[0] as { c: number }).c) || 0;
+  const query: Record<string, unknown> = { gateway_key: gatewayKey };
+  if (excludeId != null) query.id = { $ne: excludeId };
+  return PaymentOptionModel.countDocuments(query);
 }
 
 export async function countByKind(kind: 'manual' | 'merchant'): Promise<number> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT COUNT(*) AS c FROM payment_options WHERE kind = ?',
-    [kind]
-  );
-  return Number((rows[0] as { c: number }).c) || 0;
+  return PaymentOptionModel.countDocuments({ kind });
 }

@@ -1,6 +1,20 @@
-import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
-import pool from '../database/pool';
+import { CategoryModel } from '../database/models';
+import { nextId } from '../database/counter';
 import type { CategoryRow } from '../types/category';
+
+function toRow(doc: any): CategoryRow {
+  return {
+    id: Number(doc.id),
+    parent_id: doc.parent_id ?? null,
+    name: String(doc.name),
+    slug: String(doc.slug),
+    description: doc.description ?? null,
+    sort_order: Number(doc.sort_order ?? 0),
+    created_at: new Date(doc.created_at),
+    updated_at: new Date(doc.updated_at),
+    deleted_at: doc.deleted_at ? new Date(doc.deleted_at) : null,
+  };
+}
 
 export async function create(data: {
   parent_id: number | null;
@@ -9,11 +23,9 @@ export async function create(data: {
   description: string | null;
   sort_order: number;
 }): Promise<number> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    'INSERT INTO categories (parent_id, name, slug, description, sort_order) VALUES (?, ?, ?, ?, ?)',
-    [data.parent_id, data.name, data.slug, data.description ?? null, data.sort_order]
-  );
-  return result.insertId;
+  const id = await nextId('categories');
+  await CategoryModel.create({ id, ...data, deleted_at: null });
+  return id;
 }
 
 export async function update(
@@ -26,89 +38,44 @@ export async function update(
     sort_order?: number;
   }
 ): Promise<void> {
-  const updates: string[] = [];
-  const values: (number | string | null)[] = [];
-  if (data.parent_id !== undefined) {
-    updates.push('parent_id = ?');
-    values.push(data.parent_id);
-  }
-  if (data.name !== undefined) {
-    updates.push('name = ?');
-    values.push(data.name);
-  }
-  if (data.slug !== undefined) {
-    updates.push('slug = ?');
-    values.push(data.slug);
-  }
-  if (data.description !== undefined) {
-    updates.push('description = ?');
-    values.push(data.description);
-  }
-  if (data.sort_order !== undefined) {
-    updates.push('sort_order = ?');
-    values.push(data.sort_order);
-  }
-  if (updates.length === 0) return;
-  values.push(id);
-  await pool.execute(
-    `UPDATE categories SET ${updates.join(', ')} WHERE id = ? AND deleted_at IS NULL`,
-    values
-  );
+  await CategoryModel.updateOne({ id, deleted_at: null }, { $set: data });
 }
 
 export async function softDelete(id: number): Promise<boolean> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    'UPDATE categories SET deleted_at = CURRENT_TIMESTAMP(3) WHERE id = ? AND deleted_at IS NULL',
-    [id]
-  );
-  return result.affectedRows > 0;
+  const result = await CategoryModel.updateOne({ id, deleted_at: null }, { $set: { deleted_at: new Date() } });
+  return result.modifiedCount > 0;
 }
 
 export async function slugExists(slug: string, excludeId?: number): Promise<boolean> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    excludeId
-      ? 'SELECT 1 FROM categories WHERE slug = ? AND deleted_at IS NULL AND id != ? LIMIT 1'
-      : 'SELECT 1 FROM categories WHERE slug = ? AND deleted_at IS NULL LIMIT 1',
-    excludeId ? [slug, excludeId] : [slug]
-  );
-  return rows.length > 0;
+  const query: Record<string, unknown> = { slug, deleted_at: null };
+  if (excludeId != null) query.id = { $ne: excludeId };
+  return Boolean(await CategoryModel.exists(query));
 }
 
 export async function findById(id: number): Promise<CategoryRow | null> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT id, parent_id, name, slug, description, sort_order, created_at, updated_at, deleted_at FROM categories WHERE id = ? AND deleted_at IS NULL LIMIT 1',
-    [id]
-  );
-  return (rows[0] as CategoryRow) ?? null;
+  const row = await CategoryModel.findOne({ id, deleted_at: null }).lean();
+  return row ? toRow(row) : null;
 }
 
 export async function findBySlug(slug: string): Promise<CategoryRow | null> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT id, parent_id, name, slug, description, sort_order, created_at, updated_at, deleted_at FROM categories WHERE slug = ? AND deleted_at IS NULL LIMIT 1',
-    [slug]
-  );
-  return (rows[0] as CategoryRow) ?? null;
+  const row = await CategoryModel.findOne({ slug, deleted_at: null }).lean();
+  return row ? toRow(row) : null;
 }
 
 export async function findAll(): Promise<CategoryRow[]> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT id, parent_id, name, slug, description, sort_order, created_at, updated_at, deleted_at FROM categories WHERE deleted_at IS NULL ORDER BY sort_order ASC, name ASC'
-  );
-  return rows as CategoryRow[];
+  const rows = await CategoryModel.find({ deleted_at: null }).sort({ sort_order: 1, name: 1 }).lean();
+  return rows.map(toRow);
 }
 
 export async function countActive(): Promise<number> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT COUNT(*) AS total FROM categories WHERE deleted_at IS NULL'
-  );
-  return Number((rows[0] as { total: number }).total);
+  return CategoryModel.countDocuments({ deleted_at: null });
 }
 
 export async function findPage(limit: number, offset: number): Promise<CategoryRow[]> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT id, parent_id, name, slug, description, sort_order, created_at, updated_at, deleted_at
-     FROM categories WHERE deleted_at IS NULL ORDER BY sort_order ASC, name ASC LIMIT ? OFFSET ?`,
-    [limit, offset]
-  );
-  return rows as CategoryRow[];
+  const rows = await CategoryModel.find({ deleted_at: null })
+    .sort({ sort_order: 1, name: 1 })
+    .skip(offset)
+    .limit(limit)
+    .lean();
+  return rows.map(toRow);
 }

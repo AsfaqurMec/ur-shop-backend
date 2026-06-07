@@ -1,55 +1,7 @@
-import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
-import type { PoolConnection } from 'mysql2/promise';
-import pool from '../database/pool';
+import { DeliveryModel } from '../database/models';
+import { nextId } from '../database/counter';
 
 export type DeliveryStatus = 'pending' | 'processing' | 'delivered' | 'failed';
-
-export async function findByOrderId(orderId: number): Promise<DeliveryRow | null> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT id, order_id, status, notes, delivered_at, created_at, updated_at
-     FROM deliveries WHERE order_id = ? LIMIT 1`,
-    [orderId]
-  );
-  return (rows[0] as DeliveryRow) ?? null;
-}
-
-export async function create(orderId: number, status: DeliveryStatus = 'pending'): Promise<number> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    'INSERT INTO deliveries (order_id, status) VALUES (?, ?)',
-    [orderId, status]
-  );
-  return result.insertId;
-}
-
-export async function updateStatus(orderId: number, status: DeliveryStatus, notes?: string | null): Promise<boolean> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    'UPDATE deliveries SET status = ?, notes = COALESCE(?, notes), delivered_at = CASE WHEN ? = "delivered" THEN CURRENT_TIMESTAMP(3) ELSE delivered_at END WHERE order_id = ?',
-    [status, notes ?? null, status, orderId]
-  );
-  return result.affectedRows > 0;
-}
-
-export async function createOrUpdateToProcessing(orderId: number): Promise<void> {
-  const existing = await findByOrderId(orderId);
-  if (existing) {
-    await updateStatus(orderId, 'processing');
-  } else {
-    await create(orderId, 'processing');
-  }
-}
-
-export async function updateStatusWithConnection(
-  conn: PoolConnection,
-  orderId: number,
-  status: DeliveryStatus,
-  notes?: string | null
-): Promise<boolean> {
-  const [result] = await conn.execute<ResultSetHeader>(
-    'UPDATE deliveries SET status = ?, notes = COALESCE(?, notes), delivered_at = CASE WHEN ? = "delivered" THEN CURRENT_TIMESTAMP(3) ELSE delivered_at END WHERE order_id = ?',
-    [status, notes ?? null, status, orderId]
-  );
-  return result.affectedRows > 0;
-}
 
 export interface DeliveryRow {
   id: number;
@@ -59,4 +11,54 @@ export interface DeliveryRow {
   delivered_at: Date | null;
   created_at: Date;
   updated_at: Date;
+}
+
+function date(v: unknown): Date {
+  return v ? new Date(v as string | number | Date) : new Date();
+}
+
+function row(doc: any): DeliveryRow {
+  return {
+    id: Number(doc.id),
+    order_id: Number(doc.order_id),
+    status: String(doc.status),
+    notes: doc.notes ?? null,
+    delivered_at: doc.delivered_at ? date(doc.delivered_at) : null,
+    created_at: date(doc.created_at),
+    updated_at: date(doc.updated_at),
+  };
+}
+
+export async function findByOrderId(orderId: number): Promise<DeliveryRow | null> {
+  const doc = await DeliveryModel.findOne({ order_id: orderId }).lean();
+  return doc ? row(doc) : null;
+}
+
+export async function create(orderId: number, status: DeliveryStatus = 'pending'): Promise<number> {
+  const id = await nextId('deliveries');
+  await DeliveryModel.create({ id, order_id: orderId, status, notes: null, delivered_at: null });
+  return id;
+}
+
+export async function updateStatus(orderId: number, status: DeliveryStatus, notes?: string | null): Promise<boolean> {
+  const patch: Record<string, unknown> = { status };
+  if (notes != null) patch.notes = notes;
+  if (status === 'delivered') patch.delivered_at = new Date();
+  const result = await DeliveryModel.updateOne({ order_id: orderId }, { $set: patch });
+  return result.modifiedCount > 0;
+}
+
+export async function createOrUpdateToProcessing(orderId: number): Promise<void> {
+  const existing = await findByOrderId(orderId);
+  if (existing) await updateStatus(orderId, 'processing');
+  else await create(orderId, 'processing');
+}
+
+export async function updateStatusWithConnection(
+  _conn: unknown,
+  orderId: number,
+  status: DeliveryStatus,
+  notes?: string | null
+): Promise<boolean> {
+  return updateStatus(orderId, status, notes);
 }

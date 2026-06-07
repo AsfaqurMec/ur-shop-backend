@@ -1,6 +1,5 @@
-import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
-import type { PoolConnection } from 'mysql2/promise';
-import pool from '../database/pool';
+import { ProductModel, ProductVariationModel } from '../database/models';
+import { nextId } from '../database/counter';
 import { combinationSignature, parseCombination } from '../utils/combinationSignature';
 import { AppError } from '../middlewares/errorHandler';
 
@@ -27,136 +26,114 @@ export interface VariationReplaceInput {
   sort_order: number;
 }
 
-function rowToVariation(r: RowDataPacket): ProductVariationRow {
+function rowToVariation(r: any): ProductVariationRow {
   return {
-    id: r.id,
-    product_id: r.product_id,
+    id: Number(r.id),
+    product_id: Number(r.product_id),
     sku: r.sku ?? null,
     quantity: r.quantity != null ? Number(r.quantity) : null,
     price: Number(r.price),
     compare_at_price: r.compare_at_price != null ? Number(r.compare_at_price) : null,
-    enabled: r.enabled,
-    sort_order: r.sort_order,
+    enabled: Number(r.enabled ?? 1),
+    sort_order: Number(r.sort_order ?? 0),
     combination: parseCombination(r.combination),
     combination_signature: String(r.combination_signature),
   };
 }
 
 export async function findVariationsByProductId(productId: number): Promise<ProductVariationRow[]> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT id, product_id, sku, quantity, price, compare_at_price, enabled, sort_order, combination, combination_signature
-     FROM product_variations WHERE product_id = ? ORDER BY sort_order ASC, id ASC`,
-    [productId]
-  );
-  return (rows as RowDataPacket[]).map(rowToVariation);
+  const rows = await ProductVariationModel.find({ product_id: productId })
+    .sort({ sort_order: 1, id: 1 })
+    .lean();
+  return rows.map(rowToVariation);
 }
 
 export async function findVariationById(id: number): Promise<ProductVariationRow | null> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT id, product_id, sku, quantity, price, compare_at_price, enabled, sort_order, combination, combination_signature
-     FROM product_variations WHERE id = ? LIMIT 1`,
-    [id]
-  );
-  const r = rows[0] as RowDataPacket | undefined;
-  return r ? rowToVariation(r) : null;
+  const row = await ProductVariationModel.findOne({ id }).lean();
+  return row ? rowToVariation(row) : null;
 }
 
 export async function countEnabledVariations(productId: number): Promise<number> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT COUNT(*) AS c FROM product_variations WHERE product_id = ? AND enabled = 1',
-    [productId]
-  );
-  return Number((rows[0] as { c: number }).c);
+  return ProductVariationModel.countDocuments({ product_id: productId, enabled: 1 });
 }
 
-/** Adjust variation quantity by delta (negative = sold). Null quantity means unlimited/no stock tracking. */
-/** Set absolute stock for a variation (used to mirror license pool availability). */
 export async function setVariationQuantityAbsolute(variationId: number, quantity: number): Promise<void> {
-  await pool.execute('UPDATE product_variations SET quantity = ? WHERE id = ?', [quantity, variationId]);
+  await ProductVariationModel.updateOne({ id: variationId }, { $set: { quantity } });
 }
 
 export async function adjustVariationQuantity(
-  conn: PoolConnection,
+  _conn: unknown,
   variationId: number,
   delta: number
 ): Promise<void> {
   if (delta === 0) return;
-  const [rows] = await conn.execute<RowDataPacket[]>(
-    'SELECT id, quantity FROM product_variations WHERE id = ? FOR UPDATE',
-    [variationId]
-  );
-  const r = rows[0] as { id: number; quantity: number | null } | undefined;
-  if (!r) throw new AppError(400, 'Product option not found');
-  if (r.quantity == null) return;
-  const next = Number(r.quantity) + delta;
-  if (next < 0) {
-    throw new AppError(400, 'Not enough stock for this product option');
-  }
-  await conn.execute('UPDATE product_variations SET quantity = ? WHERE id = ?', [next, variationId]);
+  const row = await ProductVariationModel.findOne({ id: variationId }).lean();
+  if (!row) throw new AppError(400, 'Product option not found');
+  if (row.quantity == null) return;
+  const next = Number(row.quantity) + delta;
+  if (next < 0) throw new AppError(400, 'Not enough stock for this product option');
+  await ProductVariationModel.updateOne({ id: variationId }, { $set: { quantity: next } });
 }
 
-export async function deleteAllForProduct(conn: PoolConnection, productId: number): Promise<void> {
-  await conn.execute('UPDATE products SET default_variation_id = NULL WHERE id = ? AND default_variation_id IS NOT NULL', [
-    productId,
-  ]);
-  await conn.execute('DELETE FROM product_variations WHERE product_id = ?', [productId]);
+export async function deleteAllForProduct(_conn: unknown, productId: number): Promise<void> {
+  await ProductModel.updateOne(
+    { id: productId, default_variation_id: { $ne: null } },
+    { $set: { default_variation_id: null } }
+  );
+  await ProductVariationModel.deleteMany({ product_id: productId });
 }
 
 export async function replaceVariationsForProduct(
-  conn: PoolConnection,
+  conn: unknown,
   productId: number,
   inputs: VariationReplaceInput[]
 ): Promise<void> {
   await deleteAllForProduct(conn, productId);
   for (const v of inputs) {
     const sig = combinationSignature(v.combination);
-    const comboJson = JSON.stringify(v.combination);
-    // Plain string for JSON column — CAST(? AS JSON) with bound params often fails on mysql2/MySQL.
-    await conn.execute(
-      `INSERT INTO product_variations (product_id, sku, quantity, price, compare_at_price, enabled, sort_order, combination, combination_signature)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        productId,
-        v.sku ?? null,
-        v.quantity ?? null,
-        v.price,
-        v.compare_at_price ?? null,
-        v.enabled ? 1 : 0,
-        v.sort_order,
-        comboJson,
-        sig,
-      ]
-    );
+    await ProductVariationModel.create({
+      id: await nextId('product_variations'),
+      product_id: productId,
+      sku: v.sku ?? null,
+      quantity: v.quantity ?? null,
+      price: v.price,
+      compare_at_price: v.compare_at_price ?? null,
+      enabled: v.enabled ? 1 : 0,
+      sort_order: v.sort_order,
+      combination: v.combination,
+      combination_signature: sig,
+    });
   }
 }
 
-/** Insert any Cartesian combinations missing (enabled by default). */
 export async function insertGeneratedCombinations(
-  conn: PoolConnection,
+  _conn: unknown,
   productId: number,
   combos: Record<string, string>[],
   defaultPrice: number
 ): Promise<number> {
-  let added  = 0;
-  let order = 0;
-  const [maxRow] = await conn.execute<RowDataPacket[]>(
-    'SELECT COALESCE(MAX(sort_order), -1) AS m FROM product_variations WHERE product_id = ?',
-    [productId]
-  );
-  order = Number((maxRow[0] as { m: number })?.m) + 1;
+  let added = 0;
+  const last = await ProductVariationModel.findOne({ product_id: productId })
+    .sort({ sort_order: -1 })
+    .lean();
+  let order = Number(last?.sort_order ?? -1) + 1;
 
   for (const combo of combos) {
     const sig = combinationSignature(combo);
-    const [exists] = await conn.execute<RowDataPacket[]>(
-      'SELECT id FROM product_variations WHERE product_id = ? AND combination_signature = ? LIMIT 1',
-      [productId, sig]
-    );
-    if (exists.length > 0) continue;
-    await conn.execute(
-      `INSERT INTO product_variations (product_id, sku, quantity, price, compare_at_price, enabled, sort_order, combination, combination_signature)
-       VALUES (?, NULL, NULL, ?, NULL, 1, ?, ?, ?)`,
-      [productId, defaultPrice, order, JSON.stringify(combo), sig]
-    );
+    const exists = await ProductVariationModel.exists({ product_id: productId, combination_signature: sig });
+    if (exists) continue;
+    await ProductVariationModel.create({
+      id: await nextId('product_variations'),
+      product_id: productId,
+      sku: null,
+      quantity: null,
+      price: defaultPrice,
+      compare_at_price: null,
+      enabled: 1,
+      sort_order: order,
+      combination: combo,
+      combination_signature: sig,
+    });
     order += 1;
     added += 1;
   }

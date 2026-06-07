@@ -1,6 +1,4 @@
-import type { PoolConnection } from 'mysql2/promise';
 import { AppError } from '../middlewares/errorHandler';
-import pool from '../database/pool';
 import * as attrRepo from '../repositories/productAttributeRepository';
 import * as variationRepo from '../repositories/productVariationRepository';
 import * as productRepo from '../repositories/productRepository';
@@ -39,7 +37,6 @@ function buildVariationDimsFromInputs(inputs: AttributeReplaceInput[]): { key: s
 }
 
 async function insertAllVariationCombinationsForInputs(
-  conn: PoolConnection,
   productId: number,
   inputs: AttributeReplaceInput[],
   basePrice: number
@@ -47,7 +44,7 @@ async function insertAllVariationCombinationsForInputs(
   const dims = buildVariationDimsFromInputs(inputs);
   if (dims.length === 0) return 0;
   const combos = cartesian(dims);
-  return variationRepo.insertGeneratedCombinations(conn, productId, combos, basePrice);
+  return variationRepo.insertGeneratedCombinations(null, productId, combos, basePrice);
 }
 
 function parseAttributesFromBody(raw: unknown): AttributeReplaceInput[] {
@@ -168,19 +165,9 @@ export async function replaceCatalogAttributes(productId: number, body: { attrib
   const existing = await productRepo.findProductById(productId);
   if (!existing) throw new AppError(404, 'Product not found');
   const list = parseAttributesFromBody(body.attributes ?? []);
-  const conn = await pool.getConnection();
-  try {
-    await conn.beginTransaction();
-    await variationRepo.deleteAllForProduct(conn, productId);
-    await attrRepo.replaceAttributesForProduct(conn, productId, list);
-    await insertAllVariationCombinationsForInputs(conn, productId, list, Number(existing.price));
-    await conn.commit();
-  } catch (e) {
-    await conn.rollback();
-    throw e;
-  } finally {
-    conn.release();
-  }
+  await variationRepo.deleteAllForProduct(null, productId);
+  await attrRepo.replaceAttributesForProduct(null, productId, list);
+  await insertAllVariationCombinationsForInputs(productId, list, Number(existing.price));
 }
 
 export async function replaceCatalogVariations(productId: number, body: { variations?: unknown }): Promise<void> {
@@ -195,17 +182,7 @@ export async function replaceCatalogVariations(productId: number, body: { variat
       previousDefaultSignature = previousDefault.combination_signature;
     }
   }
-  const conn = await pool.getConnection();
-  try {
-    await conn.beginTransaction();
-    await variationRepo.replaceVariationsForProduct(conn, productId, list);
-    await conn.commit();
-  } catch (e) {
-    await conn.rollback();
-    throw e;
-  } finally {
-    conn.release();
-  }
+  await variationRepo.replaceVariationsForProduct(null, productId, list);
   if (previousDefaultSignature == null) return;
   const nextVariations = await variationRepo.findVariationsByProductId(productId);
   const restoredDefault = nextVariations.find(
@@ -232,21 +209,11 @@ export async function generateCatalogVariations(productId: number): Promise<{ ad
       }));
   if (dims.length === 0) return { added: 0 };
   const combos = cartesian(dims);
-  const conn = await pool.getConnection();
-  try {
-    await conn.beginTransaction();
-    const added = await variationRepo.insertGeneratedCombinations(
-      conn,
-      productId,
-      combos,
-      Number(product.price)
-    );
-    await conn.commit();
-    return { added };
-  } catch (e) {
-    await conn.rollback();
-    throw e;
-  } finally {
-    conn.release();
-  }
+  const added = await variationRepo.insertGeneratedCombinations(
+    null,
+    productId,
+    combos,
+    Number(product.price)
+  );
+  return { added };
 }

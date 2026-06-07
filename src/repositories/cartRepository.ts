@@ -1,62 +1,74 @@
-import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
-import pool from '../database/pool';
+import { CartItemModel, CartModel, ProductModel } from '../database/models';
+import { nextId } from '../database/counter';
 import type { CartRow, CartItemRow } from '../types/cart';
 
+function date(v: unknown): Date {
+  return v ? new Date(v as string | number | Date) : new Date();
+}
+
+function cartRow(doc: any): CartRow {
+  return {
+    id: Number(doc.id),
+    user_id: doc.user_id ?? null,
+    session_id: doc.session_id ?? null,
+    created_at: date(doc.created_at),
+    updated_at: date(doc.updated_at),
+  };
+}
+
+function itemRow(doc: any): CartItemRow & { cart_id: number } {
+  return {
+    id: Number(doc.id),
+    cart_id: Number(doc.cart_id),
+    product_id: Number(doc.product_id),
+    variation_id: doc.variation_id ?? null,
+    quantity: Number(doc.quantity ?? 1),
+    selections: doc.selections ?? null,
+    created_at: date(doc.created_at),
+    updated_at: date(doc.updated_at),
+  };
+}
+
 export async function findCartByUserId(userId: number): Promise<CartRow | null> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT id, user_id, session_id, created_at, updated_at FROM carts WHERE user_id = ? LIMIT 1',
-    [userId]
-  );
-  return (rows[0] as CartRow) ?? null;
+  const row = await CartModel.findOne({ user_id: userId }).lean();
+  return row ? cartRow(row) : null;
 }
 
 export async function createCart(userId: number): Promise<number> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    'INSERT INTO carts (user_id) VALUES (?)',
-    [userId]
-  );
-  return result.insertId;
+  const id = await nextId('carts');
+  await CartModel.create({ id, user_id: userId, session_id: null });
+  return id;
 }
 
 export async function findCartItemById(itemId: number): Promise<(CartItemRow & { cart_id: number }) | null> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT id, cart_id, product_id, variation_id, quantity, selections, created_at, updated_at FROM cart_items WHERE id = ? LIMIT 1',
-    [itemId]
-  );
-  return (rows[0] as CartItemRow & { cart_id: number }) ?? null;
+  const row = await CartItemModel.findOne({ id: itemId }).lean();
+  return row ? itemRow(row) : null;
 }
 
 export async function findCartItemByCartAndProduct(cartId: number, productId: number): Promise<CartItemRow | null> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT id, cart_id, product_id, variation_id, quantity, selections, created_at, updated_at FROM cart_items WHERE cart_id = ? AND product_id = ? LIMIT 1',
-    [cartId, productId]
-  );
-  return (rows[0] as CartItemRow) ?? null;
+  const row = await CartItemModel.findOne({ cart_id: cartId, product_id: productId }).lean();
+  return row ? itemRow(row) : null;
 }
 
-/** Match a cart line including variation and the same extra selections (canonical JSON). */
 export async function findCartItemByCartProductVariationAndSelections(
   cartId: number,
   productId: number,
   variationId: number | null,
   selectionsJson: string
 ): Promise<CartItemRow | null> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT id, cart_id, product_id, variation_id, quantity, selections, created_at, updated_at
-     FROM cart_items
-     WHERE cart_id = ? AND product_id = ? AND variation_id <=> ? AND CAST(selections AS CHAR) = ?
-     LIMIT 1`,
-    [cartId, productId, variationId, selectionsJson]
-  );
-  return (rows[0] as CartItemRow) ?? null;
+  const selections = JSON.parse(selectionsJson);
+  const row = await CartItemModel.findOne({
+    cart_id: cartId,
+    product_id: productId,
+    variation_id: variationId,
+    selections,
+  }).lean();
+  return row ? itemRow(row) : null;
 }
 
 export async function findCartItemsByCartId(cartId: number): Promise<CartItemRow[]> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT id, cart_id, product_id, variation_id, quantity, selections, created_at, updated_at FROM cart_items WHERE cart_id = ? ORDER BY id ASC',
-    [cartId]
-  );
-  return rows as CartItemRow[];
+  const rows = await CartItemModel.find({ cart_id: cartId }).sort({ id: 1 }).lean();
+  return rows.map(itemRow);
 }
 
 export interface CartItemWithProduct {
@@ -75,16 +87,28 @@ export interface CartItemWithProduct {
 }
 
 export async function findCartItemsWithProducts(cartId: number): Promise<CartItemWithProduct[]> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT ci.id, ci.cart_id, ci.product_id, ci.variation_id, ci.quantity, ci.selections,
-            p.name AS product_name, p.slug AS product_slug, p.product_type, p.quantity AS product_quantity, p.category_id, p.price AS base_price
-     FROM cart_items ci
-     INNER JOIN products p ON p.id = ci.product_id AND p.deleted_at IS NULL
-     WHERE ci.cart_id = ?
-     ORDER BY ci.id ASC`,
-    [cartId]
-  );
-  return rows as CartItemWithProduct[];
+  const items = await CartItemModel.find({ cart_id: cartId }).sort({ id: 1 }).lean();
+  const productIds = items.map((item: any) => Number(item.product_id));
+  const products = await ProductModel.find({ id: { $in: productIds }, deleted_at: null }).lean();
+  const productById = new Map(products.map((product: any) => [Number(product.id), product]));
+  return items.flatMap((item: any) => {
+    const product = productById.get(Number(item.product_id)) as any;
+    if (!product) return [];
+    return [{
+      id: Number(item.id),
+      cart_id: Number(item.cart_id),
+      product_id: Number(item.product_id),
+      variation_id: item.variation_id ?? null,
+      quantity: Number(item.quantity ?? 1),
+      selections: item.selections ?? null,
+      product_name: String(product.name),
+      product_slug: String(product.slug),
+      product_type: String(product.product_type),
+      product_quantity: product.quantity != null ? Number(product.quantity) : null,
+      category_id: product.category_id ?? null,
+      base_price: Number(product.price ?? 0),
+    }];
+  });
 }
 
 export async function createCartItem(
@@ -94,29 +118,21 @@ export async function createCartItem(
   quantity: number,
   selections: Record<string, string>
 ): Promise<number> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    'INSERT INTO cart_items (cart_id, product_id, variation_id, quantity, selections) VALUES (?, ?, ?, ?, ?)',
-    [cartId, productId, variationId, quantity, JSON.stringify(selections)]
-  );
-  return result.insertId;
+  const id = await nextId('cart_items');
+  await CartItemModel.create({ id, cart_id: cartId, product_id: productId, variation_id: variationId, quantity, selections });
+  return id;
 }
 
 export async function updateCartItemQuantity(cartId: number, itemId: number, quantity: number): Promise<boolean> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    'UPDATE cart_items SET quantity = ? WHERE id = ? AND cart_id = ?',
-    [quantity, itemId, cartId]
-  );
-  return result.affectedRows > 0;
+  const result = await CartItemModel.updateOne({ id: itemId, cart_id: cartId }, { $set: { quantity } });
+  return result.modifiedCount > 0;
 }
 
 export async function deleteCartItem(cartId: number, itemId: number): Promise<boolean> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    'DELETE FROM cart_items WHERE id = ? AND cart_id = ?',
-    [itemId, cartId]
-  );
-  return result.affectedRows > 0;
+  const result = await CartItemModel.deleteOne({ id: itemId, cart_id: cartId });
+  return result.deletedCount > 0;
 }
 
 export async function deleteCartItemsByCartId(cartId: number): Promise<void> {
-  await pool.execute('DELETE FROM cart_items WHERE cart_id = ?', [cartId]);
+  await CartItemModel.deleteMany({ cart_id: cartId });
 }

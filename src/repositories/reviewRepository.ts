@@ -1,6 +1,26 @@
-import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
-import pool from '../database/pool';
+import { CategoryModel, ProductModel, ReviewModel } from '../database/models';
+import { nextId } from '../database/counter';
 import type { ReviewRow } from '../types/review';
+
+function date(v: unknown): Date {
+  return v ? new Date(v as string | number | Date) : new Date();
+}
+
+function row(doc: any): ReviewRow {
+  return {
+    id: Number(doc.id),
+    product_id: Number(doc.product_id),
+    user_id: Number(doc.user_id),
+    order_id: doc.order_id ?? null,
+    rating: Number(doc.rating ?? 0),
+    title: doc.title ?? null,
+    body: doc.body ?? null,
+    status: doc.status ?? 'approved',
+    created_at: date(doc.created_at),
+    updated_at: date(doc.updated_at),
+    deleted_at: doc.deleted_at ? date(doc.deleted_at) : null,
+  };
+}
 
 export async function create(data: {
   product_id: number;
@@ -10,37 +30,19 @@ export async function create(data: {
   title: string | null;
   body: string | null;
 }): Promise<number> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    `INSERT INTO reviews (product_id, user_id, order_id, rating, title, body, status)
-     VALUES (?, ?, ?, ?, ?, ?, 'approved')`,
-    [
-      data.product_id,
-      data.user_id,
-      data.order_id ?? null,
-      data.rating,
-      data.title ?? null,
-      data.body ?? null,
-    ]
-  );
-  return result.insertId;
+  const id = await nextId('reviews');
+  await ReviewModel.create({ id, ...data, status: 'approved', deleted_at: null });
+  return id;
 }
 
 export async function findById(id: number): Promise<ReviewRow | null> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT id, product_id, user_id, order_id, rating, title, body, status, created_at, updated_at, deleted_at
-     FROM reviews WHERE id = ? LIMIT 1`,
-    [id]
-  );
-  return (rows[0] as ReviewRow) ?? null;
+  const doc = await ReviewModel.findOne({ id }).lean();
+  return doc ? row(doc) : null;
 }
 
 export async function findByUserAndProduct(userId: number, productId: number): Promise<ReviewRow | null> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT id, product_id, user_id, order_id, rating, title, body, status, created_at, updated_at, deleted_at
-     FROM reviews WHERE user_id = ? AND product_id = ? LIMIT 1`,
-    [userId, productId]
-  );
-  return (rows[0] as ReviewRow) ?? null;
+  const doc = await ReviewModel.findOne({ user_id: userId, product_id: productId }).lean();
+  return doc ? row(doc) : null;
 }
 
 export interface ReviewListRow {
@@ -57,30 +59,20 @@ export interface ReviewListRow {
   deleted_at: Date | null;
 }
 
-/** Public list: not hidden (admin can hide; no separate approval step). */
 export async function findByProductIdPublic(
   productId: number,
   options: { limit?: number; offset?: number } = {}
 ): Promise<ReviewListRow[]> {
-  const limit = Math.min(options.limit ?? 50, 100);
-  const offset = options.offset ?? 0;
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT id, product_id, user_id, order_id, rating, title, body, status, created_at, updated_at, deleted_at
-     FROM reviews
-     WHERE product_id = ? AND deleted_at IS NULL
-     ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-    [productId, limit, offset]
-  );
-  return rows as ReviewListRow[];
+  const rows = await ReviewModel.find({ product_id: productId, deleted_at: null })
+    .sort({ created_at: -1 })
+    .skip(options.offset ?? 0)
+    .limit(Math.min(options.limit ?? 50, 100))
+    .lean();
+  return rows.map(row);
 }
 
 export async function countByProductIdPublic(productId: number): Promise<number> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT COUNT(*) AS total FROM reviews
-     WHERE product_id = ? AND deleted_at IS NULL`,
-    [productId]
-  );
-  return Number((rows[0] as { total: number }).total);
+  return ReviewModel.countDocuments({ product_id: productId, deleted_at: null });
 }
 
 export interface ReviewAdminTableJoinRow extends ReviewListRow {
@@ -90,112 +82,83 @@ export interface ReviewAdminTableJoinRow extends ReviewListRow {
   category_name: string | null;
 }
 
-function adminListWhereClause(categoryId?: number): { clause: string; params: (number | null)[] } {
-  let clause = 'WHERE p.deleted_at IS NULL';
-  const params: (number | null)[] = [];
-  if (categoryId === 0) {
-    clause += ' AND p.category_id IS NULL';
-  } else if (categoryId != null && categoryId > 0) {
-    clause += ' AND p.category_id = ?';
-    params.push(categoryId);
-  }
-  return { clause, params };
+async function enrichAdminRows(reviews: any[]): Promise<ReviewAdminTableJoinRow[]> {
+  const productIds = [...new Set(reviews.map((r) => Number(r.product_id)))];
+  const products = await ProductModel.find({ id: { $in: productIds }, deleted_at: null }).lean();
+  const categoryIds = [...new Set(products.map((p: any) => p.category_id).filter((id) => id != null).map(Number))];
+  const categories = await CategoryModel.find({ id: { $in: categoryIds }, deleted_at: null }).lean();
+  const productById = new Map(products.map((p: any) => [Number(p.id), p]));
+  const categoryById = new Map(categories.map((c: any) => [Number(c.id), c]));
+  return reviews.flatMap((reviewDoc) => {
+    const product = productById.get(Number(reviewDoc.product_id)) as any;
+    if (!product) return [];
+    const category = product.category_id != null ? categoryById.get(Number(product.category_id)) as any : null;
+    return [{
+      ...row(reviewDoc),
+      product_name: String(product.name),
+      product_slug: String(product.slug),
+      category_id: product.category_id ?? null,
+      category_name: category ? String(category.name) : null,
+    }];
+  });
 }
 
-/** Admin: paginated list with optional category filter (omit = all; 0 = uncategorized). */
+function productQueryForCategory(categoryId: number | undefined): Record<string, unknown> {
+  const query: Record<string, unknown> = { deleted_at: null };
+  if (categoryId === 0) query.category_id = null;
+  else if (categoryId != null && categoryId > 0) query.category_id = categoryId;
+  return query;
+}
+
 export async function findAllAdmin(
   categoryId: number | undefined,
   options: { limit?: number; offset?: number } = {}
 ): Promise<ReviewAdminTableJoinRow[]> {
-  const limit = Math.min(options.limit ?? 10, 100);
-  const offset = options.offset ?? 0;
-  const { clause, params: whereParams } = adminListWhereClause(categoryId);
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT r.id, r.product_id, r.user_id, r.order_id, r.rating, r.title, r.body, r.status,
-            r.created_at, r.updated_at, r.deleted_at,
-            p.name AS product_name, p.slug AS product_slug, p.category_id AS category_id, c.name AS category_name
-     FROM reviews r
-     INNER JOIN products p ON p.id = r.product_id
-     LEFT JOIN categories c ON c.id = p.category_id AND c.deleted_at IS NULL
-     ${clause}
-     ORDER BY r.created_at DESC
-     LIMIT ? OFFSET ?`,
-    [...whereParams, limit, offset]
-  );
-  return rows as ReviewAdminTableJoinRow[];
+  const products = await ProductModel.find(productQueryForCategory(categoryId)).select({ id: 1 }).lean();
+  const productIds = products.map((p: any) => Number(p.id));
+  const rows = await ReviewModel.find({ product_id: { $in: productIds } })
+    .sort({ created_at: -1 })
+    .skip(options.offset ?? 0)
+    .limit(Math.min(options.limit ?? 10, 100))
+    .lean();
+  return enrichAdminRows(rows);
 }
 
 export async function countAllAdmin(categoryId: number | undefined): Promise<number> {
-  const { clause, params: whereParams } = adminListWhereClause(categoryId);
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT COUNT(*) AS total
-     FROM reviews r
-     INNER JOIN products p ON p.id = r.product_id
-     LEFT JOIN categories c ON c.id = p.category_id AND c.deleted_at IS NULL
-     ${clause}`,
-    whereParams
-  );
-  return Number((rows[0] as { total: number }).total);
+  const products = await ProductModel.find(productQueryForCategory(categoryId)).select({ id: 1 }).lean();
+  return ReviewModel.countDocuments({ product_id: { $in: products.map((p: any) => Number(p.id)) } });
 }
 
-/** Admin list: all reviews for a product (any status, including hidden). */
 export async function findByProductIdAdmin(
   productId: number,
   options: { limit?: number; offset?: number } = {}
 ): Promise<ReviewListRow[]> {
-  const limit = Math.min(options.limit ?? 50, 100);
-  const offset = options.offset ?? 0;
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT id, product_id, user_id, order_id, rating, title, body, status, created_at, updated_at, deleted_at
-     FROM reviews
-     WHERE product_id = ?
-     ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-    [productId, limit, offset]
-  );
-  return rows as ReviewListRow[];
+  const rows = await ReviewModel.find({ product_id: productId })
+    .sort({ created_at: -1 })
+    .skip(options.offset ?? 0)
+    .limit(Math.min(options.limit ?? 50, 100))
+    .lean();
+  return rows.map(row);
 }
 
 export async function countByProductIdAdmin(productId: number): Promise<number> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT COUNT(*) AS total FROM reviews WHERE product_id = ?`,
-    [productId]
-  );
-  return Number((rows[0] as { total: number }).total);
+  return ReviewModel.countDocuments({ product_id: productId });
 }
 
 export async function update(
   id: number,
   data: { rating?: number; title?: string | null; body?: string | null }
 ): Promise<boolean> {
-  const set: string[] = [];
-  const params: (number | string | null)[] = [];
-  if (data.rating !== undefined) {
-    set.push('rating = ?');
-    params.push(data.rating);
-  }
-  if (data.title !== undefined) {
-    set.push('title = ?');
-    params.push(data.title);
-  }
-  if (data.body !== undefined) {
-    set.push('body = ?');
-    params.push(data.body);
-  }
-  if (set.length === 0) return true;
-  params.push(id);
-  const [result] = await pool.execute<ResultSetHeader>(
-    `UPDATE reviews SET ${set.join(', ')} WHERE id = ?`,
-    params
-  );
-  return result.affectedRows > 0;
+  const patch: Record<string, unknown> = {};
+  if (data.rating !== undefined) patch.rating = data.rating;
+  if (data.title !== undefined) patch.title = data.title;
+  if (data.body !== undefined) patch.body = data.body;
+  if (Object.keys(patch).length === 0) return true;
+  const result = await ReviewModel.updateOne({ id }, { $set: patch });
+  return result.modifiedCount > 0;
 }
 
-/** Soft delete (hide). */
 export async function setHidden(id: number, hidden: boolean): Promise<boolean> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    `UPDATE reviews SET deleted_at = ? WHERE id = ?`,
-    [hidden ? new Date() : null, id]
-  );
-  return result.affectedRows > 0;
+  const result = await ReviewModel.updateOne({ id }, { $set: { deleted_at: hidden ? new Date() : null } });
+  return result.modifiedCount > 0;
 }
-

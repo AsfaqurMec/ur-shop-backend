@@ -1,5 +1,5 @@
-import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
-import pool from '../database/pool';
+import { EmailLogModel } from '../database/models';
+import { nextId } from '../database/counter';
 
 export type EmailLogStatus = 'sent' | 'failed';
 
@@ -21,83 +21,47 @@ export interface CreateEmailLogInput {
   error_message?: string | null;
 }
 
-export async function create(data: CreateEmailLogInput): Promise<number> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    `INSERT INTO email_logs (to_email, subject, template, status, error_message)
-     VALUES (?, ?, ?, ?, ?)`,
-    [
-      data.to_email,
-      data.subject ?? null,
-      data.template ?? null,
-      data.status,
-      data.error_message ?? null,
-    ]
-  );
-  return result.insertId;
+function date(v: unknown): Date {
+  return v ? new Date(v as string | number | Date) : new Date();
 }
 
-export async function findRecentByTo(toEmail: string, limit = 50): Promise<EmailLogRow[]> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT id, to_email, subject, template, status, error_message, sent_at
-     FROM email_logs WHERE to_email = ? ORDER BY sent_at DESC LIMIT ?`,
-    [toEmail, limit]
-  );
-  return rows as EmailLogRow[];
-}
-
-function mapEmailLogRows(rows: RowDataPacket[]): EmailLogRow[] {
-  return (rows as RowDataPacket[]).map((r) => ({
+function row(r: any): EmailLogRow {
+  return {
     id: Number(r.id),
     to_email: String(r.to_email),
     subject: r.subject != null ? String(r.subject) : null,
     template: r.template != null ? String(r.template) : null,
     status: r.status as EmailLogStatus,
     error_message: r.error_message != null ? String(r.error_message) : null,
-    sent_at: r.sent_at instanceof Date ? r.sent_at : new Date(r.sent_at as string),
-  }));
+    sent_at: date(r.sent_at ?? r.created_at),
+  };
 }
 
-/** Total rows, optionally filtered by exact template name. */
+export async function create(data: CreateEmailLogInput): Promise<number> {
+  const id = await nextId('email_logs');
+  await EmailLogModel.create({ id, ...data, error_message: data.error_message ?? null, sent_at: new Date() });
+  return id;
+}
+
+export async function findRecentByTo(toEmail: string, limit = 50): Promise<EmailLogRow[]> {
+  const rows = await EmailLogModel.find({ to_email: toEmail }).sort({ sent_at: -1, created_at: -1 }).limit(limit).lean();
+  return rows.map(row);
+}
+
 export async function countLogs(template?: string | null): Promise<number> {
-  if (template) {
-    const [rows] = await pool.execute<RowDataPacket[]>(
-      'SELECT COUNT(*) AS total FROM email_logs WHERE template = ?',
-      [template]
-    );
-    return Number((rows[0] as RowDataPacket).total);
-  }
-  const [rows] = await pool.execute<RowDataPacket[]>('SELECT COUNT(*) AS total FROM email_logs');
-  return Number((rows[0] as RowDataPacket).total);
+  return EmailLogModel.countDocuments(template ? { template } : {});
 }
 
-/** Latest first; optional template filter (exact match). */
-export async function listPaginated(
-  limit: number,
-  offset: number,
-  template?: string | null
-): Promise<EmailLogRow[]> {
-  if (template) {
-    const [rows] = await pool.execute<RowDataPacket[]>(
-      `SELECT id, to_email, subject, template, status, error_message, sent_at
-       FROM email_logs WHERE template = ? ORDER BY sent_at DESC LIMIT ? OFFSET ?`,
-      [template, limit, offset]
-    );
-    return mapEmailLogRows(rows);
-  }
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT id, to_email, subject, template, status, error_message, sent_at
-     FROM email_logs ORDER BY sent_at DESC LIMIT ? OFFSET ?`,
-    [limit, offset]
-  );
-  return mapEmailLogRows(rows);
+export async function listPaginated(limit: number, offset: number, template?: string | null): Promise<EmailLogRow[]> {
+  const rows = await EmailLogModel.find(template ? { template } : {})
+    .sort({ sent_at: -1, created_at: -1 })
+    .skip(offset)
+    .limit(limit)
+    .lean();
+  return rows.map(row);
 }
 
-/** Distinct non-empty template names for admin filters. */
 export async function listDistinctTemplates(): Promise<string[]> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT DISTINCT template FROM email_logs
-     WHERE template IS NOT NULL AND TRIM(template) != ''
-     ORDER BY template ASC`
-  );
-  return (rows as RowDataPacket[]).map((r) => String(r.template));
+  const values = await EmailLogModel.distinct('template', { template: { $nin: [null, ''] } });
+  return values.map(String).sort((a, b) => a.localeCompare(b));
 }

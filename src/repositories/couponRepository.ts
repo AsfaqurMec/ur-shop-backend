@@ -1,36 +1,49 @@
-import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
-import type { PoolConnection } from 'mysql2/promise';
-import pool from '../database/pool';
+import {
+  CouponCategoryModel,
+  CouponModel,
+  CouponProductModel,
+  CouponUsageModel,
+} from '../database/models';
+import { nextId } from '../database/counter';
 import type { CouponRow, CouponType } from '../types/coupon';
 
+function date(v: unknown): Date {
+  return v ? new Date(v as string | number | Date) : new Date();
+}
+
+function row(doc: any): CouponRow {
+  return {
+    id: Number(doc.id),
+    code: String(doc.code),
+    type: doc.type as CouponType,
+    value: Number(doc.value ?? 0),
+    min_order_amount: doc.min_order_amount != null ? Number(doc.min_order_amount) : null,
+    max_uses: doc.max_uses != null ? Number(doc.max_uses) : null,
+    max_uses_per_user: doc.max_uses_per_user != null ? Number(doc.max_uses_per_user) : null,
+    used_count: Number(doc.used_count ?? 0),
+    valid_from: doc.valid_from ? date(doc.valid_from) : null,
+    valid_until: doc.valid_until ? date(doc.valid_until) : null,
+    is_active: Number(doc.is_active ?? 1),
+    created_at: date(doc.created_at),
+    updated_at: date(doc.updated_at),
+    deleted_at: doc.deleted_at ? date(doc.deleted_at) : null,
+  };
+}
+
 export async function findByCode(code: string): Promise<CouponRow | null> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT id, code, type, value, min_order_amount, max_uses, max_uses_per_user, used_count,
-            valid_from, valid_until, is_active, created_at, updated_at, deleted_at
-     FROM coupons WHERE code = ? AND deleted_at IS NULL LIMIT 1`,
-    [code.trim().toUpperCase()]
-  );
-  return (rows[0] as CouponRow) ?? null;
+  const doc = await CouponModel.findOne({ code: code.trim().toUpperCase(), deleted_at: null }).lean();
+  return doc ? row(doc) : null;
 }
 
 export async function findById(id: number): Promise<CouponRow | null> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT id, code, type, value, min_order_amount, max_uses, max_uses_per_user, used_count,
-            valid_from, valid_until, is_active, created_at, updated_at, deleted_at
-     FROM coupons WHERE id = ? AND deleted_at IS NULL LIMIT 1`,
-    [id]
-  );
-  return (rows[0] as CouponRow) ?? null;
+  const doc = await CouponModel.findOne({ id, deleted_at: null }).lean();
+  return doc ? row(doc) : null;
 }
 
 export async function codeExists(code: string, excludeId?: number): Promise<boolean> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    excludeId
-      ? 'SELECT 1 FROM coupons WHERE code = ? AND deleted_at IS NULL AND id != ? LIMIT 1'
-      : 'SELECT 1 FROM coupons WHERE code = ? AND deleted_at IS NULL LIMIT 1',
-    excludeId ? [code.trim().toUpperCase(), excludeId] : [code.trim().toUpperCase()]
-  );
-  return rows.length > 0;
+  const query: Record<string, unknown> = { code: code.trim().toUpperCase(), deleted_at: null };
+  if (excludeId != null) query.id = { $ne: excludeId };
+  return Boolean(await CouponModel.exists(query));
 }
 
 export async function create(data: {
@@ -44,22 +57,15 @@ export async function create(data: {
   valid_until: Date | null;
   is_active: number;
 }): Promise<number> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    `INSERT INTO coupons (code, type, value, min_order_amount, max_uses, max_uses_per_user, valid_from, valid_until, is_active)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      data.code.trim().toUpperCase(),
-      data.type,
-      data.value,
-      data.min_order_amount ?? null,
-      data.max_uses ?? null,
-      data.max_uses_per_user ?? null,
-      data.valid_from ?? null,
-      data.valid_until ?? null,
-      data.is_active,
-    ]
-  );
-  return result.insertId;
+  const id = await nextId('coupons');
+  await CouponModel.create({
+    id,
+    ...data,
+    code: data.code.trim().toUpperCase(),
+    used_count: 0,
+    deleted_at: null,
+  });
+  return id;
 }
 
 export async function update(
@@ -76,155 +82,97 @@ export async function update(
     is_active?: number;
   }
 ): Promise<void> {
-  const updates: string[] = [];
-  const values: (number | string | null)[] = [];
-  const map: Record<string, keyof typeof data> = {
-    code: 'code',
-    type: 'type',
-    value: 'value',
-    min_order_amount: 'min_order_amount',
-    max_uses: 'max_uses',
-    max_uses_per_user: 'max_uses_per_user',
-    valid_from: 'valid_from',
-    valid_until: 'valid_until',
-    is_active: 'is_active',
-  };
-  for (const [key, prop] of Object.entries(map)) {
-    if (data[prop] !== undefined) {
-      updates.push(`${key} = ?`);
-      const v = data[prop];
-      values.push(key === 'code' && typeof v === 'string' ? v.trim().toUpperCase() : (v as number | string | null));
-    }
+  const updateData: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value !== undefined) updateData[key] = key === 'code' && typeof value === 'string' ? value.trim().toUpperCase() : value;
   }
-  if (updates.length === 0) return;
-  values.push(id);
-  await pool.execute(
-    `UPDATE coupons SET ${updates.join(', ')} WHERE id = ? AND deleted_at IS NULL`,
-    values
-  );
+  if (Object.keys(updateData).length === 0) return;
+  await CouponModel.updateOne({ id, deleted_at: null }, { $set: updateData });
 }
 
 export async function softDelete(id: number): Promise<boolean> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    'UPDATE coupons SET deleted_at = CURRENT_TIMESTAMP(3) WHERE id = ? AND deleted_at IS NULL',
-    [id]
-  );
-  return result.affectedRows > 0;
+  const result = await CouponModel.updateOne({ id, deleted_at: null }, { $set: { deleted_at: new Date() } });
+  return result.modifiedCount > 0;
 }
 
 export async function countUsagesByUser(couponId: number, userId: number): Promise<number> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT COUNT(*) AS total FROM coupon_usages WHERE coupon_id = ? AND user_id = ?',
-    [couponId, userId]
-  );
-  return (rows[0] as { total: number }).total;
+  return CouponUsageModel.countDocuments({ coupon_id: couponId, user_id: userId });
 }
 
 export async function incrementUsedCount(couponId: number): Promise<void> {
-  await pool.execute(
-    'UPDATE coupons SET used_count = used_count + 1 WHERE id = ?',
-    [couponId]
-  );
+  await CouponModel.updateOne({ id: couponId }, { $inc: { used_count: 1 } });
 }
 
 export async function recordUsage(couponId: number, orderId: number, userId: number, discountAmount: number): Promise<number> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    'INSERT INTO coupon_usages (coupon_id, order_id, user_id, discount_amount) VALUES (?, ?, ?, ?)',
-    [couponId, orderId, userId, discountAmount]
-  );
-  return result.insertId;
+  const id = await nextId('coupon_usages');
+  await CouponUsageModel.create({ id, coupon_id: couponId, order_id: orderId, user_id: userId, discount_amount: discountAmount });
+  return id;
 }
 
 export async function recordUsageWithConnection(
-  conn: PoolConnection,
+  _conn: unknown,
   couponId: number,
   orderId: number,
   userId: number,
   discountAmount: number
 ): Promise<number> {
-  const [result] = await conn.execute<ResultSetHeader>(
-    'INSERT INTO coupon_usages (coupon_id, order_id, user_id, discount_amount) VALUES (?, ?, ?, ?)',
-    [couponId, orderId, userId, discountAmount]
-  );
-  return result.insertId;
+  return recordUsage(couponId, orderId, userId, discountAmount);
 }
 
-export async function incrementUsedCountWithConnection(conn: PoolConnection, couponId: number): Promise<void> {
-  await conn.execute(
-    'UPDATE coupons SET used_count = used_count + 1 WHERE id = ?',
-    [couponId]
-  );
+export async function incrementUsedCountWithConnection(_conn: unknown, couponId: number): Promise<void> {
+  await incrementUsedCount(couponId);
 }
 
 export async function findCouponIdsUsedByOrderId(orderId: number): Promise<number[]> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT coupon_id FROM coupon_usages WHERE order_id = ?',
-    [orderId]
-  );
-  return (rows as { coupon_id: number }[]).map((r) => r.coupon_id);
+  const rows = await CouponUsageModel.find({ order_id: orderId }).lean();
+  return rows.map((r: any) => Number(r.coupon_id));
 }
 
 export async function deleteCouponUsagesForOrder(orderId: number): Promise<void> {
-  await pool.execute('DELETE FROM coupon_usages WHERE order_id = ?', [orderId]);
+  await CouponUsageModel.deleteMany({ order_id: orderId });
 }
 
 export async function decrementUsedCountById(couponId: number): Promise<void> {
-  await pool.execute(
-    'UPDATE coupons SET used_count = GREATEST(0, used_count - 1) WHERE id = ?',
-    [couponId]
-  );
+  await CouponModel.updateOne({ id: couponId }, { $inc: { used_count: -1 } });
+  const doc = await CouponModel.findOne({ id: couponId }).lean();
+  if (doc && Number(doc.used_count ?? 0) < 0) {
+    await CouponModel.updateOne({ id: couponId }, { $set: { used_count: 0 } });
+  }
 }
 
-/** Remove coupon_usages for an order and decrement global used_count (one per distinct coupon). */
 export async function rollbackCouponsForOrder(orderId: number): Promise<void> {
   const ids = await findCouponIdsUsedByOrderId(orderId);
   if (ids.length === 0) return;
   const unique = [...new Set(ids)];
   await deleteCouponUsagesForOrder(orderId);
-  for (const couponId of unique) {
-    await decrementUsedCountById(couponId);
-  }
+  for (const couponId of unique) await decrementUsedCountById(couponId);
 }
 
-// ---- coupon_products ----
 export async function setCouponProducts(couponId: number, productIds: number[]): Promise<void> {
-  await pool.execute('DELETE FROM coupon_products WHERE coupon_id = ?', [couponId]);
-  if (productIds.length === 0) return;
+  await CouponProductModel.deleteMany({ coupon_id: couponId });
   for (const productId of productIds) {
-    await pool.execute('INSERT INTO coupon_products (coupon_id, product_id) VALUES (?, ?)', [couponId, productId]);
+    await CouponProductModel.create({ id: await nextId('coupon_products'), coupon_id: couponId, product_id: productId });
   }
 }
 
 export async function getCouponProductIds(couponId: number): Promise<number[]> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT product_id FROM coupon_products WHERE coupon_id = ?',
-    [couponId]
-  );
-  return (rows as { product_id: number }[]).map((r) => r.product_id);
+  const rows = await CouponProductModel.find({ coupon_id: couponId }).lean();
+  return rows.map((r: any) => Number(r.product_id));
 }
 
-// ---- coupon_categories ----
 export async function setCouponCategories(couponId: number, categoryIds: number[]): Promise<void> {
-  await pool.execute('DELETE FROM coupon_categories WHERE coupon_id = ?', [couponId]);
-  if (categoryIds.length === 0) return;
+  await CouponCategoryModel.deleteMany({ coupon_id: couponId });
   for (const categoryId of categoryIds) {
-    await pool.execute('INSERT INTO coupon_categories (coupon_id, category_id) VALUES (?, ?)', [couponId, categoryId]);
+    await CouponCategoryModel.create({ id: await nextId('coupon_categories'), coupon_id: couponId, category_id: categoryId });
   }
 }
 
 export async function getCouponCategoryIds(couponId: number): Promise<number[]> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT category_id FROM coupon_categories WHERE coupon_id = ?',
-    [couponId]
-  );
-  return (rows as { category_id: number }[]).map((r) => r.category_id);
+  const rows = await CouponCategoryModel.find({ coupon_id: couponId }).lean();
+  return rows.map((r: any) => Number(r.category_id));
 }
 
 export async function findAll(): Promise<CouponRow[]> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT id, code, type, value, min_order_amount, max_uses, max_uses_per_user, used_count,
-            valid_from, valid_until, is_active, created_at, updated_at, deleted_at
-     FROM coupons WHERE deleted_at IS NULL ORDER BY created_at DESC`
-  );
-  return rows as CouponRow[];
+  const rows = await CouponModel.find({ deleted_at: null }).sort({ created_at: -1 }).lean();
+  return rows.map(row);
 }

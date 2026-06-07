@@ -1,21 +1,44 @@
-import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
-import pool from '../database/pool';
+import { AdminModel, AdminSessionModel } from '../database/models';
+import { nextId } from '../database/counter';
 import type { AdminRow, AdminSessionRow } from '../types/auth';
 
+function date(v: unknown): Date {
+  return v ? new Date(v as string | number | Date) : new Date();
+}
+
+function adminRow(doc: any): AdminRow {
+  return {
+    id: Number(doc.id),
+    email: String(doc.email),
+    password_hash: String(doc.password_hash),
+    name: String(doc.name),
+    role: String(doc.role ?? 'admin'),
+    created_at: date(doc.created_at),
+    updated_at: date(doc.updated_at),
+    deleted_at: doc.deleted_at ? date(doc.deleted_at) : null,
+  };
+}
+
+function sessionRow(doc: any): AdminSessionRow {
+  return {
+    id: Number(doc.id),
+    admin_id: Number(doc.admin_id),
+    token_hash: String(doc.token_hash),
+    ip: doc.ip ?? null,
+    user_agent: doc.user_agent ?? null,
+    expires_at: date(doc.expires_at),
+    created_at: date(doc.created_at),
+  };
+}
+
 export async function findAdminByEmail(email: string): Promise<AdminRow | null> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT id, email, password_hash, name, role, created_at, updated_at, deleted_at FROM admins WHERE email = ? AND deleted_at IS NULL LIMIT 1',
-    [email]
-  );
-  return (rows[0] as AdminRow) ?? null;
+  const row = await AdminModel.findOne({ email: email.trim(), deleted_at: null }).lean();
+  return row ? adminRow(row) : null;
 }
 
 export async function findAdminById(id: number): Promise<AdminRow | null> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT id, email, password_hash, name, role, created_at, updated_at, deleted_at FROM admins WHERE id = ? AND deleted_at IS NULL LIMIT 1',
-    [id]
-  );
-  return (rows[0] as AdminRow) ?? null;
+  const row = await AdminModel.findOne({ id, deleted_at: null }).lean();
+  return row ? adminRow(row) : null;
 }
 
 export async function createAdminSession(
@@ -25,39 +48,31 @@ export async function createAdminSession(
   ip: string | null,
   userAgent: string | null
 ): Promise<number> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    'INSERT INTO admin_sessions (admin_id, token_hash, expires_at, ip, user_agent) VALUES (?, ?, ?, ?, ?)',
-    [adminId, tokenHash, expiresAt, ip, userAgent]
-  );
-  return result.insertId;
+  const id = await nextId('admin_sessions');
+  await AdminSessionModel.create({ id, admin_id: adminId, token_hash: tokenHash, expires_at: expiresAt, ip, user_agent: userAgent });
+  return id;
 }
 
 export async function updateAdminSessionTokenHash(sessionId: number, tokenHash: string): Promise<void> {
-  await pool.execute('UPDATE admin_sessions SET token_hash = ? WHERE id = ?', [tokenHash, sessionId]);
+  await AdminSessionModel.updateOne({ id: sessionId }, { $set: { token_hash: tokenHash } });
 }
 
 export async function findAdminSessionByTokenHash(tokenHash: string): Promise<AdminSessionRow | null> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT id, admin_id, token_hash, ip, user_agent, expires_at, created_at FROM admin_sessions WHERE token_hash = ? LIMIT 1',
-    [tokenHash]
-  );
-  return (rows[0] as AdminSessionRow) ?? null;
+  const row = await AdminSessionModel.findOne({ token_hash: tokenHash }).lean();
+  return row ? sessionRow(row) : null;
 }
 
 export async function findAdminSessionById(sessionId: number): Promise<AdminSessionRow | null> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT id, admin_id, token_hash, ip, user_agent, expires_at, created_at FROM admin_sessions WHERE id = ? LIMIT 1',
-    [sessionId]
-  );
-  return (rows[0] as AdminSessionRow) ?? null;
+  const row = await AdminSessionModel.findOne({ id: sessionId }).lean();
+  return row ? sessionRow(row) : null;
 }
 
 export async function deleteAdminSessionById(sessionId: number): Promise<void> {
-  await pool.execute('DELETE FROM admin_sessions WHERE id = ?', [sessionId]);
+  await AdminSessionModel.deleteOne({ id: sessionId });
 }
 
 export async function deleteAllAdminSessionsForAdmin(adminId: number): Promise<void> {
-  await pool.execute('DELETE FROM admin_sessions WHERE admin_id = ?', [adminId]);
+  await AdminSessionModel.deleteMany({ admin_id: adminId });
 }
 
 export async function createAdmin(
@@ -66,23 +81,22 @@ export async function createAdmin(
   name: string,
   role: string
 ): Promise<number> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    'INSERT INTO admins (email, password_hash, name, role) VALUES (?, ?, ?, ?)',
-    [email, passwordHash, name, role]
-  );
-  return result.insertId;
+  const id = await nextId('admins');
+  await AdminModel.create({
+    id,
+    email: email.trim(),
+    password_hash: passwordHash,
+    name: name.trim(),
+    role,
+    deleted_at: null,
+  });
+  return id;
 }
 
 export async function updateAdminPassword(adminId: number, passwordHash: string): Promise<void> {
-  await pool.execute(
-    'UPDATE admins SET password_hash = ?, updated_at = CURRENT_TIMESTAMP(3) WHERE id = ? AND deleted_at IS NULL',
-    [passwordHash, adminId]
-  );
+  await AdminModel.updateOne({ id: adminId, deleted_at: null }, { $set: { password_hash: passwordHash } });
 }
 
 export async function updateAdminName(adminId: number, name: string): Promise<void> {
-  await pool.execute(
-    'UPDATE admins SET name = ?, updated_at = CURRENT_TIMESTAMP(3) WHERE id = ? AND deleted_at IS NULL',
-    [name.trim(), adminId]
-  );
+  await AdminModel.updateOne({ id: adminId, deleted_at: null }, { $set: { name: name.trim() } });
 }

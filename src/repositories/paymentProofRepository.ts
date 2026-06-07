@@ -1,5 +1,5 @@
-import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
-import pool from '../database/pool';
+import { OrderModel, PaymentProofModel, UserModel } from '../database/models';
+import { nextId } from '../database/counter';
 import type { PaymentProofRow, PaymentProofStatus } from '../types/payment';
 
 export type PaymentProofWithUserEmail = PaymentProofRow & {
@@ -9,6 +9,48 @@ export type PaymentProofWithUserEmail = PaymentProofRow & {
   order_currency: string;
 };
 
+function date(v: unknown): Date {
+  return v ? new Date(v as string | number | Date) : new Date();
+}
+
+function row(doc: any): PaymentProofRow {
+  return {
+    id: Number(doc.id),
+    order_id: Number(doc.order_id),
+    user_id: Number(doc.user_id),
+    sender_number: doc.sender_number ?? null,
+    transaction_id: doc.transaction_id ?? null,
+    paid_amount: doc.paid_amount != null ? Number(doc.paid_amount) : null,
+    file_path: doc.file_path ?? null,
+    status: (doc.status ?? 'pending') as PaymentProofStatus,
+    created_at: date(doc.created_at),
+    updated_at: date(doc.updated_at),
+  };
+}
+
+async function withAdminContext(proofs: any[]): Promise<PaymentProofWithUserEmail[]> {
+  const userIds = [...new Set(proofs.map((p) => Number(p.user_id)))];
+  const orderIds = [...new Set(proofs.map((p) => Number(p.order_id)))];
+  const [users, orders] = await Promise.all([
+    UserModel.find({ id: { $in: userIds }, deleted_at: null }).lean(),
+    OrderModel.find({ id: { $in: orderIds } }).lean(),
+  ]);
+  const userById = new Map(users.map((u: any) => [Number(u.id), u]));
+  const orderById = new Map(orders.map((o: any) => [Number(o.id), o]));
+  return proofs.flatMap((proof) => {
+    const user = userById.get(Number(proof.user_id)) as any;
+    const order = orderById.get(Number(proof.order_id)) as any;
+    if (!user || !order) return [];
+    return [{
+      ...row(proof),
+      user_email: String(user.email),
+      order_number: String(order.order_number),
+      order_total: Number(order.total ?? 0),
+      order_currency: String(order.currency ?? 'BDT'),
+    }];
+  });
+}
+
 export async function create(data: {
   order_id: number;
   user_id: number;
@@ -17,74 +59,38 @@ export async function create(data: {
   paid_amount: number | null;
   file_path: string | null;
 }): Promise<number> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    `INSERT INTO payment_proofs (order_id, user_id, sender_number, transaction_id, paid_amount, file_path)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [data.order_id, data.user_id, data.sender_number ?? null, data.transaction_id ?? null, data.paid_amount ?? null, data.file_path]
-  );
-  return result.insertId;
+  const id = await nextId('payment_proofs');
+  await PaymentProofModel.create({ id, ...data, status: 'pending' });
+  return id;
 }
 
 export async function findById(id: number): Promise<PaymentProofRow | null> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT id, order_id, user_id, sender_number, transaction_id, paid_amount, file_path, status, created_at, updated_at
-     FROM payment_proofs WHERE id = ? LIMIT 1`,
-    [id]
-  );
-  return (rows[0] as PaymentProofRow) ?? null;
+  const doc = await PaymentProofModel.findOne({ id }).lean();
+  return doc ? row(doc) : null;
 }
 
 export async function findByOrderId(orderId: number): Promise<PaymentProofRow[]> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT id, order_id, user_id, sender_number, transaction_id, paid_amount, file_path, status, created_at, updated_at
-     FROM payment_proofs WHERE order_id = ? ORDER BY created_at DESC`,
-    [orderId]
-  );
-  return rows as PaymentProofRow[];
+  const rows = await PaymentProofModel.find({ order_id: orderId }).sort({ created_at: -1 }).lean();
+  return rows.map(row);
 }
 
 export async function findAllPending(): Promise<PaymentProofWithUserEmail[]> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT p.id, p.order_id, p.user_id, p.sender_number, p.transaction_id, p.paid_amount, p.file_path, p.status, p.created_at, p.updated_at,
-            u.email AS user_email,
-            o.order_number, o.total AS order_total, o.currency AS order_currency
-     FROM payment_proofs p
-     INNER JOIN users u ON u.id = p.user_id
-     INNER JOIN orders o ON o.id = p.order_id
-     WHERE p.status = 'pending' AND u.deleted_at IS NULL
-     ORDER BY p.created_at ASC`
-  );
-  return rows as PaymentProofWithUserEmail[];
+  const rows = await PaymentProofModel.find({ status: 'pending' }).sort({ created_at: 1 }).lean();
+  return withAdminContext(rows);
 }
 
-function buildRecentForAdminWhere(
-  status: PaymentProofStatus | undefined,
-  excludePending: boolean | undefined
-): { clause: string; params: (string | number)[] } {
-  let clause = ' WHERE u.deleted_at IS NULL';
-  const params: (string | number)[] = [];
-  if (status) {
-    clause += ' AND p.status = ?';
-    params.push(status);
-  }
-  if (excludePending) {
-    clause += " AND p.status != 'pending'";
-  }
-  return { clause, params };
+function queryForAdmin(options: { status?: PaymentProofStatus; excludePending?: boolean }): Record<string, unknown> {
+  const query: Record<string, unknown> = {};
+  if (options.status) query.status = options.status;
+  if (options.excludePending) query.status = { $ne: 'pending' };
+  return query;
 }
 
 export async function countRecentForAdmin(options: {
   status?: PaymentProofStatus;
   excludePending?: boolean;
 }): Promise<number> {
-  const { clause, params } = buildRecentForAdminWhere(options.status, options.excludePending);
-  const sql = `SELECT COUNT(*) AS cnt
-               FROM payment_proofs p
-               INNER JOIN users u ON u.id = p.user_id
-               INNER JOIN orders o ON o.id = p.order_id${clause}`;
-  const [rows] = await pool.execute<RowDataPacket[]>(sql, params);
-  const n = Number((rows[0] as { cnt: number })?.cnt);
-  return Number.isFinite(n) ? n : 0;
+  return PaymentProofModel.countDocuments(queryForAdmin(options));
 }
 
 export async function findRecentForAdmin(options: {
@@ -93,24 +99,15 @@ export async function findRecentForAdmin(options: {
   status?: PaymentProofStatus;
   excludePending?: boolean;
 }): Promise<PaymentProofWithUserEmail[]> {
-  const { clause, params: whereParams } = buildRecentForAdminWhere(options.status, options.excludePending);
-  const offset = Math.max(0, options.offset ?? 0);
-  let sql = `SELECT p.id, p.order_id, p.user_id, p.sender_number, p.transaction_id, p.paid_amount, p.file_path, p.status, p.created_at, p.updated_at,
-                    u.email AS user_email,
-                    o.order_number, o.total AS order_total, o.currency AS order_currency
-             FROM payment_proofs p
-             INNER JOIN users u ON u.id = p.user_id
-             INNER JOIN orders o ON o.id = p.order_id${clause}
-             ORDER BY p.updated_at DESC LIMIT ? OFFSET ?`;
-  const params = [...whereParams, options.limit, offset];
-  const [rows] = await pool.execute<RowDataPacket[]>(sql, params);
-  return rows as PaymentProofWithUserEmail[];
+  const rows = await PaymentProofModel.find(queryForAdmin(options))
+    .sort({ updated_at: -1 })
+    .skip(Math.max(0, options.offset ?? 0))
+    .limit(options.limit)
+    .lean();
+  return withAdminContext(rows);
 }
 
 export async function updateStatus(id: number, status: PaymentProofStatus): Promise<boolean> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    'UPDATE payment_proofs SET status = ? WHERE id = ?',
-    [status, id]
-  );
-  return result.affectedRows > 0;
+  const result = await PaymentProofModel.updateOne({ id }, { $set: { status } });
+  return result.modifiedCount > 0;
 }

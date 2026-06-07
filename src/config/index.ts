@@ -61,11 +61,8 @@ export const env = {
   apiPrefix: getEnv('API_PREFIX', '/api'),
 
   db: {
-    host: getEnv('DB_HOST', 'localhost'),
-    port: getEnvNumber('DB_PORT', 3306),
-    user: getEnv('DB_USER', 'root'),
-    password: getEnv('DB_PASSWORD', ''),
-    database: getEnv('DB_NAME', 'digital_products'),
+    uri: (process.env.MONGODB_URL || process.env.MONGO_URL || '').trim(),
+    database: (process.env.MONGODB_DB || process.env.DB_NAME || 'ur_shop').trim(),
   },
 
   jwt: {

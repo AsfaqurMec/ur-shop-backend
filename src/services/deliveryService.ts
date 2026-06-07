@@ -1,5 +1,3 @@
-import type { PoolConnection } from 'mysql2/promise';
-import pool from '../database/pool';
 import { AppError } from '../middlewares/errorHandler';
 import * as orderRepo from '../repositories/orderRepository';
 import * as productRepo from '../repositories/productRepository';
@@ -54,31 +52,20 @@ export async function processOrderDelivery(orderId: number): Promise<{
   const items = await orderRepo.findOrderItems(orderId);
   if (items.length === 0) return { processed: 0, delivery_status: 'processing' };
 
-  const conn = await pool.getConnection();
-  try {
-    await conn.beginTransaction();
-
-    const outcomes: ItemFulfillmentOutcome[] = [];
-    const licenseProductsToSync = new Set<number>();
-    for (const item of items as (OrderItemRow & { quantity: number })[]) {
-      if (item.product_type === 'license_key') {
-        licenseProductsToSync.add(item.product_id);
-      }
-      outcomes.push(await processOrderItem(conn, orderId, order.user_id, item));
+  const outcomes: ItemFulfillmentOutcome[] = [];
+  const licenseProductsToSync = new Set<number>();
+  for (const item of items as (OrderItemRow & { quantity: number })[]) {
+    if (item.product_type === 'license_key') {
+      licenseProductsToSync.add(item.product_id);
     }
+    outcomes.push(await processOrderItem(orderId, order.user_id, item));
+  }
 
-    const needsFurtherProcessing = outcomes.some((o) => o === 'queued' || o === 'pending_setup');
-    const finalStatus: DeliveryStatus = needsFurtherProcessing ? 'processing' : 'delivered';
-    await deliveryRepo.updateStatusWithConnection(conn, orderId, finalStatus);
-    await conn.commit();
-    for (const pid of licenseProductsToSync) {
-      await productService.syncLicenseVariationQuantitiesForProduct(pid);
-    }
-  } catch (err) {
-    await conn.rollback();
-    throw err;
-  } finally {
-    conn.release();
+  const needsFurtherProcessing = outcomes.some((o) => o === 'queued' || o === 'pending_setup');
+  const finalStatus: DeliveryStatus = needsFurtherProcessing ? 'processing' : 'delivered';
+  await deliveryRepo.updateStatusWithConnection(null, orderId, finalStatus);
+  for (const pid of licenseProductsToSync) {
+    await productService.syncLicenseVariationQuantitiesForProduct(pid);
   }
 
   const delivery = await deliveryRepo.findByOrderId(orderId);
@@ -90,7 +77,6 @@ export async function processOrderDelivery(orderId: number): Promise<{
 
 /** Process a single order item by product_type. Reusable from processOrderDelivery. */
 async function processOrderItem(
-  conn: PoolConnection,
   orderId: number,
   userId: number,
   item: OrderItemRow & { quantity: number }
@@ -102,8 +88,8 @@ async function processOrderItem(
       const files = await productRepo.findProductFilesByProductId(item.product_id);
       const fileIds = files.map((f) => f.id);
       if (fileIds.length > 0) {
-        await downloadEntitlementRepo.createMany(conn, item.id, fileIds);
-        await deliveryLogRepo.create(conn, {
+        await downloadEntitlementRepo.createMany(null, item.id, fileIds);
+        await deliveryLogRepo.create(null, {
           order_id: orderId,
           order_item_id: item.id,
           action: 'entitlement_created',
@@ -115,20 +101,19 @@ async function processOrderItem(
     }
     case 'license_key': {
       const assigned = await productRepo.assignLicenseKeysToOrderItem(
-        conn,
+        null,
         item.product_id,
         item.id,
         item.quantity,
         item.product_variation_id
       );
-      await deliveryLogRepo.create(conn, {
+      await deliveryLogRepo.create(null, {
         order_id: orderId,
         order_item_id: item.id,
         action: 'license_assigned',
         details: { requested: item.quantity, assigned },
       });
       if (assigned < item.quantity) {
-        await conn.rollback();
         throw new AppError(400, `Insufficient license keys for product (order item ${item.id}): requested ${item.quantity}, available ${assigned}`);
       }
       return 'auto_fulfilled';
@@ -138,12 +123,12 @@ async function processOrderItem(
       const product = await productRepo.findProductById(item.product_id);
       const requiresManual = product ? Boolean(product.manual_fulfillment_required) : true;
       if (productType === 'subscription_manual' && !requiresManual) {
-        const exists = await subscriptionRepo.existsByOrderItemIdWithConnection(conn, item.id);
+        const exists = await subscriptionRepo.existsByOrderItemIdWithConnection(null, item.id);
         if (!exists) {
           const periodStart = new Date();
           const periodDays = subscriptionPeriodDaysFromOrderItem(item);
           const periodEnd = addDaysUtc(periodStart, periodDays);
-          await subscriptionRepo.createWithConnection(conn, {
+          await subscriptionRepo.createWithConnection(null, {
             order_id: orderId,
             order_item_id: item.id,
             user_id: userId,
@@ -153,7 +138,7 @@ async function processOrderItem(
             current_period_end: periodEnd,
           });
         }
-        await deliveryLogRepo.create(conn, {
+        await deliveryLogRepo.create(null, {
           order_id: orderId,
           order_item_id: item.id,
           action: 'subscription_activated_auto',
@@ -162,12 +147,12 @@ async function processOrderItem(
         return 'auto_fulfilled';
       }
       if (productType === 'subscription_manual' && requiresManual) {
-        const exists = await subscriptionRepo.existsByOrderItemIdWithConnection(conn, item.id);
+        const exists = await subscriptionRepo.existsByOrderItemIdWithConnection(null, item.id);
         if (!exists) {
           const periodStart = new Date();
           const periodDays = subscriptionPeriodDaysFromOrderItem(item);
           const periodEnd = addDaysUtc(periodStart, periodDays);
-          await subscriptionRepo.createWithConnection(conn, {
+          await subscriptionRepo.createWithConnection(null, {
             order_id: orderId,
             order_item_id: item.id,
             user_id: userId,
@@ -178,7 +163,7 @@ async function processOrderItem(
           });
         }
       }
-      await fulfillmentQueueRepo.create(conn, {
+      await fulfillmentQueueRepo.create(null, {
         order_id: orderId,
         order_item_id: item.id,
         product_id: item.product_id,
@@ -186,7 +171,7 @@ async function processOrderItem(
         user_id: userId,
         due_at: addHoursUtc(new Date(), 24),
       });
-      await deliveryLogRepo.create(conn, {
+      await deliveryLogRepo.create(null, {
         order_id: orderId,
         order_item_id: item.id,
         action: 'fulfillment_queued',
@@ -220,7 +205,6 @@ export async function markFulfillmentFulfilled(
   adminId: number,
   notes?: string | null
 ): Promise<FulfillmentQueuePublic> {
-  const conn = await pool.getConnection();
   let queueSnapshot: {
     order_id: number;
     order_item_id: number;
@@ -228,65 +212,49 @@ export async function markFulfillmentFulfilled(
     product_type: string;
   } | null = null;
 
-  try {
-    await conn.beginTransaction();
-    const row = await fulfillmentQueueRepo.findByIdForUpdate(conn, id);
-    if (!row) {
-      await conn.rollback();
-      throw new AppError(404, 'Fulfillment queue item not found');
-    }
-    if (row.status !== 'pending') {
-      await conn.rollback();
-      throw new AppError(400, 'Item is not pending');
-    }
-
-    if (row.product_type === 'subscription_manual') {
-      const exists = await subscriptionRepo.existsByOrderItemIdWithConnection(conn, row.order_item_id);
-      if (exists) {
-        await subscriptionRepo.updateStatusByOrderItemIdWithConnection(
-          conn,
-          row.order_item_id,
-          'active'
-        );
-      } else {
-        const periodStart = new Date();
-        const orderItems = await orderRepo.findOrderItems(row.order_id);
-        const orderItem = orderItems.find((i) => i.id === row.order_item_id);
-        const periodDays = subscriptionPeriodDaysFromOrderItem(
-          orderItem ?? { purchase_selections_summary: null }
-        );
-        const periodEnd = addDaysUtc(periodStart, periodDays);
-        await subscriptionRepo.createWithConnection(conn, {
-          order_id: row.order_id,
-          order_item_id: row.order_item_id,
-          user_id: row.user_id,
-          product_id: row.product_id,
-          status: 'active',
-          current_period_start: periodStart,
-          current_period_end: periodEnd,
-        });
-      }
-    }
-
-    const marked = await fulfillmentQueueRepo.markFulfilledWithConnection(conn, id, notes, adminId);
-    if (!marked) {
-      await conn.rollback();
-      throw new AppError(400, 'Item is not pending');
-    }
-
-    await conn.commit();
-    queueSnapshot = {
-      order_id: row.order_id,
-      order_item_id: row.order_item_id,
-      user_id: row.user_id,
-      product_type: row.product_type,
-    };
-  } catch (err) {
-    await conn.rollback();
-    throw err;
-  } finally {
-    conn.release();
+  const row = await fulfillmentQueueRepo.findByIdForUpdate(null, id);
+  if (!row) {
+    throw new AppError(404, 'Fulfillment queue item not found');
   }
+  if (row.status !== 'pending') {
+    throw new AppError(400, 'Item is not pending');
+  }
+
+  if (row.product_type === 'subscription_manual') {
+    const exists = await subscriptionRepo.existsByOrderItemIdWithConnection(null, row.order_item_id);
+    if (exists) {
+      await subscriptionRepo.updateStatusByOrderItemIdWithConnection(null, row.order_item_id, 'active');
+    } else {
+      const periodStart = new Date();
+      const orderItems = await orderRepo.findOrderItems(row.order_id);
+      const orderItem = orderItems.find((i) => i.id === row.order_item_id);
+      const periodDays = subscriptionPeriodDaysFromOrderItem(
+        orderItem ?? { purchase_selections_summary: null }
+      );
+      const periodEnd = addDaysUtc(periodStart, periodDays);
+      await subscriptionRepo.createWithConnection(null, {
+        order_id: row.order_id,
+        order_item_id: row.order_item_id,
+        user_id: row.user_id,
+        product_id: row.product_id,
+        status: 'active',
+        current_period_start: periodStart,
+        current_period_end: periodEnd,
+      });
+    }
+  }
+
+  const marked = await fulfillmentQueueRepo.markFulfilledWithConnection(null, id, notes, adminId);
+  if (!marked) {
+    throw new AppError(400, 'Item is not pending');
+  }
+
+  queueSnapshot = {
+    order_id: row.order_id,
+    order_item_id: row.order_item_id,
+    user_id: row.user_id,
+    product_type: row.product_type,
+  };
 
   if (queueSnapshot) {
     const stillPending = await fulfillmentQueueRepo.countPendingByOrderId(queueSnapshot.order_id);

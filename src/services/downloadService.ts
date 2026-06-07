@@ -2,7 +2,6 @@ import crypto from 'crypto';
 import path from 'path';
 import fs from 'fs';
 import type { Response } from 'express';
-import pool from '../database/pool';
 import { AppError } from '../middlewares/errorHandler';
 import { getProductFileAbsolutePath } from '../middlewares/upload';
 import * as entitlementRepo from '../repositories/downloadEntitlementRepository';
@@ -61,20 +60,13 @@ export async function createDownloadToken(
   const token = crypto.randomBytes(32).toString('hex');
   const expiresAt = new Date(Date.now() + TOKEN_EXPIRY_MINUTES * 60 * 1000);
 
-  const conn = await pool.getConnection();
-  try {
-    await conn.beginTransaction();
-    await downloadTokenRepo.create(conn, {
-      token,
-      entitlement_id: entitlementId,
-      user_id: userId,
-      expires_at: expiresAt,
-      max_uses: TOKEN_MAX_USES,
-    });
-    await conn.commit();
-  } finally {
-    conn.release();
-  }
+  await downloadTokenRepo.create(null, {
+    token,
+    entitlement_id: entitlementId,
+    user_id: userId,
+    expires_at: expiresAt,
+    max_uses: TOKEN_MAX_USES,
+  });
 
   // Path relative to API root (same base as the frontend PUBLIC_API_URL, which already includes apiPrefix).
   const url = `/downloads/file?token=${encodeURIComponent(token)}`;
@@ -121,25 +113,17 @@ export async function validateTokenAndStream(
   const absolutePath = getProductFileAbsolutePath(file.file_path);
   if (!fs.existsSync(absolutePath)) throw new AppError(404, 'File not found on server');
 
-  const conn = await pool.getConnection();
-  try {
-    await conn.beginTransaction();
-    const incremented = await downloadTokenRepo.incrementUseCount(conn, row.id);
-    if (!incremented) {
-      await conn.rollback();
-      throw new AppError(404, 'Invalid or expired download link');
-    }
-    await downloadRepo.create(conn, {
-      order_item_id: entitlement.order_item_id,
-      user_id: row.user_id,
-      product_file_id: entitlement.product_file_id,
-      ip,
-      user_agent: userAgent,
-    });
-    await conn.commit();
-  } finally {
-    conn.release();
+  const incremented = await downloadTokenRepo.incrementUseCount(null, row.id);
+  if (!incremented) {
+    throw new AppError(404, 'Invalid or expired download link');
   }
+  await downloadRepo.create(null, {
+    order_item_id: entitlement.order_item_id,
+    user_id: row.user_id,
+    product_file_id: entitlement.product_file_id,
+    ip,
+    user_agent: userAgent,
+  });
 
   const filename = file.file_name || path.basename(file.file_path);
   res.setHeader('Content-Disposition', `attachment; filename="${filename.replace(/"/g, '\\"')}"`);

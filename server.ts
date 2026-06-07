@@ -1,12 +1,14 @@
 import app from './app';
 import { env } from './src/config';
+import { connectMongo } from './src/database/mongo';
 import { startBkashStaleOrderCleanup } from './src/services/bkashStaleOrderService';
 import { getStoreSettings } from './src/services/storeSettingsService';
 
 const port = process.env.PORT || env.port;
 
-const server = app.listen(port, () => {
+const server = app.listen(port, async () => {
   console.log(`Server running on port ${port} (${env.nodeEnv})`);
+  await connectMongo();
   startBkashStaleOrderCleanup();
   getStoreSettings().catch(() => {
     // Keep email rendering resilient with env defaults when DB settings are unavailable.

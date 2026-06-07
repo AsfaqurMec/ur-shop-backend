@@ -1,25 +1,37 @@
-import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
-import pool from '../database/pool';
+import { OrderModel, TicketModel } from '../database/models';
+import { nextId } from '../database/counter';
 import type { TicketRow, TicketStatus } from '../types/ticket';
 
-export async function create(data: {
-  user_id: number;
-  order_id: number | null;
-  subject: string;
-}): Promise<number> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    'INSERT INTO tickets (user_id, order_id, subject) VALUES (?, ?, ?)',
-    [data.user_id, data.order_id ?? null, data.subject]
-  );
-  return result.insertId;
+function date(v: unknown): Date {
+  return v ? new Date(v as string | number | Date) : new Date();
+}
+
+function row(doc: any): TicketRow {
+  return {
+    id: Number(doc.id),
+    user_id: Number(doc.user_id),
+    order_id: doc.order_id ?? null,
+    subject: String(doc.subject),
+    status: (doc.status ?? 'open') as TicketStatus,
+    created_at: date(doc.created_at),
+    updated_at: date(doc.updated_at),
+  };
+}
+
+async function orderNumberMap(orderIds: number[]): Promise<Map<number, string>> {
+  const orders = await OrderModel.find({ id: { $in: orderIds } }).lean();
+  return new Map(orders.map((order: any) => [Number(order.id), String(order.order_number)]));
+}
+
+export async function create(data: { user_id: number; order_id: number | null; subject: string }): Promise<number> {
+  const id = await nextId('tickets');
+  await TicketModel.create({ id, user_id: data.user_id, order_id: data.order_id ?? null, subject: data.subject, status: 'open' });
+  return id;
 }
 
 export async function findById(id: number): Promise<TicketRow | null> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT id, user_id, order_id, subject, status, created_at, updated_at FROM tickets WHERE id = ? LIMIT 1',
-    [id]
-  );
-  return (rows[0] as TicketRow) ?? null;
+  const doc = await TicketModel.findOne({ id }).lean();
+  return doc ? row(doc) : null;
 }
 
 export interface TicketListRow {
@@ -32,87 +44,51 @@ export interface TicketListRow {
   updated_at: Date;
 }
 
-/** Customer: paginated list with optional status filter. */
+async function listRows(query: Record<string, unknown>, limit: number, offset: number): Promise<TicketListRow[]> {
+  const tickets = await TicketModel.find(query).sort({ updated_at: -1 }).skip(offset).limit(limit).lean();
+  const orderNumbers = await orderNumberMap(tickets.map((t: any) => t.order_id).filter((id) => id != null).map(Number));
+  return tickets.map((t: any) => ({
+    id: Number(t.id),
+    subject: String(t.subject),
+    status: String(t.status),
+    order_id: t.order_id ?? null,
+    order_number: t.order_id != null ? orderNumbers.get(Number(t.order_id)) ?? null : null,
+    created_at: date(t.created_at),
+    updated_at: date(t.updated_at),
+  }));
+}
+
 export async function findTicketsForUser(
   userId: number,
   options: { status?: TicketStatus; limit: number; offset: number }
 ): Promise<TicketListRow[]> {
-  let sql = `SELECT t.id, t.subject, t.status, t.order_id, o.order_number, t.created_at, t.updated_at
-     FROM tickets t
-     LEFT JOIN orders o ON o.id = t.order_id
-     WHERE t.user_id = ?`;
-  const params: (string | number)[] = [userId];
-  if (options.status) {
-    sql += ' AND t.status = ?';
-    params.push(options.status);
-  }
-  sql += ' ORDER BY t.updated_at DESC LIMIT ? OFFSET ?';
-  params.push(options.limit, options.offset);
-  const [rows] = await pool.execute<RowDataPacket[]>(sql, params);
-  return rows as TicketListRow[];
+  return listRows({ user_id: userId, ...(options.status ? { status: options.status } : {}) }, options.limit, options.offset);
 }
 
 export async function countTicketsForUser(userId: number, options: { status?: TicketStatus } = {}): Promise<number> {
-  let sql = 'SELECT COUNT(*) AS total FROM tickets WHERE user_id = ?';
-  const params: (string | number)[] = [userId];
-  if (options.status) {
-    sql += ' AND status = ?';
-    params.push(options.status);
-  }
-  const [rows] = await pool.execute<RowDataPacket[]>(sql, params);
-  return Number((rows[0] as { total: number }).total);
+  return TicketModel.countDocuments({ user_id: userId, ...(options.status ? { status: options.status } : {}) });
 }
 
 export async function findAll(options: { status?: TicketStatus; limit?: number; offset?: number } = {}): Promise<TicketListRow[]> {
-  let sql = `SELECT t.id, t.subject, t.status, t.order_id, o.order_number, t.created_at, t.updated_at
-             FROM tickets t
-             LEFT JOIN orders o ON o.id = t.order_id`;
-  const params: (string | number)[] = [];
-  if (options.status) {
-    sql += ' WHERE t.status = ?';
-    params.push(options.status);
-  }
-  sql += ' ORDER BY t.updated_at DESC';
-  const limit = Math.min(options.limit ?? 100, 200);
-  const offset = options.offset ?? 0;
-  sql += ' LIMIT ? OFFSET ?';
-  params.push(limit, offset);
-
-  const [rows] = await pool.execute<RowDataPacket[]>(sql, params);
-  return rows as TicketListRow[];
+  return listRows(options.status ? { status: options.status } : {}, Math.min(options.limit ?? 100, 200), options.offset ?? 0);
 }
 
 export async function updateStatus(id: number, status: TicketStatus): Promise<boolean> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    'UPDATE tickets SET status = ? WHERE id = ?',
-    [status, id]
-  );
-  return result.affectedRows > 0;
+  const result = await TicketModel.updateOne({ id }, { $set: { status } });
+  return result.modifiedCount > 0;
 }
 
 export async function findByIdWithOrderNumber(id: number): Promise<(TicketRow & { order_number: string | null }) | null> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT t.id, t.user_id, t.order_id, t.subject, t.status, t.created_at, t.updated_at, o.order_number
-     FROM tickets t
-     LEFT JOIN orders o ON o.id = t.order_id
-     WHERE t.id = ? LIMIT 1`,
-    [id]
-  );
-  return (rows[0] as (TicketRow & { order_number: string | null })) ?? null;
+  const ticket = await TicketModel.findOne({ id }).lean();
+  if (!ticket) return null;
+  const order = ticket.order_id != null ? await OrderModel.findOne({ id: Number(ticket.order_id) }).lean() : null;
+  return { ...row(ticket), order_number: order ? String((order as any).order_number) : null };
 }
 
 export async function countByStatus(status: TicketStatus): Promise<number> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT COUNT(*) AS total FROM tickets WHERE status = ?',
-    [status]
-  );
-  return Number((rows[0] as { total: number }).total);
+  return TicketModel.countDocuments({ status });
 }
 
 export async function countByUserIdAndStatus(userId: number, status: TicketStatus): Promise<number> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT COUNT(*) AS total FROM tickets WHERE user_id = ? AND status = ?',
-    [userId, status]
-  );
-  return Number((rows[0] as { total: number }).total);
+  return TicketModel.countDocuments({ user_id: userId, status });
 }

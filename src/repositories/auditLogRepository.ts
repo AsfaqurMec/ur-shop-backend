@@ -1,5 +1,5 @@
-import type { ResultSetHeader } from 'mysql2/promise';
-import pool from '../database/pool';
+import { AuditLogModel } from '../database/models';
+import { nextId } from '../database/counter';
 
 export async function create(data: {
   user_id: number | null;
@@ -11,19 +11,7 @@ export async function create(data: {
   new_values: Record<string, unknown> | null;
   ip: string | null;
 }): Promise<number> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    `INSERT INTO audit_logs (user_id, admin_id, action, entity_type, entity_id, old_values, new_values, ip)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      data.user_id ?? null,
-      data.admin_id ?? null,
-      data.action,
-      data.entity_type ?? null,
-      data.entity_id ?? null,
-      data.old_values ? JSON.stringify(data.old_values) : null,
-      data.new_values ? JSON.stringify(data.new_values) : null,
-      data.ip ?? null,
-    ]
-  );
-  return result.insertId;
+  const id = await nextId('audit_logs');
+  await AuditLogModel.create({ id, ...data });
+  return id;
 }

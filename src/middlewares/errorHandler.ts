@@ -18,13 +18,10 @@ export class AppError extends Error {
 function getMessageForError(err: Error): string {
   const code = (err as NodeJS.ErrnoException).code;
   if (code === 'ECONNREFUSED') {
-    return 'Database unavailable. Start MySQL (see docs/LOCAL-DATABASE.md).';
+    return 'Database unavailable. Check MONGODB_URL in .env and make sure MongoDB is reachable.';
   }
-  if (code === 'ER_ACCESS_DENIED_ERROR' || code === 'ER_DBACCESS_DENIED_ERROR') {
-    return 'Database connection denied. Check DB_USER and DB_PASSWORD in .env.';
-  }
-  if (code === 'ER_BAD_DB_ERROR') {
-    return 'Database does not exist. Run: npm run db:setup';
+  if (code === 'MongoServerSelectionError') {
+    return 'MongoDB connection failed. Check MONGODB_URL in .env.';
   }
   return 'Internal server error';
 }

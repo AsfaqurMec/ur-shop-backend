@@ -1,24 +1,5 @@
-import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
-import type { PoolConnection } from 'mysql2/promise';
-import pool from '../database/pool';
-
-let hasPendingActivationEnumCache: boolean | null = null;
-
-async function hasPendingActivationStatus(): Promise<boolean> {
-  if (hasPendingActivationEnumCache != null) return hasPendingActivationEnumCache;
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT COLUMN_TYPE AS column_type
-     FROM INFORMATION_SCHEMA.COLUMNS
-     WHERE TABLE_SCHEMA = DATABASE()
-       AND TABLE_NAME = 'subscriptions'
-       AND COLUMN_NAME = 'status'
-     LIMIT 1`
-  );
-  const raw = String((rows[0] as { column_type?: string } | undefined)?.column_type ?? '');
-  const exists = raw.includes("'pending_activation'");
-  hasPendingActivationEnumCache = exists;
-  return exists;
-}
+import { OrderItemModel, OrderModel, ProductModel, SubscriptionModel, UserModel } from '../database/models';
+import { nextId } from '../database/counter';
 
 export interface SubscriptionForUserRow {
   id: number;
@@ -35,7 +16,6 @@ export interface SubscriptionForUserRow {
   created_at: Date;
 }
 
-/** Row for “expires tomorrow” reminder emails (UTC calendar day). */
 export interface SubscriptionExpiryReminderRow {
   id: number;
   user_id: number;
@@ -47,52 +27,60 @@ export interface SubscriptionExpiryReminderRow {
   current_period_end: Date;
 }
 
+function date(v: unknown): Date {
+  return v ? new Date(v as string | number | Date) : new Date();
+}
+
 export async function findByOrderItemId(orderItemId: number): Promise<{ current_period_end: Date } | null> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT current_period_end FROM subscriptions WHERE order_item_id = ? LIMIT 1',
-    [orderItemId]
-  );
-  const r = rows[0] as { current_period_end: Date } | undefined;
-  return r ?? null;
+  const row = await SubscriptionModel.findOne({ order_item_id: orderItemId }).lean();
+  return row ? { current_period_end: date(row.current_period_end) } : null;
 }
 
 export async function findByUserId(userId: number): Promise<SubscriptionForUserRow[]> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT s.id, s.order_id, o.order_number, s.order_item_id, s.product_id, oi.product_name,
-            p.slug AS product_slug, oi.product_variation_id, s.status,
-            s.current_period_start, s.current_period_end, s.created_at
-     FROM subscriptions s
-     JOIN order_items oi ON oi.id = s.order_item_id
-     JOIN orders o ON o.id = s.order_id
-     JOIN products p ON p.id = s.product_id AND p.deleted_at IS NULL
-     WHERE s.user_id = ?
-     ORDER BY s.current_period_end ASC, s.created_at DESC`,
-    [userId]
-  );
-  return rows as SubscriptionForUserRow[];
+  const subs = await SubscriptionModel.find({ user_id: userId }).sort({ current_period_end: 1, created_at: -1 }).lean();
+  const orderIds = subs.map((s: any) => Number(s.order_id));
+  const itemIds = subs.map((s: any) => Number(s.order_item_id));
+  const productIds = subs.map((s: any) => Number(s.product_id));
+  const [orders, items, products] = await Promise.all([
+    OrderModel.find({ id: { $in: orderIds } }).lean(),
+    OrderItemModel.find({ id: { $in: itemIds } }).lean(),
+    ProductModel.find({ id: { $in: productIds }, deleted_at: null }).lean(),
+  ]);
+  const orderById = new Map(orders.map((o: any) => [Number(o.id), o]));
+  const itemById = new Map(items.map((i: any) => [Number(i.id), i]));
+  const productById = new Map(products.map((p: any) => [Number(p.id), p]));
+  return subs.flatMap((sub: any) => {
+    const order = orderById.get(Number(sub.order_id)) as any;
+    const item = itemById.get(Number(sub.order_item_id)) as any;
+    const product = productById.get(Number(sub.product_id)) as any;
+    if (!order || !item || !product) return [];
+    return [{
+      id: Number(sub.id),
+      order_id: Number(sub.order_id),
+      order_number: String(order.order_number),
+      order_item_id: Number(sub.order_item_id),
+      product_id: Number(sub.product_id),
+      product_name: String(item.product_name),
+      product_slug: String(product.slug),
+      product_variation_id: item.product_variation_id ?? null,
+      status: sub.status as SubscriptionForUserRow['status'],
+      current_period_start: date(sub.current_period_start),
+      current_period_end: date(sub.current_period_end),
+      created_at: date(sub.created_at),
+    }];
+  });
 }
 
 export async function countByUserId(userId: number): Promise<number> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT COUNT(*) AS total FROM subscriptions WHERE user_id = ?',
-    [userId]
-  );
-  return Number((rows[0] as { total: number }).total);
+  return SubscriptionModel.countDocuments({ user_id: userId });
 }
 
-export async function existsByOrderItemIdWithConnection(
-  conn: PoolConnection,
-  orderItemId: number
-): Promise<boolean> {
-  const [rows] = await conn.execute<RowDataPacket[]>(
-    'SELECT 1 FROM subscriptions WHERE order_item_id = ? LIMIT 1',
-    [orderItemId]
-  );
-  return rows.length > 0;
+export async function existsByOrderItemIdWithConnection(_conn: unknown, orderItemId: number): Promise<boolean> {
+  return Boolean(await SubscriptionModel.exists({ order_item_id: orderItemId }));
 }
 
 export async function createWithConnection(
-  conn: PoolConnection,
+  _conn: unknown,
   data: {
     order_id: number;
     order_item_id: number;
@@ -103,63 +91,64 @@ export async function createWithConnection(
     current_period_end: Date;
   }
 ): Promise<number> {
-  const supportsPendingActivation = await hasPendingActivationStatus();
-  const safeStatus =
-    data.status === 'pending_activation' && !supportsPendingActivation ? 'active' : (data.status ?? 'active');
-  const [result] = await conn.execute<ResultSetHeader>(
-    `INSERT INTO subscriptions (order_id, order_item_id, user_id, product_id, status, current_period_start, current_period_end)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [
-      data.order_id,
-      data.order_item_id,
-      data.user_id,
-      data.product_id,
-      safeStatus,
-      data.current_period_start,
-      data.current_period_end,
-    ]
-  );
-  return result.insertId;
+  const id = await nextId('subscriptions');
+  await SubscriptionModel.create({
+    id,
+    ...data,
+    status: data.status ?? 'active',
+    expiry_reminder_sent_at: null,
+  });
+  return id;
 }
 
 export async function updateStatusByOrderItemIdWithConnection(
-  conn: PoolConnection,
+  _conn: unknown,
   orderItemId: number,
   status: 'pending_activation' | 'active' | 'cancelled' | 'expired'
 ): Promise<boolean> {
-  const supportsPendingActivation = await hasPendingActivationStatus();
-  const safeStatus = status === 'pending_activation' && !supportsPendingActivation ? 'active' : status;
-  const [result] = await conn.execute<ResultSetHeader>(
-    `UPDATE subscriptions SET status = ? WHERE order_item_id = ?`,
-    [safeStatus, orderItemId]
-  );
-  return result.affectedRows > 0;
+  const result = await SubscriptionModel.updateOne({ order_item_id: orderItemId }, { $set: { status } });
+  return result.modifiedCount > 0;
 }
 
-/**
- * Active subscriptions whose period ends on tomorrow’s UTC date, reminder not yet sent.
- * Run once per UTC day (e.g. cron 08:00 UTC).
- */
 export async function findActiveNeedingExpiryReminderUtc(): Promise<SubscriptionExpiryReminderRow[]> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT s.id, s.user_id, u.email AS user_email, s.product_id, p.slug AS product_slug,
-            oi.product_name, oi.product_variation_id, s.current_period_end
-     FROM subscriptions s
-     INNER JOIN users u ON u.id = s.user_id
-     INNER JOIN products p ON p.id = s.product_id AND p.deleted_at IS NULL
-     INNER JOIN order_items oi ON oi.id = s.order_item_id
-     WHERE s.status = 'active'
-       AND s.expiry_reminder_sent_at IS NULL
-       AND s.current_period_end > UTC_TIMESTAMP(3)
-       AND DATE(s.current_period_end) = DATE(DATE_ADD(UTC_TIMESTAMP(3), INTERVAL 1 DAY))`
-  );
-  return rows as SubscriptionExpiryReminderRow[];
+  const now = new Date();
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0));
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 2, 0, 0, 0, 0));
+  const subs = await SubscriptionModel.find({
+    status: 'active',
+    expiry_reminder_sent_at: null,
+    current_period_end: { $gte: start, $lt: end },
+  }).lean();
+  const [users, products, items] = await Promise.all([
+    UserModel.find({ id: { $in: subs.map((s: any) => Number(s.user_id)) } }).lean(),
+    ProductModel.find({ id: { $in: subs.map((s: any) => Number(s.product_id)) }, deleted_at: null }).lean(),
+    OrderItemModel.find({ id: { $in: subs.map((s: any) => Number(s.order_item_id)) } }).lean(),
+  ]);
+  const userById = new Map(users.map((u: any) => [Number(u.id), u]));
+  const productById = new Map(products.map((p: any) => [Number(p.id), p]));
+  const itemById = new Map(items.map((i: any) => [Number(i.id), i]));
+  return subs.flatMap((sub: any) => {
+    const user = userById.get(Number(sub.user_id)) as any;
+    const product = productById.get(Number(sub.product_id)) as any;
+    const item = itemById.get(Number(sub.order_item_id)) as any;
+    if (!user || !product || !item) return [];
+    return [{
+      id: Number(sub.id),
+      user_id: Number(sub.user_id),
+      user_email: String(user.email),
+      product_id: Number(sub.product_id),
+      product_slug: String(product.slug),
+      product_name: String(item.product_name),
+      product_variation_id: item.product_variation_id ?? null,
+      current_period_end: date(sub.current_period_end),
+    }];
+  });
 }
 
 export async function markExpiryReminderSent(subscriptionId: number): Promise<boolean> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    `UPDATE subscriptions SET expiry_reminder_sent_at = UTC_TIMESTAMP(3) WHERE id = ? AND expiry_reminder_sent_at IS NULL`,
-    [subscriptionId]
+  const result = await SubscriptionModel.updateOne(
+    { id: subscriptionId, expiry_reminder_sent_at: null },
+    { $set: { expiry_reminder_sent_at: new Date() } }
   );
-  return result.affectedRows > 0;
+  return result.modifiedCount > 0;
 }

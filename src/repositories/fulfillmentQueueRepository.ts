@@ -1,32 +1,47 @@
-import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
-import type { PoolConnection } from 'mysql2/promise';
-import pool from '../database/pool';
+import { FulfillmentQueueModel, OrderItemModel, OrderModel, ProductModel } from '../database/models';
+import { nextId } from '../database/counter';
 import type { FulfillmentQueueProductType, FulfillmentQueueStatus } from '../types/delivery';
 
-let hasDueAtColumnCache: boolean | null = null;
-let hasFulfilledByAdminIdColumnCache: boolean | null = null;
+export interface FulfillmentQueueRow {
+  id: number;
+  order_id: number;
+  order_item_id: number;
+  product_id: number;
+  product_type: FulfillmentQueueProductType;
+  user_id: number;
+  status: FulfillmentQueueStatus;
+  notes: string | null;
+  due_at: Date | null;
+  fulfilled_at: Date | null;
+  fulfilled_by_admin_id: number | null;
+  created_at: Date;
+  updated_at: Date;
+}
 
-async function hasColumn(columnName: 'due_at' | 'fulfilled_by_admin_id'): Promise<boolean> {
-  if (columnName === 'due_at' && hasDueAtColumnCache != null) return hasDueAtColumnCache;
-  if (columnName === 'fulfilled_by_admin_id' && hasFulfilledByAdminIdColumnCache != null) {
-    return hasFulfilledByAdminIdColumnCache;
-  }
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT COUNT(*) AS c
-     FROM INFORMATION_SCHEMA.COLUMNS
-     WHERE TABLE_SCHEMA = DATABASE()
-       AND TABLE_NAME = 'fulfillment_queue'
-       AND COLUMN_NAME = ?`,
-    [columnName]
-  );
-  const exists = Number((rows[0] as { c: number }).c) > 0;
-  if (columnName === 'due_at') hasDueAtColumnCache = exists;
-  if (columnName === 'fulfilled_by_admin_id') hasFulfilledByAdminIdColumnCache = exists;
-  return exists;
+function date(v: unknown): Date {
+  return v ? new Date(v as string | number | Date) : new Date();
+}
+
+function row(doc: any): FulfillmentQueueRow {
+  return {
+    id: Number(doc.id),
+    order_id: Number(doc.order_id),
+    order_item_id: Number(doc.order_item_id),
+    product_id: Number(doc.product_id),
+    product_type: doc.product_type as FulfillmentQueueProductType,
+    user_id: Number(doc.user_id),
+    status: (doc.status ?? 'pending') as FulfillmentQueueStatus,
+    notes: doc.notes ?? null,
+    due_at: doc.due_at ? date(doc.due_at) : null,
+    fulfilled_at: doc.fulfilled_at ? date(doc.fulfilled_at) : null,
+    fulfilled_by_admin_id: doc.fulfilled_by_admin_id ?? null,
+    created_at: date(doc.created_at),
+    updated_at: date(doc.updated_at),
+  };
 }
 
 export async function create(
-  conn: PoolConnection,
+  _conn: unknown,
   data: {
     order_id: number;
     order_item_id: number;
@@ -36,44 +51,26 @@ export async function create(
     due_at?: Date | null;
   }
 ): Promise<number> {
-  const hasDueAt = await hasColumn('due_at');
-  const [result] = hasDueAt
-    ? await conn.execute<ResultSetHeader>(
-        `INSERT INTO fulfillment_queue (order_id, order_item_id, product_id, product_type, user_id, due_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [data.order_id, data.order_item_id, data.product_id, data.product_type, data.user_id, data.due_at ?? null]
-      )
-    : await conn.execute<ResultSetHeader>(
-        `INSERT INTO fulfillment_queue (order_id, order_item_id, product_id, product_type, user_id)
-         VALUES (?, ?, ?, ?, ?)`,
-        [data.order_id, data.order_item_id, data.product_id, data.product_type, data.user_id]
-      );
-  return result.insertId;
+  const id = await nextId('fulfillment_queue');
+  await FulfillmentQueueModel.create({
+    id,
+    ...data,
+    due_at: data.due_at ?? null,
+    status: 'pending',
+    notes: null,
+    fulfilled_at: null,
+    fulfilled_by_admin_id: null,
+  });
+  return id;
 }
 
 export async function findPending(): Promise<FulfillmentQueueRow[]> {
-  const [hasDueAt, hasFulfilledByAdminId] = await Promise.all([
-    hasColumn('due_at'),
-    hasColumn('fulfilled_by_admin_id'),
-  ]);
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT id, order_id, order_item_id, product_id, product_type, user_id, status, notes,
-            ${hasDueAt ? 'due_at' : 'NULL AS due_at'},
-            fulfilled_at,
-            ${hasFulfilledByAdminId ? 'fulfilled_by_admin_id' : 'NULL AS fulfilled_by_admin_id'},
-            created_at, updated_at
-     FROM fulfillment_queue WHERE status = 'pending' ORDER BY created_at ASC`
-  );
-  return rows as FulfillmentQueueRow[];
+  const rows = await FulfillmentQueueModel.find({ status: 'pending' }).sort({ created_at: 1, id: 1 }).lean();
+  return rows.map(row);
 }
 
-/** Count queue rows still waiting on admin/manual fulfillment for an order. */
 export async function countPendingByOrderId(orderId: number): Promise<number> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT COUNT(*) AS c FROM fulfillment_queue WHERE order_id = ? AND status = 'pending'`,
-    [orderId]
-  );
-  return Number((rows[0] as { c: number }).c);
+  return FulfillmentQueueModel.countDocuments({ order_id: orderId, status: 'pending' });
 }
 
 export interface FulfillmentForUserRow {
@@ -94,115 +91,73 @@ export interface FulfillmentForUserRow {
   created_at: Date;
 }
 
-/** Fulfillment queue items for a user (all statuses). Join orders for order_number and order_items for product_name. */
 export async function findByUserId(userId: number): Promise<FulfillmentForUserRow[]> {
-  const [hasDueAt, hasFulfilledByAdminId] = await Promise.all([
-    hasColumn('due_at'),
-    hasColumn('fulfilled_by_admin_id'),
+  const rows = await FulfillmentQueueModel.find({ user_id: userId }).sort({ created_at: -1 }).lean();
+  const orderIds = rows.map((r: any) => Number(r.order_id));
+  const itemIds = rows.map((r: any) => Number(r.order_item_id));
+  const productIds = rows.map((r: any) => Number(r.product_id));
+  const [orders, items, products] = await Promise.all([
+    OrderModel.find({ id: { $in: orderIds } }).lean(),
+    OrderItemModel.find({ id: { $in: itemIds } }).lean(),
+    ProductModel.find({ id: { $in: productIds } }).lean(),
   ]);
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT fq.id, fq.order_id, o.order_number, fq.order_item_id, fq.product_id, oi.product_name,
-            p.slug AS product_slug, oi.product_variation_id,
-            fq.product_type, fq.status, fq.notes,
-            ${hasDueAt ? 'fq.due_at' : 'NULL AS due_at'},
-            fq.fulfilled_at,
-            ${hasFulfilledByAdminId ? 'fq.fulfilled_by_admin_id' : 'NULL AS fulfilled_by_admin_id'},
-            fq.created_at
-     FROM fulfillment_queue fq
-     JOIN orders o ON o.id = fq.order_id
-     JOIN order_items oi ON oi.id = fq.order_item_id
-     JOIN products p ON p.id = fq.product_id
-     WHERE fq.user_id = ?
-     ORDER BY fq.created_at DESC`,
-    [userId]
-  );
-  return rows as FulfillmentForUserRow[];
+  const orderById = new Map(orders.map((o: any) => [Number(o.id), o]));
+  const itemById = new Map(items.map((i: any) => [Number(i.id), i]));
+  const productById = new Map(products.map((p: any) => [Number(p.id), p]));
+  return rows.flatMap((r: any) => {
+    const order = orderById.get(Number(r.order_id)) as any;
+    const item = itemById.get(Number(r.order_item_id)) as any;
+    const product = productById.get(Number(r.product_id)) as any;
+    if (!order || !item || !product) return [];
+    return [{
+      id: Number(r.id),
+      order_id: Number(r.order_id),
+      order_number: String(order.order_number),
+      order_item_id: Number(r.order_item_id),
+      product_id: Number(r.product_id),
+      product_name: String(item.product_name),
+      product_slug: String(product.slug),
+      product_variation_id: item.product_variation_id ?? null,
+      product_type: String(r.product_type),
+      status: String(r.status),
+      notes: r.notes ?? null,
+      due_at: r.due_at ? date(r.due_at) : null,
+      fulfilled_at: r.fulfilled_at ? date(r.fulfilled_at) : null,
+      fulfilled_by_admin_id: r.fulfilled_by_admin_id ?? null,
+      created_at: date(r.created_at),
+    }];
+  });
 }
 
 export async function findById(id: number): Promise<FulfillmentQueueRow | null> {
-  const [hasDueAt, hasFulfilledByAdminId] = await Promise.all([
-    hasColumn('due_at'),
-    hasColumn('fulfilled_by_admin_id'),
-  ]);
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT id, order_id, order_item_id, product_id, product_type, user_id, status, notes,
-            ${hasDueAt ? 'due_at' : 'NULL AS due_at'},
-            fulfilled_at,
-            ${hasFulfilledByAdminId ? 'fulfilled_by_admin_id' : 'NULL AS fulfilled_by_admin_id'},
-            created_at, updated_at
-     FROM fulfillment_queue WHERE id = ? LIMIT 1`,
-    [id]
-  );
-  return (rows[0] as FulfillmentQueueRow) ?? null;
+  const doc = await FulfillmentQueueModel.findOne({ id }).lean();
+  return doc ? row(doc) : null;
 }
 
-/** Lock row for update (call inside a transaction). */
-export async function findByIdForUpdate(conn: PoolConnection, id: number): Promise<FulfillmentQueueRow | null> {
-  const [hasDueAt, hasFulfilledByAdminId] = await Promise.all([
-    hasColumn('due_at'),
-    hasColumn('fulfilled_by_admin_id'),
-  ]);
-  const [rows] = await conn.execute<RowDataPacket[]>(
-    `SELECT id, order_id, order_item_id, product_id, product_type, user_id, status, notes,
-            ${hasDueAt ? 'due_at' : 'NULL AS due_at'},
-            fulfilled_at,
-            ${hasFulfilledByAdminId ? 'fulfilled_by_admin_id' : 'NULL AS fulfilled_by_admin_id'},
-            created_at, updated_at
-     FROM fulfillment_queue WHERE id = ? LIMIT 1 FOR UPDATE`,
-    [id]
-  );
-  return (rows[0] as FulfillmentQueueRow) ?? null;
+export async function findByIdForUpdate(_conn: unknown, id: number): Promise<FulfillmentQueueRow | null> {
+  return findById(id);
 }
 
 export async function markFulfilledWithConnection(
-  conn: PoolConnection,
+  _conn: unknown,
   id: number,
   notes?: string | null,
   fulfilledByAdminId?: number | null
 ): Promise<boolean> {
-  const hasFulfilledByAdminId = await hasColumn('fulfilled_by_admin_id');
-  const [result] = hasFulfilledByAdminId
-    ? await conn.execute<ResultSetHeader>(
-        `UPDATE fulfillment_queue SET status = ?, fulfilled_at = CURRENT_TIMESTAMP(3), fulfilled_by_admin_id = ?, notes = COALESCE(?, notes)
-         WHERE id = ? AND status = 'pending'`,
-        ['fulfilled', fulfilledByAdminId ?? null, notes ?? null, id]
-      )
-    : await conn.execute<ResultSetHeader>(
-        `UPDATE fulfillment_queue SET status = ?, fulfilled_at = CURRENT_TIMESTAMP(3), notes = COALESCE(?, notes)
-         WHERE id = ? AND status = 'pending'`,
-        ['fulfilled', notes ?? null, id]
-      );
-  return result.affectedRows > 0;
+  const patch: Record<string, unknown> = { status: 'fulfilled', fulfilled_at: new Date() };
+  if (notes != null) patch.notes = notes;
+  if (fulfilledByAdminId != null) patch.fulfilled_by_admin_id = fulfilledByAdminId;
+  const result = await FulfillmentQueueModel.updateOne({ id, status: 'pending' }, { $set: patch });
+  return result.modifiedCount > 0;
 }
 
 export async function markFulfilled(id: number, notes?: string | null): Promise<boolean> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    'UPDATE fulfillment_queue SET status = ?, fulfilled_at = CURRENT_TIMESTAMP(3), notes = COALESCE(?, notes) WHERE id = ?',
-    ['fulfilled', notes ?? null, id]
-  );
-  return result.affectedRows > 0;
+  return markFulfilledWithConnection(null, id, notes);
 }
 
 export async function markFailed(id: number, notes?: string | null): Promise<boolean> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    'UPDATE fulfillment_queue SET status = ?, notes = COALESCE(?, notes) WHERE id = ?',
-    ['failed', notes ?? null, id]
-  );
-  return result.affectedRows > 0;
-}
-
-interface FulfillmentQueueRow {
-  id: number;
-  order_id: number;
-  order_item_id: number;
-  product_id: number;
-  product_type: FulfillmentQueueProductType;
-  user_id: number;
-  status: FulfillmentQueueStatus;
-  notes: string | null;
-  due_at: Date | null;
-  fulfilled_at: Date | null;
-  fulfilled_by_admin_id: number | null;
-  created_at: Date;
-  updated_at: Date;
+  const patch: Record<string, unknown> = { status: 'failed' };
+  if (notes != null) patch.notes = notes;
+  const result = await FulfillmentQueueModel.updateOne({ id }, { $set: patch });
+  return result.modifiedCount > 0;
 }

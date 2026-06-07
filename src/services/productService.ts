@@ -22,7 +22,6 @@ import type {
   ProductPurchaseVariablePublic,
 } from '../types/product';
 import { PRODUCT_TYPES } from '../types/product';
-import pool from '../database/pool';
 import * as purchaseVariableRepo from '../repositories/productPurchaseVariableRepository';
 import * as purchaseSelectionService from './purchaseSelectionService';
 import * as attrRepo from '../repositories/productAttributeRepository';
@@ -519,17 +518,7 @@ export async function replacePurchaseVariables(
       throw new AppError(400, 'Email variables cannot have options');
     }
   }
-  const conn = await pool.getConnection();
-  try {
-    await conn.beginTransaction();
-    await purchaseVariableRepo.replaceVariablesForProduct(conn, productId, trimmedVars);
-    await conn.commit();
-  } catch (e) {
-    await conn.rollback();
-    throw e;
-  } finally {
-    conn.release();
-  }
+  await purchaseVariableRepo.replaceVariablesForProduct(null, productId, trimmedVars);
   return getById(productId);
 }
 

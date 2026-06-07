@@ -1,71 +1,113 @@
-import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
-import pool from '../database/pool';
+import {
+  EmailVerificationModel,
+  PasswordResetModel,
+  UserModel,
+  UserSessionModel,
+} from '../database/models';
+import { nextId } from '../database/counter';
 import type { UserRow, UserSessionRow, EmailVerificationRow, PasswordResetRow } from '../types/auth';
 
+function date(v: unknown): Date {
+  return v ? new Date(v as string | number | Date) : new Date();
+}
+
+function userRow(doc: any): UserRow {
+  return {
+    id: Number(doc.id),
+    email: String(doc.email),
+    password_hash: String(doc.password_hash),
+    name: String(doc.name),
+    email_verified_at: doc.email_verified_at ? date(doc.email_verified_at) : null,
+    created_at: date(doc.created_at),
+    updated_at: date(doc.updated_at),
+    deleted_at: doc.deleted_at ? date(doc.deleted_at) : null,
+  };
+}
+
+function sessionRow(doc: any): UserSessionRow {
+  return {
+    id: Number(doc.id),
+    user_id: Number(doc.user_id),
+    token_hash: String(doc.token_hash),
+    ip: doc.ip ?? null,
+    user_agent: doc.user_agent ?? null,
+    expires_at: date(doc.expires_at),
+    created_at: date(doc.created_at),
+  };
+}
+
+function verificationRow(doc: any): EmailVerificationRow {
+  return {
+    id: Number(doc.id),
+    user_id: Number(doc.user_id),
+    email: String(doc.email),
+    token: String(doc.token),
+    expires_at: date(doc.expires_at),
+    verified_at: doc.verified_at ? date(doc.verified_at) : null,
+    created_at: date(doc.created_at),
+  };
+}
+
+function resetRow(doc: any): PasswordResetRow {
+  return {
+    id: Number(doc.id),
+    user_id: Number(doc.user_id),
+    token: String(doc.token),
+    expires_at: date(doc.expires_at),
+    used_at: doc.used_at ? date(doc.used_at) : null,
+    created_at: date(doc.created_at),
+  };
+}
+
 export async function findUserByEmail(email: string): Promise<UserRow | null> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT id, email, password_hash, name, email_verified_at, created_at, updated_at, deleted_at FROM users WHERE email = ? AND deleted_at IS NULL LIMIT 1',
-    [email]
-  );
-  return (rows[0] as UserRow) ?? null;
+  const row = await UserModel.findOne({ email: email.trim(), deleted_at: null }).lean();
+  return row ? userRow(row) : null;
 }
 
 export async function findUserById(id: number): Promise<UserRow | null> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT id, email, password_hash, name, email_verified_at, created_at, updated_at, deleted_at FROM users WHERE id = ? AND deleted_at IS NULL LIMIT 1',
-    [id]
-  );
-  return (rows[0] as UserRow) ?? null;
+  const row = await UserModel.findOne({ id, deleted_at: null }).lean();
+  return row ? userRow(row) : null;
 }
 
 export async function createUser(email: string, passwordHash: string, name: string): Promise<number> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    'INSERT INTO users (email, password_hash, name) VALUES (?, ?, ?)',
-    [email, passwordHash, name]
-  );
-  return result.insertId;
+  const id = await nextId('users');
+  await UserModel.create({
+    id,
+    email: email.trim(),
+    password_hash: passwordHash,
+    name,
+    email_verified_at: null,
+    deleted_at: null,
+  });
+  return id;
 }
 
 export async function updateUserEmailVerified(userId: number): Promise<void> {
-  await pool.execute(
-    'UPDATE users SET email_verified_at = CURRENT_TIMESTAMP(3) WHERE id = ?',
-    [userId]
-  );
+  await UserModel.updateOne({ id: userId }, { $set: { email_verified_at: new Date() } });
 }
 
 export async function updateUserPassword(userId: number, passwordHash: string): Promise<void> {
-  await pool.execute('UPDATE users SET password_hash = ? WHERE id = ?', [passwordHash, userId]);
+  await UserModel.updateOne({ id: userId }, { $set: { password_hash: passwordHash } });
 }
 
-/** True if another non-deleted user already has this email. */
 export async function emailExistsExcludingUser(email: string, excludeUserId: number): Promise<boolean> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT 1 FROM users WHERE email = ? AND id != ? AND deleted_at IS NULL LIMIT 1',
-    [email.trim(), excludeUserId]
-  );
-  return rows.length > 0;
+  return Boolean(await UserModel.exists({ email: email.trim(), id: { $ne: excludeUserId }, deleted_at: null }));
 }
 
 export async function updateUserProfile(userId: number, email: string, name: string): Promise<void> {
-  await pool.execute(
-    'UPDATE users SET email = ?, name = ? WHERE id = ? AND deleted_at IS NULL',
-    [email.trim(), name.trim(), userId]
+  await UserModel.updateOne(
+    { id: userId, deleted_at: null },
+    { $set: { email: email.trim(), name: name.trim() } }
   );
 }
 
 export async function updateUserName(userId: number, name: string): Promise<void> {
-  await pool.execute('UPDATE users SET name = ? WHERE id = ? AND deleted_at IS NULL', [
-    name.trim(),
-    userId,
-  ]);
+  await UserModel.updateOne({ id: userId, deleted_at: null }, { $set: { name: name.trim() } });
 }
 
 export async function softDeleteUser(userId: number): Promise<boolean> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    'UPDATE users SET deleted_at = CURRENT_TIMESTAMP(3) WHERE id = ? AND deleted_at IS NULL',
-    [userId]
-  );
-  return result.affectedRows > 0;
+  const result = await UserModel.updateOne({ id: userId, deleted_at: null }, { $set: { deleted_at: new Date() } });
+  return result.modifiedCount > 0;
 }
 
 export async function createSession(
@@ -75,39 +117,31 @@ export async function createSession(
   ip: string | null,
   userAgent: string | null
 ): Promise<number> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    'INSERT INTO user_sessions (user_id, token_hash, expires_at, ip, user_agent) VALUES (?, ?, ?, ?, ?)',
-    [userId, tokenHash, expiresAt, ip, userAgent]
-  );
-  return result.insertId;
+  const id = await nextId('user_sessions');
+  await UserSessionModel.create({ id, user_id: userId, token_hash: tokenHash, expires_at: expiresAt, ip, user_agent: userAgent });
+  return id;
 }
 
 export async function updateSessionTokenHash(sessionId: number, tokenHash: string): Promise<void> {
-  await pool.execute('UPDATE user_sessions SET token_hash = ? WHERE id = ?', [tokenHash, sessionId]);
+  await UserSessionModel.updateOne({ id: sessionId }, { $set: { token_hash: tokenHash } });
 }
 
 export async function findSessionByTokenHash(tokenHash: string): Promise<UserSessionRow | null> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT id, user_id, token_hash, ip, user_agent, expires_at, created_at FROM user_sessions WHERE token_hash = ? LIMIT 1',
-    [tokenHash]
-  );
-  return (rows[0] as UserSessionRow) ?? null;
+  const row = await UserSessionModel.findOne({ token_hash: tokenHash }).lean();
+  return row ? sessionRow(row) : null;
 }
 
 export async function findSessionById(sessionId: number): Promise<UserSessionRow | null> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT id, user_id, token_hash, ip, user_agent, expires_at, created_at FROM user_sessions WHERE id = ? LIMIT 1',
-    [sessionId]
-  );
-  return (rows[0] as UserSessionRow) ?? null;
+  const row = await UserSessionModel.findOne({ id: sessionId }).lean();
+  return row ? sessionRow(row) : null;
 }
 
 export async function deleteSessionById(sessionId: number): Promise<void> {
-  await pool.execute('DELETE FROM user_sessions WHERE id = ?', [sessionId]);
+  await UserSessionModel.deleteOne({ id: sessionId });
 }
 
 export async function deleteSessionsByUserId(userId: number): Promise<void> {
-  await pool.execute('DELETE FROM user_sessions WHERE user_id = ?', [userId]);
+  await UserSessionModel.deleteMany({ user_id: userId });
 }
 
 export async function createEmailVerification(
@@ -116,26 +150,25 @@ export async function createEmailVerification(
   token: string,
   expiresAt: Date
 ): Promise<number> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    'INSERT INTO email_verifications (user_id, email, token, expires_at) VALUES (?, ?, ?, ?)',
-    [userId, email, token, expiresAt]
-  );
-  return result.insertId;
+  const id = await nextId('email_verifications');
+  await EmailVerificationModel.create({
+    id,
+    user_id: userId,
+    email,
+    token,
+    expires_at: expiresAt,
+    verified_at: null,
+  });
+  return id;
 }
 
 export async function findEmailVerificationByToken(token: string): Promise<EmailVerificationRow | null> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT id, user_id, email, token, expires_at, verified_at, created_at FROM email_verifications WHERE token = ? LIMIT 1',
-    [token]
-  );
-  return (rows[0] as EmailVerificationRow) ?? null;
+  const row = await EmailVerificationModel.findOne({ token }).lean();
+  return row ? verificationRow(row) : null;
 }
 
 export async function markEmailVerificationVerified(verificationId: number): Promise<void> {
-  await pool.execute(
-    'UPDATE email_verifications SET verified_at = CURRENT_TIMESTAMP(3) WHERE id = ?',
-    [verificationId]
-  );
+  await EmailVerificationModel.updateOne({ id: verificationId }, { $set: { verified_at: new Date() } });
 }
 
 export async function createPasswordReset(
@@ -143,23 +176,22 @@ export async function createPasswordReset(
   token: string,
   expiresAt: Date
 ): Promise<number> {
-  const [result] = await pool.execute<ResultSetHeader>(
-    'INSERT INTO password_resets (user_id, token, expires_at) VALUES (?, ?, ?)',
-    [userId, token, expiresAt]
-  );
-  return result.insertId;
+  const id = await nextId('password_resets');
+  await PasswordResetModel.create({
+    id,
+    user_id: userId,
+    token,
+    expires_at: expiresAt,
+    used_at: null,
+  });
+  return id;
 }
 
 export async function findPasswordResetByToken(token: string): Promise<PasswordResetRow | null> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT id, user_id, token, expires_at, used_at, created_at FROM password_resets WHERE token = ? AND used_at IS NULL LIMIT 1',
-    [token]
-  );
-  return (rows[0] as PasswordResetRow) ?? null;
+  const row = await PasswordResetModel.findOne({ token, used_at: null }).lean();
+  return row ? resetRow(row) : null;
 }
 
 export async function markPasswordResetUsed(resetId: number): Promise<void> {
-  await pool.execute('UPDATE password_resets SET used_at = CURRENT_TIMESTAMP(3) WHERE id = ?', [
-    resetId,
-  ]);
+  await PasswordResetModel.updateOne({ id: resetId }, { $set: { used_at: new Date() } });
 }
