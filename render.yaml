@@ -1,0 +1,23 @@
+# Render Blueprint — UR Shop backend API
+# Docs: https://render.com/docs/blueprint-spec
+#
+# 1. Connect this repo on Render (root directory = UR-Shop--Backend if monorepo).
+# 2. Add secret env vars in the dashboard:
+#    MONGODB_URL, JWT_SECRET, CLOUDINARY_*, SMTP_*, FRONTEND_URL, CRON_SECRET, etc.
+#
+# Keep-alive: the server pings GET /api/health every 10 minutes using RENDER_EXTERNAL_URL
+# (set automatically by Render). No separate cron service needed.
+
+services:
+  - type: web
+    name: ur-shop-api
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_PREFIX
+        value: /api
