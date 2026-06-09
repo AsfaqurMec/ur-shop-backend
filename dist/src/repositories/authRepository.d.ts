@@ -1,0 +1,23 @@
+import type { UserRow, UserSessionRow, EmailVerificationRow, PasswordResetRow } from '../types/auth';
+export declare function findUserByEmail(email: string): Promise<UserRow | null>;
+export declare function findUserById(id: number): Promise<UserRow | null>;
+export declare function createUser(email: string, passwordHash: string, name: string): Promise<number>;
+export declare function updateUserEmailVerified(userId: number): Promise<void>;
+export declare function updateUserPassword(userId: number, passwordHash: string): Promise<void>;
+export declare function emailExistsExcludingUser(email: string, excludeUserId: number): Promise<boolean>;
+export declare function updateUserProfile(userId: number, email: string, name: string): Promise<void>;
+export declare function updateUserName(userId: number, name: string): Promise<void>;
+export declare function softDeleteUser(userId: number): Promise<boolean>;
+export declare function createSession(userId: number, tokenHash: string, expiresAt: Date, ip: string | null, userAgent: string | null): Promise<number>;
+export declare function updateSessionTokenHash(sessionId: number, tokenHash: string): Promise<void>;
+export declare function findSessionByTokenHash(tokenHash: string): Promise<UserSessionRow | null>;
+export declare function findSessionById(sessionId: number): Promise<UserSessionRow | null>;
+export declare function deleteSessionById(sessionId: number): Promise<void>;
+export declare function deleteSessionsByUserId(userId: number): Promise<void>;
+export declare function createEmailVerification(userId: number, email: string, token: string, expiresAt: Date): Promise<number>;
+export declare function findEmailVerificationByToken(token: string): Promise<EmailVerificationRow | null>;
+export declare function markEmailVerificationVerified(verificationId: number): Promise<void>;
+export declare function createPasswordReset(userId: number, token: string, expiresAt: Date): Promise<number>;
+export declare function findPasswordResetByToken(token: string): Promise<PasswordResetRow | null>;
+export declare function markPasswordResetUsed(resetId: number): Promise<void>;
+//# sourceMappingURL=authRepository.d.ts.map

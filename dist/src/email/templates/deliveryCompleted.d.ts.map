@@ -1,0 +1,1 @@
+{"version":3,"file":"deliveryCompleted.d.ts","sourceRoot":"","sources":["../../../../src/email/templates/deliveryCompleted.ts"],"names":[],"mappings":"AAEA,MAAM,WAAW,qBAAqB;IACpC,WAAW,EAAE,MAAM,CAAC;IACpB,OAAO,EAAE,MAAM,CAAC;CACjB;AAED,wBAAgB,uBAAuB,CAAC,IAAI,EAAE,qBAAqB,GAAG;IAAE,OAAO,EAAE,MAAM,CAAC;IAAC,IAAI,EAAE,MAAM,CAAC;IAAC,IAAI,EAAE,MAAM,CAAA;CAAE,CAYpH"}

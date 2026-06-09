@@ -1,0 +1,18 @@
+export declare const createProductValidator: import("express-validator").ValidationChain[];
+export declare const updateProductValidator: import("express-validator").ValidationChain[];
+export declare const productIdParamValidator: import("express-validator").ValidationChain[];
+export declare const productSlugParamValidator: import("express-validator").ValidationChain[];
+export declare const listProductsValidator: import("express-validator").ValidationChain[];
+export declare const addImageValidator: import("express-validator").ValidationChain[];
+export declare const imageIdParamValidator: import("express-validator").ValidationChain[];
+export declare const addFileBodyValidator: import("express-validator").ValidationChain[];
+export declare const fileIdParamValidator: import("express-validator").ValidationChain[];
+export declare const addLicensesValidator: import("express-validator").ValidationChain[];
+export declare const listLicenseKeysValidator: import("express-validator").ValidationChain[];
+export declare const licenseKeyIdParamValidator: import("express-validator").ValidationChain[];
+export declare const updateLicenseKeyValidator: import("express-validator").ValidationChain[];
+export declare const replacePurchaseVariablesValidator: import("express-validator").ValidationChain[];
+export declare const replaceCatalogAttributesValidator: import("express-validator").ValidationChain[];
+export declare const replaceCatalogVariationsValidator: import("express-validator").ValidationChain[];
+export declare const generateCatalogVariationsValidator: import("express-validator").ValidationChain[];
+//# sourceMappingURL=productValidators.d.ts.map

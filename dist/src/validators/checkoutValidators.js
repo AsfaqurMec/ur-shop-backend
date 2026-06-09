@@ -1,0 +1,13 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.createOrderValidator = void 0;
+const express_validator_1 = require("express-validator");
+exports.createOrderValidator = [
+    (0, express_validator_1.body)('coupon_code').optional().trim().isLength({ max: 64 }).withMessage('coupon_code max 64 characters'),
+    (0, express_validator_1.body)('payment_method').optional().trim().isLength({ min: 1, max: 64 }).withMessage('Invalid payment_method'),
+    (0, express_validator_1.body)('transaction_id').optional().trim().isLength({ max: 128 }),
+    (0, express_validator_1.body)('bkash_transaction_id').optional().trim().isLength({ max: 128 }),
+    (0, express_validator_1.body)('sender_number').optional().trim().isLength({ max: 64 }),
+    (0, express_validator_1.body)('payment_type').optional().trim().isLength({ max: 32 }),
+];
+//# sourceMappingURL=checkoutValidators.js.map

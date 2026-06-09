@@ -1,0 +1,22 @@
+import { Request, Response } from 'express';
+export declare function create(req: Request, res: Response): Promise<Response>;
+export declare function update(req: Request, res: Response): Promise<Response>;
+export declare function remove(req: Request, res: Response): Promise<Response>;
+export declare function list(req: Request, res: Response): Promise<Response>;
+export declare function getBySlug(req: Request, res: Response): Promise<Response>;
+export declare function getById(req: Request, res: Response): Promise<Response>;
+export declare function replaceCatalogAttributes(req: Request, res: Response): Promise<Response>;
+export declare function replaceCatalogVariations(req: Request, res: Response): Promise<Response>;
+export declare function generateCatalogVariations(req: Request, res: Response): Promise<Response>;
+export declare function replacePurchaseVariables(req: Request, res: Response): Promise<Response>;
+export declare function addImage(req: Request, res: Response): Promise<Response>;
+export declare function addImages(req: Request, res: Response): Promise<Response>;
+export declare function removeImage(req: Request, res: Response): Promise<Response>;
+export declare function addFile(req: Request, res: Response): Promise<Response>;
+export declare function removeFile(req: Request, res: Response): Promise<Response>;
+export declare function addLicenses(req: Request, res: Response): Promise<Response>;
+export declare function getLicenseInventory(req: Request, res: Response): Promise<Response>;
+export declare function listLicenseKeys(req: Request, res: Response): Promise<Response>;
+export declare function updateLicenseKey(req: Request, res: Response): Promise<Response>;
+export declare function deleteLicenseKey(req: Request, res: Response): Promise<Response>;
+//# sourceMappingURL=productController.d.ts.map

@@ -1,0 +1,42 @@
+import type { CouponRow, CouponType } from '../types/coupon';
+export declare function findByCode(code: string): Promise<CouponRow | null>;
+export declare function findById(id: number): Promise<CouponRow | null>;
+export declare function codeExists(code: string, excludeId?: number): Promise<boolean>;
+export declare function create(data: {
+    code: string;
+    type: CouponType;
+    value: number;
+    min_order_amount: number | null;
+    max_uses: number | null;
+    max_uses_per_user: number | null;
+    valid_from: Date | null;
+    valid_until: Date | null;
+    is_active: number;
+}): Promise<number>;
+export declare function update(id: number, data: {
+    code?: string;
+    type?: CouponType;
+    value?: number;
+    min_order_amount?: number | null;
+    max_uses?: number | null;
+    max_uses_per_user?: number | null;
+    valid_from?: Date | null;
+    valid_until?: Date | null;
+    is_active?: number;
+}): Promise<void>;
+export declare function softDelete(id: number): Promise<boolean>;
+export declare function countUsagesByUser(couponId: number, userId: number): Promise<number>;
+export declare function incrementUsedCount(couponId: number): Promise<void>;
+export declare function recordUsage(couponId: number, orderId: number, userId: number, discountAmount: number): Promise<number>;
+export declare function recordUsageWithConnection(_conn: unknown, couponId: number, orderId: number, userId: number, discountAmount: number): Promise<number>;
+export declare function incrementUsedCountWithConnection(_conn: unknown, couponId: number): Promise<void>;
+export declare function findCouponIdsUsedByOrderId(orderId: number): Promise<number[]>;
+export declare function deleteCouponUsagesForOrder(orderId: number): Promise<void>;
+export declare function decrementUsedCountById(couponId: number): Promise<void>;
+export declare function rollbackCouponsForOrder(orderId: number): Promise<void>;
+export declare function setCouponProducts(couponId: number, productIds: number[]): Promise<void>;
+export declare function getCouponProductIds(couponId: number): Promise<number[]>;
+export declare function setCouponCategories(couponId: number, categoryIds: number[]): Promise<void>;
+export declare function getCouponCategoryIds(couponId: number): Promise<number[]>;
+export declare function findAll(): Promise<CouponRow[]>;
+//# sourceMappingURL=couponRepository.d.ts.map

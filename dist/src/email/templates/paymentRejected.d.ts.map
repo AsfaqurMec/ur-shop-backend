@@ -1,0 +1,1 @@
+{"version":3,"file":"paymentRejected.d.ts","sourceRoot":"","sources":["../../../../src/email/templates/paymentRejected.ts"],"names":[],"mappings":"AAEA,MAAM,WAAW,mBAAmB;IAClC,WAAW,EAAE,MAAM,CAAC;IACpB,MAAM,CAAC,EAAE,MAAM,CAAC;CACjB;AAED,wBAAgB,qBAAqB,CAAC,IAAI,EAAE,mBAAmB,GAAG;IAAE,OAAO,EAAE,MAAM,CAAC;IAAC,IAAI,EAAE,MAAM,CAAC;IAAC,IAAI,EAAE,MAAM,CAAA;CAAE,CAiBhH"}

@@ -1,0 +1,1 @@
+{"version":3,"file":"subscriptionReminderService.d.ts","sourceRoot":"","sources":["../../../src/services/subscriptionReminderService.ts"],"names":[],"mappings":"AA0BA;;;GAGG;AACH,wBAAsB,+BAA+B,IAAI,OAAO,CAAC;IAC/D,OAAO,EAAE,MAAM,CAAC;IAChB,WAAW,EAAE,MAAM,CAAC;IACpB,MAAM,EAAE,MAAM,CAAC;CAChB,CAAC,CAoCD"}

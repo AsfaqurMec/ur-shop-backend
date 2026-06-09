@@ -1,0 +1,66 @@
+import type { OrderStatus, OrderItemProductType, OrderRow, OrderItemRow, PaymentRow } from '../types/order';
+export declare function createOrder(_conn: unknown, data: {
+    user_id: number;
+    order_number?: string;
+    status: OrderStatus;
+    subtotal: number;
+    discount: number;
+    tax: number;
+    total: number;
+    currency: string;
+}): Promise<number>;
+export interface OrderItemInput {
+    product_id: number;
+    product_variation_id?: number | null;
+    product_name: string;
+    product_type: OrderItemProductType;
+    quantity: number;
+    unit_price: number;
+    total_price: number;
+    purchase_selections: Record<string, string> | null;
+    purchase_selections_summary: Array<{
+        label: string;
+        value: string;
+    }> | null;
+}
+export declare function createOrderItems(_conn: unknown, orderId: number, items: OrderItemInput[]): Promise<void>;
+export declare function createPayment(_conn: unknown, data: {
+    order_id: number;
+    amount: number;
+    currency: string;
+    status: string;
+    gateway: string;
+    payment_option_id?: number | null;
+    gateway_reference?: string | null;
+    bkash_payment_id?: string | null;
+}): Promise<number>;
+export declare function findOrderById(id: number): Promise<OrderRow | null>;
+export interface OrderListRow {
+    id: number;
+    order_number: string;
+    status: string;
+    total: number;
+    currency: string;
+    created_at: Date;
+}
+export declare function findOrdersByUserId(userId: number, options?: {
+    limit?: number;
+    offset?: number;
+}): Promise<OrderListRow[]>;
+export declare function countOrdersByUserId(userId: number): Promise<number>;
+export declare function countOrdersByUserIdAndStatus(userId: number, status: OrderStatus): Promise<number>;
+export declare function findOrderItems(orderId: number): Promise<OrderItemRow[]>;
+export declare function findPaidOrderIdContainingProduct(userId: number, productId: number): Promise<number | null>;
+export declare function findPaymentByOrderId(orderId: number): Promise<PaymentRow | null>;
+export declare function findPaymentByBkashPaymentId(bkashPaymentId: string): Promise<PaymentRow | null>;
+export declare function findExpiredPendingBkashOrderIds(olderThan: Date): Promise<number[]>;
+export declare function updatePaymentBkashSession(paymentId: number, data: {
+    bkash_payment_id: string;
+    gateway_reference?: string | null;
+}): Promise<boolean>;
+export declare function updatePaymentGatewayReference(paymentId: number, gatewayReference: string): Promise<boolean>;
+export declare function tryTransitionOrderToPaid(orderId: number): Promise<boolean>;
+export declare function updateOrderStatus(orderId: number, status: string): Promise<boolean>;
+export declare function updatePaymentStatus(paymentId: number, status: string): Promise<boolean>;
+export declare function deleteOrderById(orderId: number): Promise<void>;
+//# sourceMappingURL=orderRepository.d.ts.map
