@@ -84,8 +84,13 @@ export async function getCustomersWithOrders(req: Request, res: Response): Promi
 
 export async function updateCustomer(req: Request, res: Response): Promise<Response> {
   const userId = Number(req.params.userId);
-  const { email, name } = req.body as { email: string; name: string };
-  const customer = await adminDashboardService.updateCustomer(userId, { email, name });
+  const { email, name, mobile, address } = req.body as {
+    email: string;
+    name: string;
+    mobile?: string | null;
+    address?: string | null;
+  };
+  const customer = await adminDashboardService.updateCustomer(userId, { email, name, mobile, address });
   return sendSuccess(res, { customer });
 }
 

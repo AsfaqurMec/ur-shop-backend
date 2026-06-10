@@ -35,6 +35,8 @@ export declare function getCustomersWithOrders(limit?: number, offset?: number):
 export declare function updateCustomer(userId: number, data: {
     email: string;
     name: string;
+    mobile?: string | null;
+    address?: string | null;
 }): Promise<AdminCustomerListItem>;
 export declare function deleteCustomer(userId: number): Promise<void>;
 //# sourceMappingURL=adminDashboardService.d.ts.map

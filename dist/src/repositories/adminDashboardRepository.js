@@ -48,7 +48,7 @@ async function getOrdersByStatus() {
     const rows = await models_1.OrderModel.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }, { $sort: { count: -1 } }]);
     return rows.map((r) => ({ status: String(r._id), count: Number(r.count) }));
 }
-function recentOrder(row) {
+function recentOrder(row, customerName) {
     return {
         id: Number(row.id),
         order_number: String(row.order_number),
@@ -56,6 +56,10 @@ function recentOrder(row) {
         total: Number(row.total ?? 0),
         currency: String(row.currency ?? 'BDT'),
         user_id: Number(row.user_id),
+        shipping_mobile: row.shipping_mobile != null && String(row.shipping_mobile).trim()
+            ? String(row.shipping_mobile).trim()
+            : null,
+        customer_name: customerName?.trim() || null,
         created_at: iso(row.created_at),
     };
 }
@@ -65,7 +69,13 @@ async function getRecentOrders(limit, offset, status) {
         models_1.OrderModel.countDocuments(query),
         models_1.OrderModel.find(query).sort({ created_at: -1 }).skip(offset).limit(limit).lean(),
     ]);
-    return { orders: rows.map(recentOrder), total };
+    const userIds = [...new Set(rows.map((r) => Number(r.user_id)))];
+    const users = await models_1.UserModel.find({ id: { $in: userIds }, deleted_at: null }).lean();
+    const nameByUserId = new Map(users.map((u) => [Number(u.id), String(u.name ?? '')]));
+    return {
+        orders: rows.map((r) => recentOrder(r, nameByUserId.get(Number(r.user_id)) ?? null)),
+        total,
+    };
 }
 async function updateOrderStatus(orderId, status) {
     const result = await models_1.OrderModel.updateOne({ id: orderId }, { $set: { status } });
@@ -73,7 +83,10 @@ async function updateOrderStatus(orderId, status) {
 }
 async function getOrderListItemById(orderId) {
     const row = await models_1.OrderModel.findOne({ id: orderId }).lean();
-    return row ? recentOrder(row) : null;
+    if (!row)
+        return null;
+    const user = await models_1.UserModel.findOne({ id: Number(row.user_id), deleted_at: null }).lean();
+    return recentOrder(row, user ? String(user.name ?? '') : null);
 }
 async function getRecentPayments(limit) {
     const payments = await models_1.PaymentModel.find({}).sort({ created_at: -1 }).limit(limit).lean();
@@ -157,6 +170,8 @@ async function getCustomersWithOrders(limit, offset) {
             user_id: Number(user.id),
             email: String(user.email),
             name: String(user.name ?? ''),
+            mobile: user.mobile != null && String(user.mobile).trim() ? String(user.mobile).trim() : null,
+            address: user.address != null && String(user.address).trim() ? String(user.address).trim() : null,
             order_count: agg.count,
             last_order_at: iso(agg.last),
         };
@@ -177,6 +192,12 @@ async function getCustomerAggregateById(userId) {
         user_id: Number(user.id),
         email: String(user.email),
         name: String(user.name ?? ''),
+        mobile: user.mobile != null && String(user.mobile).trim()
+            ? String(user.mobile).trim()
+            : null,
+        address: user.address != null && String(user.address).trim()
+            ? String(user.address).trim()
+            : null,
         order_count: orders.length,
         last_order_at: iso(orders[0].created_at),
     };

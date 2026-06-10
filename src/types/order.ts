@@ -11,6 +11,8 @@ export interface OrderRow {
   tax: number;
   total: number;
   currency: string;
+  shipping_mobile: string | null;
+  shipping_address: string | null;
   created_at: Date;
   updated_at: Date;
 }

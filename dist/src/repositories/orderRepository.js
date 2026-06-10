@@ -87,6 +87,12 @@ function orderRow(doc) {
         tax: Number(doc.tax ?? 0),
         total: Number(doc.total ?? 0),
         currency: String(doc.currency ?? 'BDT'),
+        shipping_mobile: doc.shipping_mobile != null && String(doc.shipping_mobile).trim()
+            ? String(doc.shipping_mobile).trim()
+            : null,
+        shipping_address: doc.shipping_address != null && String(doc.shipping_address).trim()
+            ? String(doc.shipping_address).trim()
+            : null,
         created_at: date(doc.created_at),
         updated_at: date(doc.updated_at),
     };

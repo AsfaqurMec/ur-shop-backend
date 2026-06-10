@@ -45,5 +45,7 @@ exports.updateCustomerValidator = [
     ...exports.customerUserIdParamValidator,
     (0, express_validator_1.body)('email').trim().notEmpty().withMessage('Email is required').isEmail().withMessage('Valid email required'),
     (0, express_validator_1.body)('name').trim().isLength({ max: 255 }).withMessage('Name max 255 characters'),
+    (0, express_validator_1.body)('mobile').optional({ values: 'null' }).trim().isLength({ max: 32 }).withMessage('Mobile max 32 characters'),
+    (0, express_validator_1.body)('address').optional({ values: 'null' }).trim().isLength({ max: 1000 }).withMessage('Address max 1000 characters'),
 ];
 //# sourceMappingURL=adminDashboardValidators.js.map

@@ -5,6 +5,7 @@ import * as entitlementRepo from '../repositories/downloadEntitlementRepository'
 import * as productRepo from '../repositories/productRepository';
 import * as subscriptionRepo from '../repositories/subscriptionRepository';
 import * as fulfillmentQueueRepo from '../repositories/fulfillmentQueueRepository';
+import * as authRepo from '../repositories/authRepository';
 import * as downloadService from './downloadService';
 import type {
   DashboardOrderListItem,
@@ -107,6 +108,12 @@ export async function getOrderDetails(
     tax: Number(order.tax),
     total: Number(order.total),
     currency: order.currency,
+    shipping_mobile: order.shipping_mobile,
+    shipping_address: order.shipping_address,
+    customer_name: null,
+    customer_email: null,
+    customer_mobile: null,
+    customer_address: null,
     items: orderItems,
     payment: paymentDto,
     delivery: deliveryDto,
@@ -119,10 +126,11 @@ export async function getOrderDetailsAdmin(orderId: number): Promise<DashboardOr
   const order = await orderRepo.findOrderById(orderId);
   if (!order) throw new AppError(404, 'Order not found');
 
-  const [items, payment, delivery] = await Promise.all([
+  const [items, payment, delivery, customer] = await Promise.all([
     orderRepo.findOrderItems(orderId),
     orderRepo.findPaymentByOrderId(orderId),
     deliveryRepo.findByOrderId(orderId),
+    authRepo.findUserById(order.user_id),
   ]);
 
   const orderItems = await toDashboardOrderItems(items);
@@ -155,6 +163,12 @@ export async function getOrderDetailsAdmin(orderId: number): Promise<DashboardOr
     tax: Number(order.tax),
     total: Number(order.total),
     currency: order.currency,
+    shipping_mobile: order.shipping_mobile,
+    shipping_address: order.shipping_address,
+    customer_name: customer?.name?.trim() || null,
+    customer_email: customer?.email ?? null,
+    customer_mobile: customer?.mobile ?? null,
+    customer_address: customer?.address ?? null,
     items: orderItems,
     payment: paymentDto,
     delivery: deliveryDto,

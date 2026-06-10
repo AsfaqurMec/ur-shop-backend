@@ -119,8 +119,8 @@ async function getCustomersWithOrders(req, res) {
 }
 async function updateCustomer(req, res) {
     const userId = Number(req.params.userId);
-    const { email, name } = req.body;
-    const customer = await adminDashboardService.updateCustomer(userId, { email, name });
+    const { email, name, mobile, address } = req.body;
+    const customer = await adminDashboardService.updateCustomer(userId, { email, name, mobile, address });
     return (0, apiResponse_1.sendSuccess)(res, { customer });
 }
 async function deleteCustomer(req, res) {

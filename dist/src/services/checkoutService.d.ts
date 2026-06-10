@@ -8,6 +8,9 @@ export interface CreateOrderPaymentDetails {
     transactionId?: string | null;
     /** Client hint: e.g. `manual` vs `merchant` (stored on payment for admin reference). */
     paymentType?: string | null;
+    /** Customer contact for delivery. */
+    mobile?: string;
+    address?: string;
 }
 export declare function createOrder(userId: number, couponCode?: string | null, paymentInput?: CreateOrderPaymentDetails): Promise<OrderPublic>;
 //# sourceMappingURL=checkoutService.d.ts.map

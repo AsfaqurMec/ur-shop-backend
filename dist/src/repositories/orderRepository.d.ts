@@ -8,6 +8,8 @@ export declare function createOrder(_conn: unknown, data: {
     tax: number;
     total: number;
     currency: string;
+    shipping_mobile?: string | null;
+    shipping_address?: string | null;
 }): Promise<number>;
 export interface OrderItemInput {
     product_id: number;

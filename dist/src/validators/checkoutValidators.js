@@ -9,5 +9,7 @@ exports.createOrderValidator = [
     (0, express_validator_1.body)('bkash_transaction_id').optional().trim().isLength({ max: 128 }),
     (0, express_validator_1.body)('sender_number').optional().trim().isLength({ max: 64 }),
     (0, express_validator_1.body)('payment_type').optional().trim().isLength({ max: 32 }),
+    (0, express_validator_1.body)('mobile').trim().notEmpty().withMessage('Mobile number is required').isLength({ max: 32 }),
+    (0, express_validator_1.body)('address').trim().notEmpty().withMessage('Address is required').isLength({ max: 1000 }),
 ];
 //# sourceMappingURL=checkoutValidators.js.map

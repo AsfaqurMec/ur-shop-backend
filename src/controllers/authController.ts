@@ -87,7 +87,28 @@ export async function getProfile(req: Request, res: Response): Promise<Response>
 
 export async function updateProfile(req: Request, res: Response): Promise<Response> {
   if (!req.user) return sendError(res, 'Unauthorized', 401);
-  const { name } = req.body as { name: string };
-  const user = await authService.updateProfileName(req.user.id, req.user.role, name);
+  const { name, mobile, address } = req.body as {
+    name: string;
+    mobile?: string | null;
+    address?: string | null;
+  };
+  const user = await authService.updateUserProfile(req.user.id, req.user.role, {
+    name,
+    mobile,
+    address,
+  });
   return sendSuccess(res, { user }, 200, 'Profile updated');
+}
+
+export async function guestCheckout(req: Request, res: Response): Promise<Response> {
+  const { name, email, mobile, address } = req.body as {
+    name: string;
+    email: string;
+    mobile: string;
+    address: string;
+  };
+  const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? req.socket?.remoteAddress ?? null;
+  const userAgent = req.headers['user-agent'] ?? null;
+  const result = await authService.guestCheckout(name, email, mobile, address, ip, userAgent);
+  return sendSuccess(res, result, 201, 'Guest account ready');
 }

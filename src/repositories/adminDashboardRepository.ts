@@ -57,7 +57,7 @@ export async function getOrdersByStatus(): Promise<AdminOrdersByStatus[]> {
   return rows.map((r: any) => ({ status: String(r._id), count: Number(r.count) }));
 }
 
-function recentOrder(row: any): AdminRecentOrder {
+function recentOrder(row: any, customerName?: string | null): AdminRecentOrder {
   return {
     id: Number(row.id),
     order_number: String(row.order_number),
@@ -65,6 +65,11 @@ function recentOrder(row: any): AdminRecentOrder {
     total: Number(row.total ?? 0),
     currency: String(row.currency ?? 'BDT'),
     user_id: Number(row.user_id),
+    shipping_mobile:
+      row.shipping_mobile != null && String(row.shipping_mobile).trim()
+        ? String(row.shipping_mobile).trim()
+        : null,
+    customer_name: customerName?.trim() || null,
     created_at: iso(row.created_at),
   };
 }
@@ -79,7 +84,13 @@ export async function getRecentOrders(
     OrderModel.countDocuments(query),
     OrderModel.find(query).sort({ created_at: -1 }).skip(offset).limit(limit).lean(),
   ]);
-  return { orders: rows.map(recentOrder), total };
+  const userIds = [...new Set((rows as any[]).map((r) => Number(r.user_id)))];
+  const users = await UserModel.find({ id: { $in: userIds }, deleted_at: null }).lean();
+  const nameByUserId = new Map(users.map((u: any) => [Number(u.id), String(u.name ?? '')]));
+  return {
+    orders: (rows as any[]).map((r) => recentOrder(r, nameByUserId.get(Number(r.user_id)) ?? null)),
+    total,
+  };
 }
 
 export async function updateOrderStatus(orderId: number, status: 'pending' | 'paid' | 'unpaid'): Promise<boolean> {
@@ -89,7 +100,9 @@ export async function updateOrderStatus(orderId: number, status: 'pending' | 'pa
 
 export async function getOrderListItemById(orderId: number): Promise<AdminRecentOrder | null> {
   const row = await OrderModel.findOne({ id: orderId }).lean();
-  return row ? recentOrder(row) : null;
+  if (!row) return null;
+  const user = await UserModel.findOne({ id: Number((row as any).user_id), deleted_at: null }).lean();
+  return recentOrder(row, user ? String((user as any).name ?? '') : null);
 }
 
 export async function getRecentPayments(limit: number): Promise<AdminRecentPayment[]> {
@@ -179,6 +192,8 @@ export async function getCustomersWithOrders(
       user_id: Number(user.id),
       email: String(user.email),
       name: String(user.name ?? ''),
+      mobile: user.mobile != null && String(user.mobile).trim() ? String(user.mobile).trim() : null,
+      address: user.address != null && String(user.address).trim() ? String(user.address).trim() : null,
       order_count: agg.count,
       last_order_at: iso(agg.last),
     };
@@ -199,6 +214,12 @@ export async function getCustomerAggregateById(userId: number): Promise<AdminCus
     user_id: Number(user.id),
     email: String(user.email),
     name: String(user.name ?? ''),
+    mobile: (user as any).mobile != null && String((user as any).mobile).trim()
+      ? String((user as any).mobile).trim()
+      : null,
+    address: (user as any).address != null && String((user as any).address).trim()
+      ? String((user as any).address).trim()
+      : null,
     order_count: orders.length,
     last_order_at: iso((orders[0] as any).created_at),
   };

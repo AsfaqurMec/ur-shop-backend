@@ -17,6 +17,8 @@ function userRow(doc: any): UserRow {
     email: String(doc.email),
     password_hash: String(doc.password_hash),
     name: String(doc.name),
+    mobile: doc.mobile != null && String(doc.mobile).trim() ? String(doc.mobile).trim() : null,
+    address: doc.address != null && String(doc.address).trim() ? String(doc.address).trim() : null,
     email_verified_at: doc.email_verified_at ? date(doc.email_verified_at) : null,
     created_at: date(doc.created_at),
     updated_at: date(doc.updated_at),
@@ -69,13 +71,20 @@ export async function findUserById(id: number): Promise<UserRow | null> {
   return row ? userRow(row) : null;
 }
 
-export async function createUser(email: string, passwordHash: string, name: string): Promise<number> {
+export async function createUser(
+  email: string,
+  passwordHash: string,
+  name: string,
+  contact?: { mobile?: string | null; address?: string | null }
+): Promise<number> {
   const id = await nextId('users');
   await UserModel.create({
     id,
     email: email.trim(),
     password_hash: passwordHash,
     name,
+    mobile: contact?.mobile?.trim() || null,
+    address: contact?.address?.trim() || null,
     email_verified_at: null,
     deleted_at: null,
   });
@@ -94,15 +103,33 @@ export async function emailExistsExcludingUser(email: string, excludeUserId: num
   return Boolean(await UserModel.exists({ email: email.trim(), id: { $ne: excludeUserId }, deleted_at: null }));
 }
 
-export async function updateUserProfile(userId: number, email: string, name: string): Promise<void> {
-  await UserModel.updateOne(
-    { id: userId, deleted_at: null },
-    { $set: { email: email.trim(), name: name.trim() } }
-  );
+export async function updateUserProfile(
+  userId: number,
+  data: { email: string; name: string; mobile?: string | null; address?: string | null }
+): Promise<void> {
+  const set: Record<string, unknown> = {
+    email: data.email.trim(),
+    name: data.name.trim(),
+  };
+  if (data.mobile !== undefined) set.mobile = data.mobile?.trim() || null;
+  if (data.address !== undefined) set.address = data.address?.trim() || null;
+  await UserModel.updateOne({ id: userId, deleted_at: null }, { $set: set });
 }
 
 export async function updateUserName(userId: number, name: string): Promise<void> {
   await UserModel.updateOne({ id: userId, deleted_at: null }, { $set: { name: name.trim() } });
+}
+
+export async function updateUserContact(
+  userId: number,
+  data: { name?: string; mobile?: string | null; address?: string | null }
+): Promise<void> {
+  const set: Record<string, unknown> = {};
+  if (data.name !== undefined) set.name = data.name.trim();
+  if (data.mobile !== undefined) set.mobile = data.mobile?.trim() || null;
+  if (data.address !== undefined) set.address = data.address?.trim() || null;
+  if (Object.keys(set).length === 0) return;
+  await UserModel.updateOne({ id: userId, deleted_at: null }, { $set: set });
 }
 
 export async function softDeleteUser(userId: number): Promise<boolean> {

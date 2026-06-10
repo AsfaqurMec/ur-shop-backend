@@ -45,6 +45,8 @@ exports.forgotPassword = forgotPassword;
 exports.resetPassword = resetPassword;
 exports.getProfile = getProfile;
 exports.updateProfileName = updateProfileName;
+exports.updateUserProfile = updateUserProfile;
+exports.guestCheckout = guestCheckout;
 const crypto_1 = __importDefault(require("crypto"));
 const errorHandler_1 = require("../middlewares/errorHandler");
 const authRepo = __importStar(require("../repositories/authRepository"));
@@ -60,6 +62,8 @@ function toSafeUser(row) {
         id: row.id,
         email: row.email,
         name: row.name,
+        mobile: row.mobile?.trim() || null,
+        address: row.address?.trim() || null,
         email_verified_at: row.email_verified_at ? row.email_verified_at.toISOString() : null,
         created_at: row.created_at.toISOString(),
         updated_at: row.updated_at.toISOString(),
@@ -71,6 +75,8 @@ function toSafeAdmin(row) {
         id: row.id,
         email: row.email,
         name: row.name,
+        mobile: null,
+        address: null,
         email_verified_at: null,
         created_at: row.created_at.toISOString(),
         updated_at: row.updated_at.toISOString(),
@@ -361,5 +367,91 @@ async function updateProfileName(userId, role, name) {
         await authRepo.updateUserName(userId, trimmed);
     }
     return getProfile(userId, role);
+}
+async function updateUserProfile(userId, role, data) {
+    const trimmedName = data.name.trim();
+    if (!trimmedName) {
+        throw new errorHandler_1.AppError(400, 'Name is required');
+    }
+    if (role === tokenHelpers_1.ROLE_ADMIN) {
+        return updateProfileName(userId, role, trimmedName);
+    }
+    const user = await authRepo.findUserById(userId);
+    if (!user) {
+        throw new errorHandler_1.AppError(404, 'User not found');
+    }
+    const mobile = data.mobile !== undefined ? (data.mobile?.trim() || null) : undefined;
+    const address = data.address !== undefined ? (data.address?.trim() || null) : undefined;
+    if (mobile !== undefined && !mobile) {
+        throw new errorHandler_1.AppError(400, 'Mobile number is required');
+    }
+    if (address !== undefined && !address) {
+        throw new errorHandler_1.AppError(400, 'Address is required');
+    }
+    await authRepo.updateUserContact(userId, {
+        name: trimmedName,
+        ...(mobile !== undefined ? { mobile } : {}),
+        ...(address !== undefined ? { address } : {}),
+    });
+    return getProfile(userId, role);
+}
+async function createUserSession(user, ip, userAgent) {
+    const fullUser = await authRepo.findUserById(user.id);
+    if (!fullUser)
+        throw new errorHandler_1.AppError(500, 'User not found');
+    const expiresAt = (0, tokenHelpers_1.getRefreshTokenExpiry)();
+    const placeholderHash = (0, tokenHelpers_1.hashToken)(crypto_1.default.randomBytes(24).toString('hex'));
+    const sessionId = await authRepo.createSession(fullUser.id, placeholderHash, expiresAt, ip, userAgent);
+    const signedRefreshToken = (0, tokenHelpers_1.generateRefreshToken)({
+        id: fullUser.id,
+        email: fullUser.email,
+        sessionId,
+    });
+    const tokenHash = (0, tokenHelpers_1.hashToken)(signedRefreshToken);
+    await authRepo.updateSessionTokenHash(sessionId, tokenHash);
+    const accessToken = (0, tokenHelpers_1.generateAccessToken)({
+        id: fullUser.id,
+        email: fullUser.email,
+        sessionId,
+    });
+    return {
+        user: toSafeUser(fullUser),
+        accessToken,
+        refreshToken: signedRefreshToken,
+        expiresAt: expiresAt.toISOString(),
+    };
+}
+/** Register or sign in a guest shopper (password = email) and return auth tokens. */
+async function guestCheckout(name, email, mobile, address, ip, userAgent) {
+    const trimmedEmail = email.trim();
+    const trimmedName = name.trim() || trimmedEmail;
+    const trimmedMobile = mobile.trim();
+    const trimmedAddress = address.trim();
+    if (!trimmedMobile)
+        throw new errorHandler_1.AppError(400, 'Mobile number is required');
+    if (!trimmedAddress)
+        throw new errorHandler_1.AppError(400, 'Address is required');
+    const existing = await authRepo.findUserByEmail(trimmedEmail);
+    if (existing) {
+        const valid = await (0, passwordHelpers_1.comparePassword)(trimmedEmail, existing.password_hash);
+        if (!valid) {
+            throw new errorHandler_1.AppError(409, 'An account with this email already exists. Please log in to continue.');
+        }
+        await authRepo.updateUserContact(existing.id, {
+            name: trimmedName,
+            mobile: trimmedMobile,
+            address: trimmedAddress,
+        });
+        return createUserSession(existing, ip, userAgent);
+    }
+    const passwordHash = await (0, passwordHelpers_1.hashPassword)(trimmedEmail);
+    const userId = await authRepo.createUser(trimmedEmail, passwordHash, trimmedName, {
+        mobile: trimmedMobile,
+        address: trimmedAddress,
+    });
+    const user = await authRepo.findUserById(userId);
+    if (!user)
+        throw new errorHandler_1.AppError(500, 'Failed to create user');
+    return createUserSession(user, ip, userAgent);
 }
 //# sourceMappingURL=authService.js.map

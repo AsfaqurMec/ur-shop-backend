@@ -112,7 +112,7 @@ export async function getCustomersWithOrders(
 
 export async function updateCustomer(
   userId: number,
-  data: { email: string; name: string }
+  data: { email: string; name: string; mobile?: string | null; address?: string | null }
 ): Promise<AdminCustomerListItem> {
   const user = await authRepo.findUserById(userId);
   if (!user) throw new AppError(404, 'Customer not found');
@@ -121,7 +121,12 @@ export async function updateCustomer(
   if (await authRepo.emailExistsExcludingUser(data.email, userId)) {
     throw new AppError(409, 'Email already in use');
   }
-  await authRepo.updateUserProfile(userId, data.email, data.name);
+  await authRepo.updateUserProfile(userId, {
+    email: data.email,
+    name: data.name,
+    mobile: data.mobile,
+    address: data.address,
+  });
   const row = await adminDashboardRepo.getCustomerAggregateById(userId);
   if (!row) throw new AppError(500, 'Failed to load customer');
   return row;

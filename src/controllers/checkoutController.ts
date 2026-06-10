@@ -17,11 +17,16 @@ export async function createOrder(req: Request, res: Response): Promise<Response
   const senderNumber = typeof req.body.sender_number === 'string' ? req.body.sender_number : null;
   const paymentType = typeof req.body.payment_type === 'string' ? req.body.payment_type : null;
 
+  const mobile = typeof req.body.mobile === 'string' ? req.body.mobile.trim() : '';
+  const address = typeof req.body.address === 'string' ? req.body.address.trim() : '';
+
   const order = await checkoutService.createOrder(userId, couponCode, {
     method,
     transactionId: transactionIdRaw,
     senderNumber,
     paymentType,
+    mobile,
+    address,
   });
   return sendSuccess(res, { order }, 201, 'Order created successfully');
 }

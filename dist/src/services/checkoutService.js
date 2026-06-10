@@ -124,7 +124,17 @@ async function createOrder(userId, couponCode, paymentInput = { method: 'manual_
     const senderNumber = paymentInput.senderNumber?.trim() ?? '';
     const transactionId = paymentInput.transactionId?.trim() ?? '';
     const paymentTypeClient = paymentInput.paymentType?.trim() || null;
+    const shippingMobile = paymentInput.mobile?.trim() ?? '';
+    const shippingAddress = paymentInput.address?.trim() ?? '';
     const isCashOnDelivery = methodRaw === 'cash_on_delivery';
+    if (!shippingMobile)
+        throw new errorHandler_1.AppError(400, 'Mobile number is required');
+    if (!shippingAddress)
+        throw new errorHandler_1.AppError(400, 'Address is required');
+    await authRepo.updateUserContact(userId, {
+        mobile: shippingMobile,
+        address: shippingAddress,
+    });
     const optionRow = isCashOnDelivery ? null : await paymentOptionService.assertCheckoutGatewayAllowed(methodRaw);
     if (optionRow && paymentOptionService.isMfsReferenceRow(optionRow)) {
         if (!transactionId) {
@@ -176,6 +186,8 @@ async function createOrder(userId, couponCode, paymentInput = { method: 'manual_
         tax,
         total,
         currency: CURRENCY,
+        shipping_mobile: shippingMobile,
+        shipping_address: shippingAddress,
     });
     try {
         await orderRepo.createOrderItems(null, orderId, orderItemsInput);

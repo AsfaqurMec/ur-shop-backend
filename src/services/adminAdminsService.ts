@@ -14,6 +14,8 @@ function toSafeAdmin(row: {
     id: row.id,
     email: row.email,
     name: row.name,
+    mobile: null,
+    address: null,
     email_verified_at: null,
     created_at: row.created_at.toISOString(),
     updated_at: row.updated_at.toISOString(),

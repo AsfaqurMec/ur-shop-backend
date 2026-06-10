@@ -22,6 +22,8 @@ function toSafeUser(row: {
   id: number;
   email: string;
   name: string;
+  mobile?: string | null;
+  address?: string | null;
   email_verified_at: Date | null;
   created_at: Date;
   updated_at: Date;
@@ -30,6 +32,8 @@ function toSafeUser(row: {
     id: row.id,
     email: row.email,
     name: row.name,
+    mobile: row.mobile?.trim() || null,
+    address: row.address?.trim() || null,
     email_verified_at: row.email_verified_at ? row.email_verified_at.toISOString() : null,
     created_at: row.created_at.toISOString(),
     updated_at: row.updated_at.toISOString(),
@@ -48,6 +52,8 @@ function toSafeAdmin(row: {
     id: row.id,
     email: row.email,
     name: row.name,
+    mobile: null,
+    address: null,
     email_verified_at: null,
     created_at: row.created_at.toISOString(),
     updated_at: row.updated_at.toISOString(),
@@ -425,4 +431,119 @@ export async function updateProfileName(userId: number, role: string, name: stri
     await authRepo.updateUserName(userId, trimmed);
   }
   return getProfile(userId, role);
+}
+
+export async function updateUserProfile(
+  userId: number,
+  role: string,
+  data: { name: string; mobile?: string | null; address?: string | null }
+): Promise<SafeUser> {
+  const trimmedName = data.name.trim();
+  if (!trimmedName) {
+    throw new AppError(400, 'Name is required');
+  }
+  if (role === ROLE_ADMIN) {
+    return updateProfileName(userId, role, trimmedName);
+  }
+  const user = await authRepo.findUserById(userId);
+  if (!user) {
+    throw new AppError(404, 'User not found');
+  }
+  const mobile = data.mobile !== undefined ? (data.mobile?.trim() || null) : undefined;
+  const address = data.address !== undefined ? (data.address?.trim() || null) : undefined;
+  if (mobile !== undefined && !mobile) {
+    throw new AppError(400, 'Mobile number is required');
+  }
+  if (address !== undefined && !address) {
+    throw new AppError(400, 'Address is required');
+  }
+  await authRepo.updateUserContact(userId, {
+    name: trimmedName,
+    ...(mobile !== undefined ? { mobile } : {}),
+    ...(address !== undefined ? { address } : {}),
+  });
+  return getProfile(userId, role);
+}
+
+async function createUserSession(
+  user: { id: number; email: string },
+  ip: string | null,
+  userAgent: string | null
+): Promise<{
+  user: SafeUser;
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: string;
+}> {
+  const fullUser = await authRepo.findUserById(user.id);
+  if (!fullUser) throw new AppError(500, 'User not found');
+
+  const expiresAt = getRefreshTokenExpiry();
+  const placeholderHash = hashToken(crypto.randomBytes(24).toString('hex'));
+  const sessionId = await authRepo.createSession(fullUser.id, placeholderHash, expiresAt, ip, userAgent);
+  const signedRefreshToken = generateRefreshToken({
+    id: fullUser.id,
+    email: fullUser.email,
+    sessionId,
+  });
+  const tokenHash = hashToken(signedRefreshToken);
+  await authRepo.updateSessionTokenHash(sessionId, tokenHash);
+
+  const accessToken = generateAccessToken({
+    id: fullUser.id,
+    email: fullUser.email,
+    sessionId,
+  });
+
+  return {
+    user: toSafeUser(fullUser),
+    accessToken,
+    refreshToken: signedRefreshToken,
+    expiresAt: expiresAt.toISOString(),
+  };
+}
+
+/** Register or sign in a guest shopper (password = email) and return auth tokens. */
+export async function guestCheckout(
+  name: string,
+  email: string,
+  mobile: string,
+  address: string,
+  ip: string | null,
+  userAgent: string | null
+): Promise<{
+  user: SafeUser;
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: string;
+}> {
+  const trimmedEmail = email.trim();
+  const trimmedName = name.trim() || trimmedEmail;
+  const trimmedMobile = mobile.trim();
+  const trimmedAddress = address.trim();
+  if (!trimmedMobile) throw new AppError(400, 'Mobile number is required');
+  if (!trimmedAddress) throw new AppError(400, 'Address is required');
+
+  const existing = await authRepo.findUserByEmail(trimmedEmail);
+  if (existing) {
+    const valid = await comparePassword(trimmedEmail, existing.password_hash);
+    if (!valid) {
+      throw new AppError(409, 'An account with this email already exists. Please log in to continue.');
+    }
+    await authRepo.updateUserContact(existing.id, {
+      name: trimmedName,
+      mobile: trimmedMobile,
+      address: trimmedAddress,
+    });
+    return createUserSession(existing, ip, userAgent);
+  }
+
+  const passwordHash = await hashPassword(trimmedEmail);
+  const userId = await authRepo.createUser(trimmedEmail, passwordHash, trimmedName, {
+    mobile: trimmedMobile,
+    address: trimmedAddress,
+  });
+  const user = await authRepo.findUserById(userId);
+  if (!user) throw new AppError(500, 'Failed to create user');
+  return createUserSession(user, ip, userAgent);
 }

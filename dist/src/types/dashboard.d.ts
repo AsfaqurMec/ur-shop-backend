@@ -18,6 +18,12 @@ export interface DashboardOrderDetail {
     tax: number;
     total: number;
     currency: string;
+    shipping_mobile: string | null;
+    shipping_address: string | null;
+    customer_name: string | null;
+    customer_email: string | null;
+    customer_mobile: string | null;
+    customer_address: string | null;
     items: DashboardOrderDetailItem[];
     payment: DashboardOrderPayment | null;
     delivery: DashboardOrderDelivery | null;

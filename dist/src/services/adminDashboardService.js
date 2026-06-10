@@ -120,7 +120,12 @@ async function updateCustomer(userId, data) {
     if (await authRepo.emailExistsExcludingUser(data.email, userId)) {
         throw new errorHandler_1.AppError(409, 'Email already in use');
     }
-    await authRepo.updateUserProfile(userId, data.email, data.name);
+    await authRepo.updateUserProfile(userId, {
+        email: data.email,
+        name: data.name,
+        mobile: data.mobile,
+        address: data.address,
+    });
     const row = await adminDashboardRepo.getCustomerAggregateById(userId);
     if (!row)
         throw new errorHandler_1.AppError(500, 'Failed to load customer');

@@ -28,6 +28,9 @@ export interface CreateOrderPaymentDetails {
   transactionId?: string | null;
   /** Client hint: e.g. `manual` vs `merchant` (stored on payment for admin reference). */
   paymentType?: string | null;
+  /** Customer contact for delivery. */
+  mobile?: string;
+  address?: string;
 }
 
 async function validateCartItemsForCheckout(
@@ -118,7 +121,17 @@ export async function createOrder(
   const senderNumber = paymentInput.senderNumber?.trim() ?? '';
   const transactionId = paymentInput.transactionId?.trim() ?? '';
   const paymentTypeClient = paymentInput.paymentType?.trim() || null;
+  const shippingMobile = paymentInput.mobile?.trim() ?? '';
+  const shippingAddress = paymentInput.address?.trim() ?? '';
   const isCashOnDelivery = methodRaw === 'cash_on_delivery';
+
+  if (!shippingMobile) throw new AppError(400, 'Mobile number is required');
+  if (!shippingAddress) throw new AppError(400, 'Address is required');
+
+  await authRepo.updateUserContact(userId, {
+    mobile: shippingMobile,
+    address: shippingAddress,
+  });
 
   const optionRow = isCashOnDelivery ? null : await paymentOptionService.assertCheckoutGatewayAllowed(methodRaw);
 
@@ -185,6 +198,8 @@ export async function createOrder(
     tax,
     total,
     currency: CURRENCY,
+    shipping_mobile: shippingMobile,
+    shipping_address: shippingAddress,
   });
   try {
     await orderRepo.createOrderItems(null, orderId, orderItemsInput);

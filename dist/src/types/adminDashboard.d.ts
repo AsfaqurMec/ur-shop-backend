@@ -26,6 +26,8 @@ export interface AdminRecentOrder {
     total: number;
     currency: string;
     user_id: number;
+    shipping_mobile: string | null;
+    customer_name: string | null;
     created_at: string;
 }
 /** Recent payment list item. */
@@ -58,6 +60,8 @@ export interface AdminCustomerListItem {
     user_id: number;
     email: string;
     name: string;
+    mobile: string | null;
+    address: string | null;
     order_count: number;
     last_order_at: string;
 }

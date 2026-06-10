@@ -8,6 +8,7 @@ exports.updateUserPassword = updateUserPassword;
 exports.emailExistsExcludingUser = emailExistsExcludingUser;
 exports.updateUserProfile = updateUserProfile;
 exports.updateUserName = updateUserName;
+exports.updateUserContact = updateUserContact;
 exports.softDeleteUser = softDeleteUser;
 exports.createSession = createSession;
 exports.updateSessionTokenHash = updateSessionTokenHash;
@@ -32,6 +33,8 @@ function userRow(doc) {
         email: String(doc.email),
         password_hash: String(doc.password_hash),
         name: String(doc.name),
+        mobile: doc.mobile != null && String(doc.mobile).trim() ? String(doc.mobile).trim() : null,
+        address: doc.address != null && String(doc.address).trim() ? String(doc.address).trim() : null,
         email_verified_at: doc.email_verified_at ? date(doc.email_verified_at) : null,
         created_at: date(doc.created_at),
         updated_at: date(doc.updated_at),
@@ -78,13 +81,15 @@ async function findUserById(id) {
     const row = await models_1.UserModel.findOne({ id, deleted_at: null }).lean();
     return row ? userRow(row) : null;
 }
-async function createUser(email, passwordHash, name) {
+async function createUser(email, passwordHash, name, contact) {
     const id = await (0, counter_1.nextId)('users');
     await models_1.UserModel.create({
         id,
         email: email.trim(),
         password_hash: passwordHash,
         name,
+        mobile: contact?.mobile?.trim() || null,
+        address: contact?.address?.trim() || null,
         email_verified_at: null,
         deleted_at: null,
     });
@@ -99,11 +104,31 @@ async function updateUserPassword(userId, passwordHash) {
 async function emailExistsExcludingUser(email, excludeUserId) {
     return Boolean(await models_1.UserModel.exists({ email: email.trim(), id: { $ne: excludeUserId }, deleted_at: null }));
 }
-async function updateUserProfile(userId, email, name) {
-    await models_1.UserModel.updateOne({ id: userId, deleted_at: null }, { $set: { email: email.trim(), name: name.trim() } });
+async function updateUserProfile(userId, data) {
+    const set = {
+        email: data.email.trim(),
+        name: data.name.trim(),
+    };
+    if (data.mobile !== undefined)
+        set.mobile = data.mobile?.trim() || null;
+    if (data.address !== undefined)
+        set.address = data.address?.trim() || null;
+    await models_1.UserModel.updateOne({ id: userId, deleted_at: null }, { $set: set });
 }
 async function updateUserName(userId, name) {
     await models_1.UserModel.updateOne({ id: userId, deleted_at: null }, { $set: { name: name.trim() } });
+}
+async function updateUserContact(userId, data) {
+    const set = {};
+    if (data.name !== undefined)
+        set.name = data.name.trim();
+    if (data.mobile !== undefined)
+        set.mobile = data.mobile?.trim() || null;
+    if (data.address !== undefined)
+        set.address = data.address?.trim() || null;
+    if (Object.keys(set).length === 0)
+        return;
+    await models_1.UserModel.updateOne({ id: userId, deleted_at: null }, { $set: set });
 }
 async function softDeleteUser(userId) {
     const result = await models_1.UserModel.updateOne({ id: userId, deleted_at: null }, { $set: { deleted_at: new Date() } });

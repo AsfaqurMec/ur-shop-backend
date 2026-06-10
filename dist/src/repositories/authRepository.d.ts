@@ -1,12 +1,25 @@
 import type { UserRow, UserSessionRow, EmailVerificationRow, PasswordResetRow } from '../types/auth';
 export declare function findUserByEmail(email: string): Promise<UserRow | null>;
 export declare function findUserById(id: number): Promise<UserRow | null>;
-export declare function createUser(email: string, passwordHash: string, name: string): Promise<number>;
+export declare function createUser(email: string, passwordHash: string, name: string, contact?: {
+    mobile?: string | null;
+    address?: string | null;
+}): Promise<number>;
 export declare function updateUserEmailVerified(userId: number): Promise<void>;
 export declare function updateUserPassword(userId: number, passwordHash: string): Promise<void>;
 export declare function emailExistsExcludingUser(email: string, excludeUserId: number): Promise<boolean>;
-export declare function updateUserProfile(userId: number, email: string, name: string): Promise<void>;
+export declare function updateUserProfile(userId: number, data: {
+    email: string;
+    name: string;
+    mobile?: string | null;
+    address?: string | null;
+}): Promise<void>;
 export declare function updateUserName(userId: number, name: string): Promise<void>;
+export declare function updateUserContact(userId: number, data: {
+    name?: string;
+    mobile?: string | null;
+    address?: string | null;
+}): Promise<void>;
 export declare function softDeleteUser(userId: number): Promise<boolean>;
 export declare function createSession(userId: number, tokenHash: string, expiresAt: Date, ip: string | null, userAgent: string | null): Promise<number>;
 export declare function updateSessionTokenHash(sessionId: number, tokenHash: string): Promise<void>;

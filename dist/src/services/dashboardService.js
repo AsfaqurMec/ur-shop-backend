@@ -49,6 +49,7 @@ const entitlementRepo = __importStar(require("../repositories/downloadEntitlemen
 const productRepo = __importStar(require("../repositories/productRepository"));
 const subscriptionRepo = __importStar(require("../repositories/subscriptionRepository"));
 const fulfillmentQueueRepo = __importStar(require("../repositories/fulfillmentQueueRepository"));
+const authRepo = __importStar(require("../repositories/authRepository"));
 const downloadService = __importStar(require("./downloadService"));
 const ORDERS_LIST_LIMIT = 50;
 const ORDERS_LIST_OFFSET = 0;
@@ -124,6 +125,12 @@ async function getOrderDetails(userId, orderId) {
         tax: Number(order.tax),
         total: Number(order.total),
         currency: order.currency,
+        shipping_mobile: order.shipping_mobile,
+        shipping_address: order.shipping_address,
+        customer_name: null,
+        customer_email: null,
+        customer_mobile: null,
+        customer_address: null,
         items: orderItems,
         payment: paymentDto,
         delivery: deliveryDto,
@@ -135,10 +142,11 @@ async function getOrderDetailsAdmin(orderId) {
     const order = await orderRepo.findOrderById(orderId);
     if (!order)
         throw new errorHandler_1.AppError(404, 'Order not found');
-    const [items, payment, delivery] = await Promise.all([
+    const [items, payment, delivery, customer] = await Promise.all([
         orderRepo.findOrderItems(orderId),
         orderRepo.findPaymentByOrderId(orderId),
         deliveryRepo.findByOrderId(orderId),
+        authRepo.findUserById(order.user_id),
     ]);
     const orderItems = await toDashboardOrderItems(items);
     let paymentDto = null;
@@ -167,6 +175,12 @@ async function getOrderDetailsAdmin(orderId) {
         tax: Number(order.tax),
         total: Number(order.total),
         currency: order.currency,
+        shipping_mobile: order.shipping_mobile,
+        shipping_address: order.shipping_address,
+        customer_name: customer?.name?.trim() || null,
+        customer_email: customer?.email ?? null,
+        customer_mobile: customer?.mobile ?? null,
+        customer_address: customer?.address ?? null,
         items: orderItems,
         payment: paymentDto,
         delivery: deliveryDto,

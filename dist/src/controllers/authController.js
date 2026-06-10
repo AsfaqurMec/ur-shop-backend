@@ -42,6 +42,7 @@ exports.forgotPassword = forgotPassword;
 exports.resetPassword = resetPassword;
 exports.getProfile = getProfile;
 exports.updateProfile = updateProfile;
+exports.guestCheckout = guestCheckout;
 const config_1 = require("../config");
 const apiResponse_1 = require("../utils/apiResponse");
 const authService = __importStar(require("../services/authService"));
@@ -121,8 +122,19 @@ async function getProfile(req, res) {
 async function updateProfile(req, res) {
     if (!req.user)
         return (0, apiResponse_1.sendError)(res, 'Unauthorized', 401);
-    const { name } = req.body;
-    const user = await authService.updateProfileName(req.user.id, req.user.role, name);
+    const { name, mobile, address } = req.body;
+    const user = await authService.updateUserProfile(req.user.id, req.user.role, {
+        name,
+        mobile,
+        address,
+    });
     return (0, apiResponse_1.sendSuccess)(res, { user }, 200, 'Profile updated');
+}
+async function guestCheckout(req, res) {
+    const { name, email, mobile, address } = req.body;
+    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() ?? req.socket?.remoteAddress ?? null;
+    const userAgent = req.headers['user-agent'] ?? null;
+    const result = await authService.guestCheckout(name, email, mobile, address, ip, userAgent);
+    return (0, apiResponse_1.sendSuccess)(res, result, 201, 'Guest account ready');
 }
 //# sourceMappingURL=authController.js.map

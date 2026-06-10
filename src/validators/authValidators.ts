@@ -46,4 +46,13 @@ export const updateProfileValidator = [
     .withMessage('Name is required')
     .isLength({ max: NAME_MAX })
     .withMessage(`Name max ${NAME_MAX} characters`),
+  body('mobile').optional({ values: 'null' }).trim().isLength({ max: 32 }).withMessage('Mobile max 32 characters'),
+  body('address').optional({ values: 'null' }).trim().isLength({ max: 1000 }).withMessage('Address max 1000 characters'),
+];
+
+export const guestCheckoutValidator = [
+  body('name').trim().notEmpty().withMessage('Name is required').isLength({ max: NAME_MAX }),
+  body('email').trim().isEmail().normalizeEmail().withMessage('Valid email is required'),
+  body('mobile').trim().notEmpty().withMessage('Mobile number is required').isLength({ max: 32 }),
+  body('address').trim().notEmpty().withMessage('Address is required').isLength({ max: 1000 }),
 ];

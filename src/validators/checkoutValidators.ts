@@ -7,4 +7,6 @@ export const createOrderValidator = [
   body('bkash_transaction_id').optional().trim().isLength({ max: 128 }),
   body('sender_number').optional().trim().isLength({ max: 64 }),
   body('payment_type').optional().trim().isLength({ max: 32 }),
+  body('mobile').trim().notEmpty().withMessage('Mobile number is required').isLength({ max: 32 }),
+  body('address').trim().notEmpty().withMessage('Address is required').isLength({ max: 1000 }),
 ];
