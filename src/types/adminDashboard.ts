@@ -70,5 +70,5 @@ export interface AdminCustomerListItem {
   mobile: string | null;
   address: string | null;
   order_count: number;
-  last_order_at: string;
+  last_order_at: string ;
 }

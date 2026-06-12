@@ -25,28 +25,33 @@ function iso(v: unknown): string {
 
 export async function getDashboardSummary(): Promise<AdminDashboardSummary> {
   const [ordersTotal, ordersPaid, completedPayments, distinctOrders, pendingFulfillment, pendingTickets] =
-    await Promise.all([
-      OrderModel.countDocuments({}),
-      OrderModel.countDocuments({ status: { $in: ['paid', 'processing', 'completed'] } }),
-      PaymentModel.find({ status: 'completed' }).lean(),
-      OrderModel.distinct('user_id'),
-      FulfillmentQueueModel.countDocuments({ status: 'pending' }),
-      TicketModel.countDocuments({ status: { $in: ['open', 'answered', 'customer_reply'] } }),
-    ]);
+  await Promise.all([
+    OrderModel.countDocuments({}),
+    OrderModel.countDocuments({ status: { $in: ['paid', 'processing', 'completed'] } }),
+    OrderModel.find({ status: 'paid' }).lean(),
+    UserModel.find({}), // Fixed this line
+    FulfillmentQueueModel.countDocuments({ status: 'pending' }),
+    TicketModel.countDocuments({ status: { $in: ['open', 'answered', 'customer_reply'] } }),
+  ]);
+
+    
+    
   return {
     orders_total: ordersTotal,
     orders_paid: ordersPaid,
-    revenue_total: completedPayments.reduce((sum, p: any) => sum + Number(p.amount ?? 0), 0),
+    revenue_total: completedPayments.reduce((sum, p: any) => sum + p.total, 0),
     customers_count: distinctOrders.length,
     pending_fulfillment_count: pendingFulfillment,
     pending_tickets_count: pendingTickets,
   };
+  
+  
 }
 
 export async function getSalesSummary(): Promise<AdminSalesSummary> {
-  const payments = await PaymentModel.find({ status: 'completed' }).lean();
+  const payments = await OrderModel.find({ status: 'paid' }).lean();
   return {
-    total_revenue: payments.reduce((sum, p: any) => sum + Number(p.amount ?? 0), 0),
+    total_revenue: payments.reduce((sum, p: any) => sum + p.total, 0),
     total_orders_paid: new Set(payments.map((p: any) => Number(p.order_id))).size,
     currency: String(payments[0]?.currency || 'BDT'),
   };
@@ -176,30 +181,70 @@ export async function getCustomersWithOrders(
   limit: number,
   offset: number
 ): Promise<{ customers: AdminCustomerListItem[]; total: number }> {
+  // Get ALL users (not deleted)
+  const users = await UserModel.find({ deleted_at: null }).lean();
+  
+  // Get all orders and group by user_id
   const orderRows = await OrderModel.find({}).sort({ created_at: -1 }).lean();
   const byUser = new Map<number, { count: number; last: unknown }>();
+  
   for (const order of orderRows as any[]) {
     const userId = Number(order.user_id);
     const current = byUser.get(userId);
     if (!current) byUser.set(userId, { count: 1, last: order.created_at });
     else current.count += 1;
   }
-  const userIds = [...byUser.keys()];
-  const users = await UserModel.find({ id: { $in: userIds }, deleted_at: null }).lean();
+  
+  // Map all users (including those with zero orders)
   const rows = users.map((user: any) => {
-    const agg = byUser.get(Number(user.id))!;
+    const agg = byUser.get(Number(user.id));
     return {
       user_id: Number(user.id),
       email: String(user.email),
       name: String(user.name ?? ''),
       mobile: user.mobile != null && String(user.mobile).trim() ? String(user.mobile).trim() : null,
       address: user.address != null && String(user.address).trim() ? String(user.address).trim() : null,
-      order_count: agg.count,
-      last_order_at: iso(agg.last),
+      order_count: agg?.count ?? 0,
+      last_order_at: agg?.last ? iso(agg.last) : '', // Changed from null to empty string
     };
-  }).sort((a, b) => new Date(b.last_order_at).getTime() - new Date(a.last_order_at).getTime());
+  }).sort((a, b) => {
+    // Sort by last_order_at (empty strings last)
+    if (!a.last_order_at) return 1;
+    if (!b.last_order_at) return -1;
+    return new Date(b.last_order_at).getTime() - new Date(a.last_order_at).getTime();
+  });
+  
   return { customers: rows.slice(offset, offset + limit), total: rows.length };
 }
+
+// export async function getCustomersWithOrders(
+//   limit: number,
+//   offset: number
+// ): Promise<{ customers: AdminCustomerListItem[]; total: number }> {
+//   const orderRows = await OrderModel.find({}).sort({ created_at: -1 }).lean();
+//   const byUser = new Map<number, { count: number; last: unknown }>();
+//   for (const order of orderRows as any[]) {
+//     const userId = Number(order.user_id);
+//     const current = byUser.get(userId);
+//     if (!current) byUser.set(userId, { count: 1, last: order.created_at });
+//     else current.count += 1;
+//   }
+//   const userIds = [...byUser.keys()];
+//   const users = await UserModel.find({ id: { $in: userIds }, deleted_at: null }).lean();
+//   const rows = users.map((user: any) => {
+//     const agg = byUser.get(Number(user.id))!;
+//     return {
+//       user_id: Number(user.id),
+//       email: String(user.email),
+//       name: String(user.name ?? ''),
+//       mobile: user.mobile != null && String(user.mobile).trim() ? String(user.mobile).trim() : null,
+//       address: user.address != null && String(user.address).trim() ? String(user.address).trim() : null,
+//       order_count: agg.count,
+//       last_order_at: iso(agg.last),
+//     };
+//   }).sort((a, b) => new Date(b.last_order_at).getTime() - new Date(a.last_order_at).getTime());
+//   return { customers: rows.slice(offset, offset + limit), total: rows.length };
+// }
 
 export async function userHasOrders(userId: number): Promise<boolean> {
   return Boolean(await OrderModel.exists({ user_id: userId }));

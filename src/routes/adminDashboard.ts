@@ -26,6 +26,7 @@ router.use(admin);
 router.get(
   '/summary',
   asyncHandler(adminDashboardController.getDashboardSummary)
+  
 );
 
 /** Sales summary (total revenue, paid order count). */
