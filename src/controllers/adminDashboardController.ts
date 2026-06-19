@@ -99,3 +99,9 @@ export async function deleteCustomer(req: Request, res: Response): Promise<Respo
   await adminDashboardService.deleteCustomer(userId);
   return sendSuccess(res, {}, 200, 'Customer removed');
 }
+
+export async function remove(req: Request, res: Response): Promise<Response> {
+  const id = Number(req.params.id);
+  await adminDashboardService.deleteOrder(id);
+  return sendSuccess(res, { message: 'Category deleted' });
+}

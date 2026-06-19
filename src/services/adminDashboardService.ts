@@ -141,3 +141,8 @@ export async function deleteCustomer(userId: number): Promise<void> {
   if (!ok) throw new AppError(404, 'Customer not found');
   await authRepo.deleteSessionsByUserId(userId);
 }
+
+export async function deleteOrder(id: number): Promise<void> {
+  const existed = await adminDashboardRepo.softDelete(id);
+  if (!existed) throw new AppError(404, 'Category not found');
+}

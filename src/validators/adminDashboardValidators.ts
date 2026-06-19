@@ -55,3 +55,7 @@ export const updateCustomerValidator = [
   body('mobile').optional({ values: 'null' }).trim().isLength({ max: 32 }).withMessage('Mobile max 32 characters'),
   body('address').optional({ values: 'null' }).trim().isLength({ max: 1000 }).withMessage('Address max 1000 characters'),
 ];
+
+export const deleteOrderValidator = [
+  param('id').isInt({ min: 1 }).withMessage('Valid order id is required').toInt(),
+];

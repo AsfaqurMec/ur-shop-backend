@@ -269,3 +269,10 @@ export async function getCustomerAggregateById(userId: number): Promise<AdminCus
     last_order_at: iso((orders[0] as any).created_at),
   };
 }
+
+export async function softDelete(id: number): Promise<boolean> {
+ // console.log('delete id', id);
+ const result = await OrderModel.deleteOne({ id });
+
+ return result.deletedCount > 0;
+}

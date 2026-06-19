@@ -14,6 +14,7 @@ import {
   customersListQueryValidator,
   customerUserIdParamValidator,
   updateCustomerValidator,
+  deleteOrderValidator,
 } from '../validators/adminDashboardValidators';
 import { orderIdParamValidator } from '../validators/dashboardValidators';
 
@@ -119,5 +120,7 @@ router.patch(
   validate(updateOrderStatusValidator),
   asyncHandler(adminDashboardController.updateOrderStatus)
 );
+
+router.delete('/orders/:id', auth, admin, validate(deleteOrderValidator), asyncHandler(adminDashboardController.remove));
 
 export default router;
