@@ -67,7 +67,11 @@ export async function findUserByEmail(email: string): Promise<UserRow | null> {
 }
 
 export async function findUserById(id: number): Promise<UserRow | null> {
+  //console.log(id);
+  
   const row = await UserModel.findOne({ id, deleted_at: null }).lean();
+ // console.log(row);
+  
   return row ? userRow(row) : null;
 }
 

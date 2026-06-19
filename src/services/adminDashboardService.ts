@@ -133,10 +133,12 @@ export async function updateCustomer(
 }
 
 export async function deleteCustomer(userId: number): Promise<void> {
+  //console.log(userId);
+  
   const user = await authRepo.findUserById(userId);
   if (!user) throw new AppError(404, 'Customer not found');
-  const hasOrders = await adminDashboardRepo.userHasOrders(userId);
-  if (!hasOrders) throw new AppError(404, 'Customer not found');
+  // const hasOrders = await adminDashboardRepo.userHasOrders(userId);
+  // if (!hasOrders) throw new AppError(404, 'Customer not found');
   const ok = await authRepo.softDeleteUser(userId);
   if (!ok) throw new AppError(404, 'Customer not found');
   await authRepo.deleteSessionsByUserId(userId);

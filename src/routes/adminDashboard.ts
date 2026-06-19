@@ -73,6 +73,7 @@ router.delete(
   '/customers/:userId',
   validate(customerUserIdParamValidator),
   asyncHandler(adminDashboardController.deleteCustomer)
+  
 );
 
 /** Recent payments (query: limit, default 10, max 200). */

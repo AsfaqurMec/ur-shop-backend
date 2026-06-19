@@ -96,6 +96,8 @@ export async function updateCustomer(req: Request, res: Response): Promise<Respo
 
 export async function deleteCustomer(req: Request, res: Response): Promise<Response> {
   const userId = Number(req.params.userId);
+ // console.log(req.params.userId);
+  
   await adminDashboardService.deleteCustomer(userId);
   return sendSuccess(res, {}, 200, 'Customer removed');
 }
