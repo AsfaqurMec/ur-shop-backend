@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateCustomerValidator = exports.customerUserIdParamValidator = exports.customersListQueryValidator = exports.lowStockValidator = exports.topProductsValidator = exports.emailLogsQueryValidator = exports.updateOrderStatusValidator = exports.recentOrdersQueryValidator = exports.recentListValidator = void 0;
+exports.deleteOrderValidator = exports.updateCustomerValidator = exports.customerUserIdParamValidator = exports.customersListQueryValidator = exports.lowStockValidator = exports.topProductsValidator = exports.emailLogsQueryValidator = exports.updateOrderStatusValidator = exports.recentOrdersQueryValidator = exports.recentListValidator = void 0;
 const express_validator_1 = require("express-validator");
 const ADMIN_ORDER_STATUSES = ['pending', 'paid', 'unpaid', 'processing', 'completed', 'refunded', 'cancelled'];
 exports.recentListValidator = [
@@ -47,5 +47,8 @@ exports.updateCustomerValidator = [
     (0, express_validator_1.body)('name').trim().isLength({ max: 255 }).withMessage('Name max 255 characters'),
     (0, express_validator_1.body)('mobile').optional({ values: 'null' }).trim().isLength({ max: 32 }).withMessage('Mobile max 32 characters'),
     (0, express_validator_1.body)('address').optional({ values: 'null' }).trim().isLength({ max: 1000 }).withMessage('Address max 1000 characters'),
+];
+exports.deleteOrderValidator = [
+    (0, express_validator_1.param)('id').isInt({ min: 1 }).withMessage('Valid order id is required').toInt(),
 ];
 //# sourceMappingURL=adminDashboardValidators.js.map

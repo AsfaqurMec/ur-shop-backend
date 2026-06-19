@@ -39,4 +39,5 @@ export declare function updateCustomer(userId: number, data: {
     address?: string | null;
 }): Promise<AdminCustomerListItem>;
 export declare function deleteCustomer(userId: number): Promise<void>;
+export declare function deleteOrder(id: number): Promise<void>;
 //# sourceMappingURL=adminDashboardService.d.ts.map

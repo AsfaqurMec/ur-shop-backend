@@ -14,6 +14,7 @@ exports.getPendingTicketsCount = getPendingTicketsCount;
 exports.getCustomersWithOrders = getCustomersWithOrders;
 exports.userHasOrders = userHasOrders;
 exports.getCustomerAggregateById = getCustomerAggregateById;
+exports.softDelete = softDelete;
 const models_1 = require("../database/models");
 function iso(v) {
     return (v ? new Date(v) : new Date()).toISOString();
@@ -238,5 +239,10 @@ async function getCustomerAggregateById(userId) {
         order_count: orders.length,
         last_order_at: iso(orders[0].created_at),
     };
+}
+async function softDelete(id) {
+    // console.log('delete id', id);
+    const result = await models_1.OrderModel.deleteOne({ id });
+    return result.deletedCount > 0;
 }
 //# sourceMappingURL=adminDashboardRepository.js.map

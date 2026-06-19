@@ -48,6 +48,7 @@ exports.getOrderDetails = getOrderDetails;
 exports.getCustomersWithOrders = getCustomersWithOrders;
 exports.updateCustomer = updateCustomer;
 exports.deleteCustomer = deleteCustomer;
+exports.remove = remove;
 const apiResponse_1 = require("../utils/apiResponse");
 const adminDashboardService = __importStar(require("../services/adminDashboardService"));
 const dashboardService = __importStar(require("../services/dashboardService"));
@@ -125,7 +126,13 @@ async function updateCustomer(req, res) {
 }
 async function deleteCustomer(req, res) {
     const userId = Number(req.params.userId);
+    // console.log(req.params.userId);
     await adminDashboardService.deleteCustomer(userId);
     return (0, apiResponse_1.sendSuccess)(res, {}, 200, 'Customer removed');
+}
+async function remove(req, res) {
+    const id = Number(req.params.id);
+    await adminDashboardService.deleteOrder(id);
+    return (0, apiResponse_1.sendSuccess)(res, { message: 'Category deleted' });
 }
 //# sourceMappingURL=adminDashboardController.js.map

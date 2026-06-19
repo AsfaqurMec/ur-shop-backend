@@ -19,4 +19,5 @@ export declare function getCustomersWithOrders(limit: number, offset: number): P
 }>;
 export declare function userHasOrders(userId: number): Promise<boolean>;
 export declare function getCustomerAggregateById(userId: number): Promise<AdminCustomerListItem | null>;
+export declare function softDelete(id: number): Promise<boolean>;
 //# sourceMappingURL=adminDashboardRepository.d.ts.map

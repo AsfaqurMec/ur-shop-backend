@@ -71,5 +71,6 @@ router.get('/pending-tickets-count', (0, asyncHandler_1.asyncHandler)(adminDashb
 /** Order details by id (admin). */
 router.get('/orders/:orderId', (0, validate_1.validate)(dashboardValidators_1.orderIdParamValidator), (0, asyncHandler_1.asyncHandler)(adminDashboardController.getOrderDetails));
 router.patch('/orders/:orderId/status', (0, validate_1.validate)(adminDashboardValidators_1.updateOrderStatusValidator), (0, asyncHandler_1.asyncHandler)(adminDashboardController.updateOrderStatus));
+router.delete('/orders/:id', auth_1.auth, admin_1.admin, (0, validate_1.validate)(adminDashboardValidators_1.deleteOrderValidator), (0, asyncHandler_1.asyncHandler)(adminDashboardController.remove));
 exports.default = router;
 //# sourceMappingURL=adminDashboard.js.map

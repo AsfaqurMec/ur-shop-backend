@@ -14,4 +14,5 @@ export declare function getOrderDetails(req: Request, res: Response): Promise<Re
 export declare function getCustomersWithOrders(req: Request, res: Response): Promise<Response>;
 export declare function updateCustomer(req: Request, res: Response): Promise<Response>;
 export declare function deleteCustomer(req: Request, res: Response): Promise<Response>;
+export declare function remove(req: Request, res: Response): Promise<Response>;
 //# sourceMappingURL=adminDashboardController.d.ts.map

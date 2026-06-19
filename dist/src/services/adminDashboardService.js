@@ -47,6 +47,7 @@ exports.getPendingTicketsCount = getPendingTicketsCount;
 exports.getCustomersWithOrders = getCustomersWithOrders;
 exports.updateCustomer = updateCustomer;
 exports.deleteCustomer = deleteCustomer;
+exports.deleteOrder = deleteOrder;
 const errorHandler_1 = require("../middlewares/errorHandler");
 const adminDashboardRepo = __importStar(require("../repositories/adminDashboardRepository"));
 const authRepo = __importStar(require("../repositories/authRepository"));
@@ -132,15 +133,20 @@ async function updateCustomer(userId, data) {
     return row;
 }
 async function deleteCustomer(userId) {
+    //console.log(userId);
     const user = await authRepo.findUserById(userId);
     if (!user)
         throw new errorHandler_1.AppError(404, 'Customer not found');
-    const hasOrders = await adminDashboardRepo.userHasOrders(userId);
-    if (!hasOrders)
-        throw new errorHandler_1.AppError(404, 'Customer not found');
+    // const hasOrders = await adminDashboardRepo.userHasOrders(userId);
+    // if (!hasOrders) throw new AppError(404, 'Customer not found');
     const ok = await authRepo.softDeleteUser(userId);
     if (!ok)
         throw new errorHandler_1.AppError(404, 'Customer not found');
     await authRepo.deleteSessionsByUserId(userId);
+}
+async function deleteOrder(id) {
+    const existed = await adminDashboardRepo.softDelete(id);
+    if (!existed)
+        throw new errorHandler_1.AppError(404, 'Category not found');
 }
 //# sourceMappingURL=adminDashboardService.js.map

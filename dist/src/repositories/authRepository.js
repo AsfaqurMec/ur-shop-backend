@@ -78,7 +78,9 @@ async function findUserByEmail(email) {
     return row ? userRow(row) : null;
 }
 async function findUserById(id) {
+    //console.log(id);
     const row = await models_1.UserModel.findOne({ id, deleted_at: null }).lean();
+    // console.log(row);
     return row ? userRow(row) : null;
 }
 async function createUser(email, passwordHash, name, contact) {
