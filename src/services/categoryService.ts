@@ -9,6 +9,8 @@ function toPublic(row: {
   name: string;
   slug: string;
   description: string | null;
+  image: string | null;
+  banner_image: string | null;
   sort_order: number;
   created_at: Date;
   updated_at: Date;
@@ -19,6 +21,8 @@ function toPublic(row: {
     name: row.name,
     slug: row.slug,
     description: row.description,
+    image: row.image,
+    banner_image: row.banner_image,
     sort_order: row.sort_order,
     created_at: row.created_at.toISOString(),
     updated_at: row.updated_at.toISOString(),
@@ -39,6 +43,8 @@ export async function create(data: {
   name: string;
   slug?: string;
   description?: string | null;
+  image?: string | null;
+  banner_image?: string | null;
   parent_id?: number | null;
   sort_order?: number;
 }): Promise<CategoryPublic> {
@@ -56,6 +62,8 @@ export async function create(data: {
     name: data.name.trim(),
     slug,
     description: data.description?.trim() || null,
+    image: data.image ?? null,
+    banner_image: data.banner_image ?? null,
     sort_order: sortOrder,
   });
   const row = await categoryRepo.findById(id);
@@ -69,6 +77,8 @@ export async function update(
     name?: string;
     slug?: string;
     description?: string | null;
+    image?: string | null;
+    banner_image?: string | null;
     parent_id?: number | null;
     sort_order?: number;
   }
@@ -83,6 +93,8 @@ export async function update(
   const updates: Parameters<typeof categoryRepo.update>[1] = {};
   if (data.name !== undefined) updates.name = data.name.trim();
   if (data.description !== undefined) updates.description = data.description?.trim() || null;
+  if (data.image !== undefined) updates.image = data.image;
+  if (data.banner_image !== undefined) updates.banner_image = data.banner_image;
   if (data.sort_order !== undefined) updates.sort_order = data.sort_order;
   if (data.parent_id !== undefined) updates.parent_id = data.parent_id;
   if (data.slug !== undefined) {

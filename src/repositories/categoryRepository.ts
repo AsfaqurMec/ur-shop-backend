@@ -9,6 +9,8 @@ function toRow(doc: any): CategoryRow {
     name: String(doc.name),
     slug: String(doc.slug),
     description: doc.description ?? null,
+    image: doc.image ?? null,
+    banner_image: doc.banner_image ?? null,
     sort_order: Number(doc.sort_order ?? 0),
     created_at: new Date(doc.created_at),
     updated_at: new Date(doc.updated_at),
@@ -21,6 +23,8 @@ export async function create(data: {
   name: string;
   slug: string;
   description: string | null;
+  image?: string | null;
+  banner_image?: string | null;
   sort_order: number;
 }): Promise<number> {
   const id = await nextId('categories');
@@ -35,6 +39,8 @@ export async function update(
     name?: string;
     slug?: string;
     description?: string | null;
+    image?: string | null;
+    banner_image?: string | null;
     sort_order?: number;
   }
 ): Promise<void> {

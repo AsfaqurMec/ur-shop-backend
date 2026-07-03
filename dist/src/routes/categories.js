@@ -38,6 +38,7 @@ const categoryController = __importStar(require("../controllers/categoryControll
 const validate_1 = require("../middlewares/validate");
 const auth_1 = require("../middlewares/auth");
 const admin_1 = require("../middlewares/admin");
+const upload_1 = require("../middlewares/upload");
 const asyncHandler_1 = require("../utils/asyncHandler");
 const categoryValidators_1 = require("../validators/categoryValidators");
 const router = (0, express_1.Router)();
@@ -45,8 +46,8 @@ const router = (0, express_1.Router)();
 router.get('/', (0, validate_1.validate)(categoryValidators_1.listCategoriesValidator), (0, asyncHandler_1.asyncHandler)(categoryController.list));
 router.get('/:slug', (0, validate_1.validate)(categoryValidators_1.getBySlugValidator), (0, asyncHandler_1.asyncHandler)(categoryController.getBySlug));
 // Admin only
-router.post('/', auth_1.auth, admin_1.admin, (0, validate_1.validate)(categoryValidators_1.createCategoryValidator), (0, asyncHandler_1.asyncHandler)(categoryController.create));
-router.put('/:id', auth_1.auth, admin_1.admin, (0, validate_1.validate)(categoryValidators_1.updateCategoryValidator), (0, asyncHandler_1.asyncHandler)(categoryController.update));
+router.post('/', auth_1.auth, admin_1.admin, (req, res, next) => (0, upload_1.uploadCategoryImages)(req, res, (err) => (err ? next(err) : next())), (0, validate_1.validate)(categoryValidators_1.createCategoryValidator), (0, asyncHandler_1.asyncHandler)(categoryController.create));
+router.put('/:id', auth_1.auth, admin_1.admin, (req, res, next) => (0, upload_1.uploadCategoryImages)(req, res, (err) => (err ? next(err) : next())), (0, validate_1.validate)(categoryValidators_1.updateCategoryValidator), (0, asyncHandler_1.asyncHandler)(categoryController.update));
 router.delete('/:id', auth_1.auth, admin_1.admin, (0, validate_1.validate)(categoryValidators_1.deleteCategoryValidator), (0, asyncHandler_1.asyncHandler)(categoryController.remove));
 exports.default = router;
 //# sourceMappingURL=categories.js.map

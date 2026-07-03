@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.uploadBannerImage = exports.uploadSettingsLogo = exports.uploadTicketAttachment = exports.uploadPaymentProof = exports.uploadProductFile = exports.uploadProductImages = exports.uploadProductImage = void 0;
+exports.uploadCategoryImage = exports.uploadCategoryImages = exports.uploadBannerImage = exports.uploadSettingsLogo = exports.uploadTicketAttachment = exports.uploadPaymentProof = exports.uploadProductFile = exports.uploadProductImages = exports.uploadProductImage = void 0;
 exports.getProductImageRelativePath = getProductImageRelativePath;
 exports.getProductFileRelativePath = getProductFileRelativePath;
 exports.getPaymentProofRelativePath = getPaymentProofRelativePath;
@@ -13,6 +13,8 @@ exports.getTicketAttachmentRelativePath = getTicketAttachmentRelativePath;
 exports.getTicketAttachmentAbsolutePath = getTicketAttachmentAbsolutePath;
 exports.getSettingsLogoRelativePath = getSettingsLogoRelativePath;
 exports.getBannerImageRelativePath = getBannerImageRelativePath;
+exports.getCategoryImageRelativePath = getCategoryImageRelativePath;
+exports.getCategoryBannerRelativePath = getCategoryBannerRelativePath;
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const multer_1 = __importDefault(require("multer"));
@@ -26,6 +28,8 @@ const PAYMENT_PROOFS_DIR = path_1.default.join(UPLOAD_BASE, 'payments', 'proofs'
 const TICKET_ATTACHMENTS_DIR = path_1.default.join(UPLOAD_BASE, 'tickets', 'attachments');
 const SETTINGS_LOGOS_DIR = path_1.default.join(UPLOAD_BASE, 'settings', 'logos');
 const BANNER_IMAGES_DIR = path_1.default.join(UPLOAD_BASE, 'banners', 'images');
+const CATEGORY_IMAGES_DIR = path_1.default.join(UPLOAD_BASE, 'categories', 'images');
+const CATEGORY_BANNERS_DIR = path_1.default.join(UPLOAD_BASE, 'categories', 'banners');
 const maxSizeBytes = config_1.env.upload.maxFileSizeMb * 1024 * 1024;
 function ensureDir(dir) {
     if (!fs_1.default.existsSync(dir)) {
@@ -185,5 +189,36 @@ function getSettingsLogoRelativePath(filename) {
 }
 function getBannerImageRelativePath(filename) {
     return path_1.default.join('banners', 'images', filename).replace(/\\/g, '/');
+}
+function categoryFilesStorage() {
+    ensureDir(CATEGORY_IMAGES_DIR);
+    ensureDir(CATEGORY_BANNERS_DIR);
+    return multer_1.default.diskStorage({
+        destination: (_req, file, cb) => {
+            cb(null, file.fieldname === 'banner_image' ? CATEGORY_BANNERS_DIR : CATEGORY_IMAGES_DIR);
+        },
+        filename: (_req, file, cb) => {
+            const ext = path_1.default.extname(file.originalname) || '.jpg';
+            const base = sanitizeFileName(path_1.default.basename(file.originalname, path_1.default.extname(file.originalname)));
+            const name = `${base}-${Date.now()}${ext}`;
+            cb(null, name);
+        },
+    });
+}
+exports.uploadCategoryImages = (0, multer_1.default)({
+    storage: (0, cloudinaryService_1.isCloudinaryConfigured)() ? multer_1.default.memoryStorage() : categoryFilesStorage(),
+    limits: { fileSize: maxSizeBytes },
+    fileFilter: imageFileFilter,
+}).fields([
+    { name: 'image', maxCount: 1 },
+    { name: 'banner_image', maxCount: 1 },
+]);
+/** @deprecated use uploadCategoryImages */
+exports.uploadCategoryImage = exports.uploadCategoryImages;
+function getCategoryImageRelativePath(filename) {
+    return path_1.default.join('categories', 'images', filename).replace(/\\/g, '/');
+}
+function getCategoryBannerRelativePath(filename) {
+    return path_1.default.join('categories', 'banners', filename).replace(/\\/g, '/');
 }
 //# sourceMappingURL=upload.js.map

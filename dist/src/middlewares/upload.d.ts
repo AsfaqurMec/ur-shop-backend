@@ -20,4 +20,9 @@ export declare function getTicketAttachmentAbsolutePath(relativePath: string): s
 /** Relative path for settings logo (store in DB). */
 export declare function getSettingsLogoRelativePath(filename: string): string;
 export declare function getBannerImageRelativePath(filename: string): string;
+export declare const uploadCategoryImages: import("express").RequestHandler<import("express-serve-static-core").ParamsDictionary, any, any, import("qs").ParsedQs, Record<string, any>>;
+/** @deprecated use uploadCategoryImages */
+export declare const uploadCategoryImage: import("express").RequestHandler<import("express-serve-static-core").ParamsDictionary, any, any, import("qs").ParsedQs, Record<string, any>>;
+export declare function getCategoryImageRelativePath(filename: string): string;
+export declare function getCategoryBannerRelativePath(filename: string): string;
 //# sourceMappingURL=upload.d.ts.map

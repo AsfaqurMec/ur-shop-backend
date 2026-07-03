@@ -18,6 +18,8 @@ function toRow(doc) {
         name: String(doc.name),
         slug: String(doc.slug),
         description: doc.description ?? null,
+        image: doc.image ?? null,
+        banner_image: doc.banner_image ?? null,
         sort_order: Number(doc.sort_order ?? 0),
         created_at: new Date(doc.created_at),
         updated_at: new Date(doc.updated_at),

@@ -85,6 +85,8 @@ exports.env = {
         proofFolder: (process.env.CLOUDINARY_PROOF_FOLDER ?? 'ur-shop/payment-proofs').trim(),
         settingsFolder: (process.env.CLOUDINARY_SETTINGS_FOLDER ?? 'ur-shop/settings').trim(),
         bannerFolder: (process.env.CLOUDINARY_BANNER_FOLDER ?? 'ur-shop/banners').trim(),
+        categoryFolder: (process.env.CLOUDINARY_CATEGORY_FOLDER ?? 'ur-shop/categories').trim(),
+        categoryBannerFolder: (process.env.CLOUDINARY_CATEGORY_BANNER_FOLDER ?? 'ur-shop/categories/banners').trim(),
     },
     mail: {
         host: getEnv('SMTP_HOST', '').trim(),

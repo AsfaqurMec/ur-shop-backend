@@ -1,8 +1,38 @@
 import { Request, Response } from 'express';
 import { sendSuccess } from '../utils/apiResponse';
 import * as categoryService from '../services/categoryService';
+import * as cloudinaryService from '../services/cloudinaryService';
+import { env } from '../config';
+import { getCategoryBannerRelativePath, getCategoryImageRelativePath } from '../middlewares/upload';
+
+function getUploadedFiles(req: Request): { image?: Express.Multer.File; banner_image?: Express.Multer.File } {
+  const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+  return {
+    image: files?.image?.[0],
+    banner_image: files?.banner_image?.[0],
+  };
+}
+
+async function getCardImagePath(file?: Express.Multer.File): Promise<string | null> {
+  if (!file) return null;
+  return cloudinaryService.isCloudinaryConfigured()
+    ? cloudinaryService.uploadImageBuffer(file, env.cloudinary.categoryFolder)
+    : getCategoryImageRelativePath(file.filename);
+}
+
+async function getBannerImagePath(file?: Express.Multer.File): Promise<string | null> {
+  if (!file) return null;
+  return cloudinaryService.isCloudinaryConfigured()
+    ? cloudinaryService.uploadImageBuffer(file, env.cloudinary.categoryBannerFolder)
+    : getCategoryBannerRelativePath(file.filename);
+}
 
 export async function create(req: Request, res: Response): Promise<Response> {
+  const { image: imageFile, banner_image: bannerFile } = getUploadedFiles(req);
+  const [image, banner_image] = await Promise.all([
+    getCardImagePath(imageFile),
+    getBannerImagePath(bannerFile),
+  ]);
   const { name, slug, description, parent_id, sort_order } = req.body;
   const category = await categoryService.create({
     name,
@@ -10,12 +40,19 @@ export async function create(req: Request, res: Response): Promise<Response> {
     description,
     parent_id: parent_id ?? undefined,
     sort_order,
+    image,
+    banner_image,
   });
   return sendSuccess(res, { category }, 201);
 }
 
 export async function update(req: Request, res: Response): Promise<Response> {
   const id = Number(req.params.id);
+  const { image: imageFile, banner_image: bannerFile } = getUploadedFiles(req);
+  const [image, banner_image] = await Promise.all([
+    getCardImagePath(imageFile),
+    getBannerImagePath(bannerFile),
+  ]);
   const { name, slug, description, parent_id, sort_order } = req.body;
   const category = await categoryService.update(id, {
     name,
@@ -23,6 +60,8 @@ export async function update(req: Request, res: Response): Promise<Response> {
     description,
     parent_id,
     sort_order,
+    ...(image !== null ? { image } : {}),
+    ...(banner_image !== null ? { banner_image } : {}),
   });
   return sendSuccess(res, { category });
 }

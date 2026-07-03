@@ -23,6 +23,8 @@ export declare const env: {
         readonly proofFolder: string;
         readonly settingsFolder: string;
         readonly bannerFolder: string;
+        readonly categoryFolder: string;
+        readonly categoryBannerFolder: string;
     };
     readonly mail: {
         readonly host: string;

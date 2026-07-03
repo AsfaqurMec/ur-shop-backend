@@ -3,6 +3,8 @@ export declare function create(data: {
     name: string;
     slug?: string;
     description?: string | null;
+    image?: string | null;
+    banner_image?: string | null;
     parent_id?: number | null;
     sort_order?: number;
 }): Promise<CategoryPublic>;
@@ -10,6 +12,8 @@ export declare function update(id: number, data: {
     name?: string;
     slug?: string;
     description?: string | null;
+    image?: string | null;
+    banner_image?: string | null;
     parent_id?: number | null;
     sort_order?: number;
 }): Promise<CategoryPublic>;

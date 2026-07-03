@@ -13,6 +13,8 @@ const PAYMENT_PROOFS_DIR = path.join(UPLOAD_BASE, 'payments', 'proofs');
 const TICKET_ATTACHMENTS_DIR = path.join(UPLOAD_BASE, 'tickets', 'attachments');
 const SETTINGS_LOGOS_DIR = path.join(UPLOAD_BASE, 'settings', 'logos');
 const BANNER_IMAGES_DIR = path.join(UPLOAD_BASE, 'banners', 'images');
+const CATEGORY_IMAGES_DIR = path.join(UPLOAD_BASE, 'categories', 'images');
+const CATEGORY_BANNERS_DIR = path.join(UPLOAD_BASE, 'categories', 'banners');
 
 const maxSizeBytes = env.upload.maxFileSizeMb * 1024 * 1024;
 
@@ -197,4 +199,40 @@ export function getSettingsLogoRelativePath(filename: string): string {
 
 export function getBannerImageRelativePath(filename: string): string {
   return path.join('banners', 'images', filename).replace(/\\/g, '/');
+}
+
+function categoryFilesStorage(): multer.StorageEngine {
+  ensureDir(CATEGORY_IMAGES_DIR);
+  ensureDir(CATEGORY_BANNERS_DIR);
+  return multer.diskStorage({
+    destination: (_req, file, cb) => {
+      cb(null, file.fieldname === 'banner_image' ? CATEGORY_BANNERS_DIR : CATEGORY_IMAGES_DIR);
+    },
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname) || '.jpg';
+      const base = sanitizeFileName(path.basename(file.originalname, path.extname(file.originalname)));
+      const name = `${base}-${Date.now()}${ext}`;
+      cb(null, name);
+    },
+  });
+}
+
+export const uploadCategoryImages = multer({
+  storage: isCloudinaryConfigured() ? multer.memoryStorage() : categoryFilesStorage(),
+  limits: { fileSize: maxSizeBytes },
+  fileFilter: imageFileFilter,
+}).fields([
+  { name: 'image', maxCount: 1 },
+  { name: 'banner_image', maxCount: 1 },
+]);
+
+/** @deprecated use uploadCategoryImages */
+export const uploadCategoryImage = uploadCategoryImages;
+
+export function getCategoryImageRelativePath(filename: string): string {
+  return path.join('categories', 'images', filename).replace(/\\/g, '/');
+}
+
+export function getCategoryBannerRelativePath(filename: string): string {
+  return path.join('categories', 'banners', filename).replace(/\\/g, '/');
 }

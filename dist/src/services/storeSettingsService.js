@@ -183,6 +183,7 @@ async function getPublicStoreSettings() {
         emailHeaderSubtitle: settings.emailHeaderSubtitle,
         emailFooterSupportEmail: settings.emailFooterSupportEmail,
         emailFooterSupportNumber: settings.emailFooterSupportNumber,
+        contactEmail: settings.contactEmail,
         socialLinks: settings.socialLinks,
     };
 }

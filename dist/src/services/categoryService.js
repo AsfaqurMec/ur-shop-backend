@@ -49,6 +49,8 @@ function toPublic(row) {
         name: row.name,
         slug: row.slug,
         description: row.description,
+        image: row.image,
+        banner_image: row.banner_image,
         sort_order: row.sort_order,
         created_at: row.created_at.toISOString(),
         updated_at: row.updated_at.toISOString(),
@@ -79,6 +81,8 @@ async function create(data) {
         name: data.name.trim(),
         slug,
         description: data.description?.trim() || null,
+        image: data.image ?? null,
+        banner_image: data.banner_image ?? null,
         sort_order: sortOrder,
     });
     const row = await categoryRepo.findById(id);
@@ -102,6 +106,10 @@ async function update(id, data) {
         updates.name = data.name.trim();
     if (data.description !== undefined)
         updates.description = data.description?.trim() || null;
+    if (data.image !== undefined)
+        updates.image = data.image;
+    if (data.banner_image !== undefined)
+        updates.banner_image = data.banner_image;
     if (data.sort_order !== undefined)
         updates.sort_order = data.sort_order;
     if (data.parent_id !== undefined)
