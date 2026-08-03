@@ -25,8 +25,21 @@ export const updateReviewValidator = [
   body('body').optional().trim(),
 ];
 
+export const createAdminReviewValidator = [
+  body('product_id').isInt({ min: 1 }).withMessage('A product is required').toInt(),
+  body('reviewer_name').trim().isLength({ min: 1, max: 120 }).withMessage('Reviewer name is required'),
+  body('rating').isInt({ min: 1, max: 5 }).withMessage('Rating must be between 1 and 5').toInt(),
+  body('title').optional().trim().isLength({ max: 255 }),
+  body('body').optional().trim(),
+];
+
 export const listReviewsValidator = [
   param('productId').isInt({ min: 1 }).toInt(),
+  query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
+  query('offset').optional().isInt({ min: 0 }).toInt(),
+];
+
+export const listAllPublicReviewsValidator = [
   query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
   query('offset').optional().isInt({ min: 0 }).toInt(),
 ];

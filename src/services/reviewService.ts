@@ -2,6 +2,7 @@ import { AppError } from '../middlewares/errorHandler';
 import * as reviewRepo from '../repositories/reviewRepository';
 import * as orderRepo from '../repositories/orderRepository';
 import * as productRepo from '../repositories/productRepository';
+import * as authRepo from '../repositories/authRepository';
 import type {
   ReviewPublic,
   ReviewDetailPublic,
@@ -15,7 +16,7 @@ import type { ReviewListRow } from '../repositories/reviewRepository';
 export async function submitReview(
   userId: number,
   productId: number,
-  data: { rating: number; title?: string | null; body?: string | null }
+  data: { rating: number; title?: string | null; body?: string | null; image_path?: string | null }
 ): Promise<ReviewDetailPublic> {
   const orderId = await orderRepo.findPaidOrderIdContainingProduct(userId, productId);
   if (orderId == null) {
@@ -29,6 +30,7 @@ export async function submitReview(
 
   const product = await productRepo.findProductById(productId);
   if (!product) throw new AppError(404, 'Product not found');
+  const user = await authRepo.findUserById(userId);
 
   const id = await reviewRepo.create({
     product_id: productId,
@@ -37,6 +39,8 @@ export async function submitReview(
     rating: data.rating,
     title: data.title ?? null,
     body: data.body ?? null,
+    image_path: data.image_path ?? null,
+    reviewer_name: user?.name ?? null,
   });
 
   const review = await reviewRepo.findById(id);
@@ -48,7 +52,7 @@ export async function submitReview(
 export async function updateReview(
   userId: number,
   reviewId: number,
-  data: { rating?: number; title?: string | null; body?: string | null }
+  data: { rating?: number; title?: string | null; body?: string | null; image_path?: string | null }
 ): Promise<ReviewDetailPublic> {
   const review = await reviewRepo.findById(reviewId);
   if (!review) throw new AppError(404, 'Review not found');
@@ -77,6 +81,8 @@ export async function listByProduct(
     rating: r.rating,
     title: r.title,
     body: r.body,
+    image_path: r.image_path,
+    reviewer_name: r.reviewer_name,
     is_verified_purchase: r.order_id != null,
     created_at: r.created_at.toISOString(),
     updated_at: r.updated_at.toISOString(),
@@ -100,6 +106,8 @@ export async function listByProductAdmin(
     rating: r.rating,
     title: r.title,
     body: r.body,
+    image_path: r.image_path,
+    reviewer_name: r.reviewer_name,
     status: r.status as ReviewAdminListItem['status'],
     is_hidden: r.deleted_at != null,
     is_verified_purchase: r.order_id != null,
@@ -117,6 +125,8 @@ function mapJoinRowToAdminTable(r: reviewRepo.ReviewAdminTableJoinRow): ReviewAd
     rating: r.rating,
     title: r.title,
     body: r.body,
+    image_path: r.image_path,
+    reviewer_name: r.reviewer_name,
     status: r.status as ReviewAdminTableRow['status'],
     is_hidden: r.deleted_at != null,
     is_verified_purchase: r.order_id != null,
@@ -152,6 +162,62 @@ export async function setReviewHidden(reviewId: number, hidden: boolean): Promis
   return toDetailPublic(updated, product?.name ?? '');
 }
 
+/** Public: newest published reviews across the catalogue, including product links. */
+export async function listAllPublic(
+  options: { limit?: number; offset?: number } = {}
+): Promise<{ reviews: Array<ReviewPublic & { product_name: string; product_slug: string }>; total: number }> {
+  const [reviews, total] = await Promise.all([
+    reviewRepo.findAllPublic(options),
+    reviewRepo.countAllPublic(),
+  ]);
+  return {
+    reviews: reviews.map((r) => ({
+      id: r.id,
+      product_id: r.product_id,
+      user_id: r.user_id,
+      rating: r.rating,
+      title: r.title,
+      body: r.body,
+      image_path: r.image_path,
+      reviewer_name: r.reviewer_name,
+      is_verified_purchase: r.order_id != null,
+      created_at: r.created_at.toISOString(),
+      updated_at: r.updated_at.toISOString(),
+      product_name: r.product_name,
+      product_slug: r.product_slug,
+    })),
+    total,
+  };
+}
+
+/** Admin: create a published testimonial without requiring a customer account or order. */
+export async function createAdminReview(data: {
+  product_id: number;
+  reviewer_name: string;
+  rating: number;
+  title?: string | null;
+  body?: string | null;
+  image_path?: string | null;
+}): Promise<ReviewDetailPublic> {
+  const product = await productRepo.findProductById(data.product_id);
+  if (!product) throw new AppError(404, 'Product not found');
+
+  const id = await reviewRepo.create({
+    product_id: data.product_id,
+    // `0` deliberately identifies an admin-imported testimonial; it is never a customer user id.
+    user_id: 0,
+    order_id: null,
+    rating: data.rating,
+    title: data.title ?? null,
+    body: data.body ?? null,
+    image_path: data.image_path ?? null,
+    reviewer_name: data.reviewer_name,
+  });
+  const review = await reviewRepo.findById(id);
+  if (!review) throw new AppError(500, 'Failed to load created review');
+  return toDetailPublic(review, product.name);
+}
+
 /** Get single review as detail (for owner or admin). */
 export async function getReviewDetail(reviewId: number, userId?: number, isAdmin?: boolean): Promise<ReviewDetailPublic> {
   const review = await reviewRepo.findById(reviewId);
@@ -173,6 +239,8 @@ function toDetailPublic(r: ReviewRow | ReviewListRow, productName: string): Revi
     rating: r.rating,
     title: r.title,
     body: r.body,
+    image_path: r.image_path,
+    reviewer_name: r.reviewer_name,
     status: r.status as ReviewDetailPublic['status'],
     is_hidden: r.deleted_at != null,
     is_verified_purchase: r.order_id != null,

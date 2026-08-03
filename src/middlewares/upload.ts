@@ -15,6 +15,7 @@ const SETTINGS_LOGOS_DIR = path.join(UPLOAD_BASE, 'settings', 'logos');
 const BANNER_IMAGES_DIR = path.join(UPLOAD_BASE, 'banners', 'images');
 const CATEGORY_IMAGES_DIR = path.join(UPLOAD_BASE, 'categories', 'images');
 const CATEGORY_BANNERS_DIR = path.join(UPLOAD_BASE, 'categories', 'banners');
+const REVIEW_IMAGES_DIR = path.join(UPLOAD_BASE, 'reviews', 'images');
 
 const maxSizeBytes = env.upload.maxFileSizeMb * 1024 * 1024;
 
@@ -101,6 +102,25 @@ export const uploadPaymentProof = multer({
   limits: { fileSize: maxSizeBytes },
   fileFilter: imageFileFilter,
 }).single('proof');
+
+function reviewImageStorage(): multer.StorageEngine {
+  ensureDir(REVIEW_IMAGES_DIR);
+  return multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, REVIEW_IMAGES_DIR),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname) || '.jpg';
+      const base = sanitizeFileName(path.basename(file.originalname, path.extname(file.originalname)));
+      cb(null, `${base}-${Date.now()}${ext}`);
+    },
+  });
+}
+
+/** One optional customer-review photo, sent in the multipart field named `image`. */
+export const uploadReviewImage = multer({
+  storage: isCloudinaryConfigured() ? multer.memoryStorage() : reviewImageStorage(),
+  limits: { fileSize: maxSizeBytes },
+  fileFilter: imageFileFilter,
+}).single('image');
 
 /** Relative path from upload base for storage in DB */
 export function getProductImageRelativePath(filename: string): string {
@@ -199,6 +219,10 @@ export function getSettingsLogoRelativePath(filename: string): string {
 
 export function getBannerImageRelativePath(filename: string): string {
   return path.join('banners', 'images', filename).replace(/\\/g, '/');
+}
+
+export function getReviewImageRelativePath(filename: string): string {
+  return path.join('reviews', 'images', filename).replace(/\\/g, '/');
 }
 
 function categoryFilesStorage(): multer.StorageEngine {

@@ -17,6 +17,7 @@ app.use(express_1.default.urlencoded({ extended: true, limit: '5mb' }));
 const uploadBase = (0, config_1.getUploadAbsoluteBase)();
 app.use('/products/images', express_1.default.static(path_1.default.join(uploadBase, 'products', 'images')));
 app.use('/settings/logos', express_1.default.static(path_1.default.join(uploadBase, 'settings', 'logos')));
+app.use('/reviews/images', express_1.default.static(path_1.default.join(uploadBase, 'reviews', 'images')));
 app.use(config_1.env.apiPrefix, routes_1.default);
 app.use(middlewares_1.errorHandler);
 app.get('/', (req, res) => {

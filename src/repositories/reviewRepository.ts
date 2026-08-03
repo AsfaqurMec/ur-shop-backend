@@ -15,6 +15,8 @@ function row(doc: any): ReviewRow {
     rating: Number(doc.rating ?? 0),
     title: doc.title ?? null,
     body: doc.body ?? null,
+    image_path: doc.image_path ?? null,
+    reviewer_name: doc.reviewer_name ?? null,
     status: doc.status ?? 'approved',
     created_at: date(doc.created_at),
     updated_at: date(doc.updated_at),
@@ -29,6 +31,8 @@ export async function create(data: {
   rating: number;
   title: string | null;
   body: string | null;
+  image_path?: string | null;
+  reviewer_name?: string | null;
 }): Promise<number> {
   const id = await nextId('reviews');
   await ReviewModel.create({ id, ...data, status: 'approved', deleted_at: null });
@@ -53,6 +57,8 @@ export interface ReviewListRow {
   rating: number;
   title: string | null;
   body: string | null;
+  image_path: string | null;
+  reviewer_name: string | null;
   status: string;
   created_at: Date;
   updated_at: Date;
@@ -80,6 +86,12 @@ export interface ReviewAdminTableJoinRow extends ReviewListRow {
   product_slug: string;
   category_id: number | null;
   category_name: string | null;
+}
+
+/** Public review enriched with the product needed to link from the homepage. */
+export interface ReviewPublicJoinRow extends ReviewListRow {
+  product_name: string;
+  product_slug: string;
 }
 
 async function enrichAdminRows(reviews: any[]): Promise<ReviewAdminTableJoinRow[]> {
@@ -129,6 +141,28 @@ export async function countAllAdmin(categoryId: number | undefined): Promise<num
   return ReviewModel.countDocuments({ product_id: { $in: products.map((p: any) => Number(p.id)) } });
 }
 
+/** Latest non-hidden reviews across all existing products, for storefront testimonials. */
+export async function findAllPublic(
+  options: { limit?: number; offset?: number } = {}
+): Promise<ReviewPublicJoinRow[]> {
+  const products = await ProductModel.find({ deleted_at: null }).select({ id: 1 }).lean();
+  const productIds = products.map((product: any) => Number(product.id));
+  const reviews = await ReviewModel.find({ product_id: { $in: productIds }, deleted_at: null })
+    .sort({ created_at: -1 })
+    .skip(options.offset ?? 0)
+    .limit(Math.min(options.limit ?? 50, 100))
+    .lean();
+  return enrichAdminRows(reviews);
+}
+
+export async function countAllPublic(): Promise<number> {
+  const products = await ProductModel.find({ deleted_at: null }).select({ id: 1 }).lean();
+  return ReviewModel.countDocuments({
+    product_id: { $in: products.map((product: any) => Number(product.id)) },
+    deleted_at: null,
+  });
+}
+
 export async function findByProductIdAdmin(
   productId: number,
   options: { limit?: number; offset?: number } = {}
@@ -147,12 +181,13 @@ export async function countByProductIdAdmin(productId: number): Promise<number> 
 
 export async function update(
   id: number,
-  data: { rating?: number; title?: string | null; body?: string | null }
+  data: { rating?: number; title?: string | null; body?: string | null; image_path?: string | null }
 ): Promise<boolean> {
   const patch: Record<string, unknown> = {};
   if (data.rating !== undefined) patch.rating = data.rating;
   if (data.title !== undefined) patch.title = data.title;
   if (data.body !== undefined) patch.body = data.body;
+  if (data.image_path !== undefined) patch.image_path = data.image_path;
   if (Object.keys(patch).length === 0) return true;
   const result = await ReviewModel.updateOne({ id }, { $set: patch });
   return result.modifiedCount > 0;

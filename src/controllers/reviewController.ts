@@ -1,10 +1,21 @@
 import { Request, Response } from 'express';
 import { sendSuccess, sendError } from '../utils/apiResponse';
 import * as reviewService from '../services/reviewService';
+import * as cloudinaryService from '../services/cloudinaryService';
+import { env } from '../config';
+import { getReviewImageRelativePath } from '../middlewares/upload';
+
+async function getUploadedImagePath(file?: Express.Multer.File): Promise<string | null> {
+  if (!file) return null;
+  return cloudinaryService.isCloudinaryConfigured()
+    ? cloudinaryService.uploadImageBuffer(file, env.cloudinary.reviewFolder)
+    : getReviewImageRelativePath(file.filename);
+}
 
 /** Customer: submit review for a purchased product. */
 export async function submitReview(req: Request, res: Response): Promise<Response> {
   if (!req.user) return sendError(res, 'Unauthorized', 401);
+  const imagePath = await getUploadedImagePath(req.file);
   const productId = Number(req.params.productId);
   const rating = Number(req.body.rating);
   const title = req.body.title != null ? String(req.body.title).trim() : undefined;
@@ -13,6 +24,7 @@ export async function submitReview(req: Request, res: Response): Promise<Respons
     rating,
     title: title ?? null,
     body: body ?? null,
+    image_path: imagePath,
   });
   return sendSuccess(res, review, 201, 'Review submitted');
 }
@@ -24,12 +36,28 @@ export async function updateReview(req: Request, res: Response): Promise<Respons
   const rating = req.body.rating != null ? Number(req.body.rating) : undefined;
   const title = req.body.title !== undefined ? (req.body.title === null ? null : String(req.body.title).trim()) : undefined;
   const body = req.body.body !== undefined ? (req.body.body === null ? null : String(req.body.body).trim()) : undefined;
+  const imagePath = req.file ? await getUploadedImagePath(req.file) : undefined;
   const review = await reviewService.updateReview(req.user.id, reviewId, {
     rating,
     title,
     body,
+    image_path: imagePath,
   });
   return sendSuccess(res, review, 200, 'Review updated');
+}
+
+/** Admin: add an imported/manual testimonial, with an optional review photo. */
+export async function createAdminReview(req: Request, res: Response): Promise<Response> {
+  const imagePath = await getUploadedImagePath(req.file);
+  const review = await reviewService.createAdminReview({
+    product_id: Number(req.body.product_id),
+    reviewer_name: String(req.body.reviewer_name).trim(),
+    rating: Number(req.body.rating),
+    title: req.body.title != null ? String(req.body.title).trim() || null : null,
+    body: req.body.body != null ? String(req.body.body).trim() || null : null,
+    image_path: imagePath,
+  });
+  return sendSuccess(res, review, 201, 'Review created');
 }
 
 /** Public: list reviews for a product (not hidden). */
@@ -38,6 +66,14 @@ export async function listByProduct(req: Request, res: Response): Promise<Respon
   const limit = req.query.limit != null ? Number(req.query.limit) : undefined;
   const offset = req.query.offset != null ? Number(req.query.offset) : undefined;
   const result = await reviewService.listByProduct(productId, { limit, offset });
+  return sendSuccess(res, result);
+}
+
+/** Public: newest published reviews across all products, used by the homepage slider. */
+export async function listAllPublic(req: Request, res: Response): Promise<Response> {
+  const limit = req.query.limit != null ? Number(req.query.limit) : undefined;
+  const offset = req.query.offset != null ? Number(req.query.offset) : undefined;
+  const result = await reviewService.listAllPublic({ limit, offset });
   return sendSuccess(res, result);
 }
 

@@ -40,12 +40,15 @@ const auth_1 = require("../middlewares/auth");
 const admin_1 = require("../middlewares/admin");
 const asyncHandler_1 = require("../utils/asyncHandler");
 const reviewValidators_1 = require("../validators/reviewValidators");
+const upload_1 = require("../middlewares/upload");
 const router = (0, express_1.Router)();
 // More specific paths first so /product/... and /admin/... are not matched as :reviewId
 // ---- Public: product reviews list ----
+router.get('/', (0, validate_1.validate)(reviewValidators_1.listAllPublicReviewsValidator), (0, asyncHandler_1.asyncHandler)(reviewController.listAllPublic));
 router.get('/product/:productId', (0, validate_1.validate)(reviewValidators_1.listReviewsValidator), (0, asyncHandler_1.asyncHandler)(reviewController.listByProduct));
 // ---- Customer (authenticated): submit under product ----
-router.post('/product/:productId', auth_1.auth, (0, validate_1.validate)(reviewValidators_1.submitReviewValidator), (0, asyncHandler_1.asyncHandler)(reviewController.submitReview));
+router.post('/product/:productId', auth_1.auth, (req, res, next) => (0, upload_1.uploadReviewImage)(req, res, (err) => (err ? next(err) : next())), (0, validate_1.validate)(reviewValidators_1.submitReviewValidator), (0, asyncHandler_1.asyncHandler)(reviewController.submitReview));
+router.post('/admin', auth_1.auth, admin_1.admin, (req, res, next) => (0, upload_1.uploadReviewImage)(req, res, (err) => (err ? next(err) : next())), (0, validate_1.validate)(reviewValidators_1.createAdminReviewValidator), (0, asyncHandler_1.asyncHandler)(reviewController.createAdminReview));
 // ---- Admin: global list (before /admin/product and /admin/:reviewId) ----
 router.get('/admin', auth_1.auth, admin_1.admin, (0, validate_1.validate)(reviewValidators_1.listAllAdminReviewsValidator), (0, asyncHandler_1.asyncHandler)(reviewController.listAllAdmin));
 // ---- Admin: list all reviews for a product ----
@@ -55,7 +58,7 @@ router.get('/admin/:reviewId', auth_1.auth, admin_1.admin, (0, validate_1.valida
 // ---- Admin: hide/unhide ----
 router.patch('/:reviewId/hidden', auth_1.auth, admin_1.admin, (0, validate_1.validate)(reviewValidators_1.setHiddenValidator), (0, asyncHandler_1.asyncHandler)(reviewController.setHidden));
 // ---- Customer: update own, get own ----
-router.put('/:reviewId', auth_1.auth, (0, validate_1.validate)(reviewValidators_1.updateReviewValidator), (0, asyncHandler_1.asyncHandler)(reviewController.updateReview));
+router.put('/:reviewId', auth_1.auth, (req, res, next) => (0, upload_1.uploadReviewImage)(req, res, (err) => (err ? next(err) : next())), (0, validate_1.validate)(reviewValidators_1.updateReviewValidator), (0, asyncHandler_1.asyncHandler)(reviewController.updateReview));
 router.get('/:reviewId', auth_1.auth, (0, validate_1.validate)(reviewValidators_1.reviewIdParamValidator), (0, asyncHandler_1.asyncHandler)(reviewController.getReviewDetail));
 exports.default = router;
 //# sourceMappingURL=reviews.js.map

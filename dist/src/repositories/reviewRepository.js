@@ -7,6 +7,8 @@ exports.findByProductIdPublic = findByProductIdPublic;
 exports.countByProductIdPublic = countByProductIdPublic;
 exports.findAllAdmin = findAllAdmin;
 exports.countAllAdmin = countAllAdmin;
+exports.findAllPublic = findAllPublic;
+exports.countAllPublic = countAllPublic;
 exports.findByProductIdAdmin = findByProductIdAdmin;
 exports.countByProductIdAdmin = countByProductIdAdmin;
 exports.update = update;
@@ -25,6 +27,8 @@ function row(doc) {
         rating: Number(doc.rating ?? 0),
         title: doc.title ?? null,
         body: doc.body ?? null,
+        image_path: doc.image_path ?? null,
+        reviewer_name: doc.reviewer_name ?? null,
         status: doc.status ?? 'approved',
         created_at: date(doc.created_at),
         updated_at: date(doc.updated_at),
@@ -98,6 +102,24 @@ async function countAllAdmin(categoryId) {
     const products = await models_1.ProductModel.find(productQueryForCategory(categoryId)).select({ id: 1 }).lean();
     return models_1.ReviewModel.countDocuments({ product_id: { $in: products.map((p) => Number(p.id)) } });
 }
+/** Latest non-hidden reviews across all existing products, for storefront testimonials. */
+async function findAllPublic(options = {}) {
+    const products = await models_1.ProductModel.find({ deleted_at: null }).select({ id: 1 }).lean();
+    const productIds = products.map((product) => Number(product.id));
+    const reviews = await models_1.ReviewModel.find({ product_id: { $in: productIds }, deleted_at: null })
+        .sort({ created_at: -1 })
+        .skip(options.offset ?? 0)
+        .limit(Math.min(options.limit ?? 50, 100))
+        .lean();
+    return enrichAdminRows(reviews);
+}
+async function countAllPublic() {
+    const products = await models_1.ProductModel.find({ deleted_at: null }).select({ id: 1 }).lean();
+    return models_1.ReviewModel.countDocuments({
+        product_id: { $in: products.map((product) => Number(product.id)) },
+        deleted_at: null,
+    });
+}
 async function findByProductIdAdmin(productId, options = {}) {
     const rows = await models_1.ReviewModel.find({ product_id: productId })
         .sort({ created_at: -1 })
@@ -117,6 +139,8 @@ async function update(id, data) {
         patch.title = data.title;
     if (data.body !== undefined)
         patch.body = data.body;
+    if (data.image_path !== undefined)
+        patch.image_path = data.image_path;
     if (Object.keys(patch).length === 0)
         return true;
     const result = await models_1.ReviewModel.updateOne({ id }, { $set: patch });

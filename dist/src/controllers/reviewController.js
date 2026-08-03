@@ -35,7 +35,9 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.submitReview = submitReview;
 exports.updateReview = updateReview;
+exports.createAdminReview = createAdminReview;
 exports.listByProduct = listByProduct;
+exports.listAllPublic = listAllPublic;
 exports.listByProductAdmin = listByProductAdmin;
 exports.listAllAdmin = listAllAdmin;
 exports.getReviewDetail = getReviewDetail;
@@ -43,10 +45,21 @@ exports.setHidden = setHidden;
 exports.getReviewDetailAdmin = getReviewDetailAdmin;
 const apiResponse_1 = require("../utils/apiResponse");
 const reviewService = __importStar(require("../services/reviewService"));
+const cloudinaryService = __importStar(require("../services/cloudinaryService"));
+const config_1 = require("../config");
+const upload_1 = require("../middlewares/upload");
+async function getUploadedImagePath(file) {
+    if (!file)
+        return null;
+    return cloudinaryService.isCloudinaryConfigured()
+        ? cloudinaryService.uploadImageBuffer(file, config_1.env.cloudinary.reviewFolder)
+        : (0, upload_1.getReviewImageRelativePath)(file.filename);
+}
 /** Customer: submit review for a purchased product. */
 async function submitReview(req, res) {
     if (!req.user)
         return (0, apiResponse_1.sendError)(res, 'Unauthorized', 401);
+    const imagePath = await getUploadedImagePath(req.file);
     const productId = Number(req.params.productId);
     const rating = Number(req.body.rating);
     const title = req.body.title != null ? String(req.body.title).trim() : undefined;
@@ -55,6 +68,7 @@ async function submitReview(req, res) {
         rating,
         title: title ?? null,
         body: body ?? null,
+        image_path: imagePath,
     });
     return (0, apiResponse_1.sendSuccess)(res, review, 201, 'Review submitted');
 }
@@ -66,12 +80,27 @@ async function updateReview(req, res) {
     const rating = req.body.rating != null ? Number(req.body.rating) : undefined;
     const title = req.body.title !== undefined ? (req.body.title === null ? null : String(req.body.title).trim()) : undefined;
     const body = req.body.body !== undefined ? (req.body.body === null ? null : String(req.body.body).trim()) : undefined;
+    const imagePath = req.file ? await getUploadedImagePath(req.file) : undefined;
     const review = await reviewService.updateReview(req.user.id, reviewId, {
         rating,
         title,
         body,
+        image_path: imagePath,
     });
     return (0, apiResponse_1.sendSuccess)(res, review, 200, 'Review updated');
+}
+/** Admin: add an imported/manual testimonial, with an optional review photo. */
+async function createAdminReview(req, res) {
+    const imagePath = await getUploadedImagePath(req.file);
+    const review = await reviewService.createAdminReview({
+        product_id: Number(req.body.product_id),
+        reviewer_name: String(req.body.reviewer_name).trim(),
+        rating: Number(req.body.rating),
+        title: req.body.title != null ? String(req.body.title).trim() || null : null,
+        body: req.body.body != null ? String(req.body.body).trim() || null : null,
+        image_path: imagePath,
+    });
+    return (0, apiResponse_1.sendSuccess)(res, review, 201, 'Review created');
 }
 /** Public: list reviews for a product (not hidden). */
 async function listByProduct(req, res) {
@@ -79,6 +108,13 @@ async function listByProduct(req, res) {
     const limit = req.query.limit != null ? Number(req.query.limit) : undefined;
     const offset = req.query.offset != null ? Number(req.query.offset) : undefined;
     const result = await reviewService.listByProduct(productId, { limit, offset });
+    return (0, apiResponse_1.sendSuccess)(res, result);
+}
+/** Public: newest published reviews across all products, used by the homepage slider. */
+async function listAllPublic(req, res) {
+    const limit = req.query.limit != null ? Number(req.query.limit) : undefined;
+    const offset = req.query.offset != null ? Number(req.query.offset) : undefined;
+    const result = await reviewService.listAllPublic({ limit, offset });
     return (0, apiResponse_1.sendSuccess)(res, result);
 }
 /** Admin: list all reviews for a product (pending, approved, hidden). */

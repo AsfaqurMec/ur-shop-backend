@@ -15,6 +15,7 @@ app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 const uploadBase = getUploadAbsoluteBase();
 app.use('/products/images', express.static(path.join(uploadBase, 'products', 'images')));
 app.use('/settings/logos', express.static(path.join(uploadBase, 'settings', 'logos')));
+app.use('/reviews/images', express.static(path.join(uploadBase, 'reviews', 'images')));
 
 app.use(env.apiPrefix, routes);
 

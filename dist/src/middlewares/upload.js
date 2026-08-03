@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.uploadCategoryImage = exports.uploadCategoryImages = exports.uploadBannerImage = exports.uploadSettingsLogo = exports.uploadTicketAttachment = exports.uploadPaymentProof = exports.uploadProductFile = exports.uploadProductImages = exports.uploadProductImage = void 0;
+exports.uploadCategoryImage = exports.uploadCategoryImages = exports.uploadBannerImage = exports.uploadSettingsLogo = exports.uploadTicketAttachment = exports.uploadReviewImage = exports.uploadPaymentProof = exports.uploadProductFile = exports.uploadProductImages = exports.uploadProductImage = void 0;
 exports.getProductImageRelativePath = getProductImageRelativePath;
 exports.getProductFileRelativePath = getProductFileRelativePath;
 exports.getPaymentProofRelativePath = getPaymentProofRelativePath;
@@ -13,6 +13,7 @@ exports.getTicketAttachmentRelativePath = getTicketAttachmentRelativePath;
 exports.getTicketAttachmentAbsolutePath = getTicketAttachmentAbsolutePath;
 exports.getSettingsLogoRelativePath = getSettingsLogoRelativePath;
 exports.getBannerImageRelativePath = getBannerImageRelativePath;
+exports.getReviewImageRelativePath = getReviewImageRelativePath;
 exports.getCategoryImageRelativePath = getCategoryImageRelativePath;
 exports.getCategoryBannerRelativePath = getCategoryBannerRelativePath;
 const path_1 = __importDefault(require("path"));
@@ -30,6 +31,7 @@ const SETTINGS_LOGOS_DIR = path_1.default.join(UPLOAD_BASE, 'settings', 'logos')
 const BANNER_IMAGES_DIR = path_1.default.join(UPLOAD_BASE, 'banners', 'images');
 const CATEGORY_IMAGES_DIR = path_1.default.join(UPLOAD_BASE, 'categories', 'images');
 const CATEGORY_BANNERS_DIR = path_1.default.join(UPLOAD_BASE, 'categories', 'banners');
+const REVIEW_IMAGES_DIR = path_1.default.join(UPLOAD_BASE, 'reviews', 'images');
 const maxSizeBytes = config_1.env.upload.maxFileSizeMb * 1024 * 1024;
 function ensureDir(dir) {
     if (!fs_1.default.existsSync(dir)) {
@@ -106,6 +108,23 @@ exports.uploadPaymentProof = (0, multer_1.default)({
     limits: { fileSize: maxSizeBytes },
     fileFilter: imageFileFilter,
 }).single('proof');
+function reviewImageStorage() {
+    ensureDir(REVIEW_IMAGES_DIR);
+    return multer_1.default.diskStorage({
+        destination: (_req, _file, cb) => cb(null, REVIEW_IMAGES_DIR),
+        filename: (_req, file, cb) => {
+            const ext = path_1.default.extname(file.originalname) || '.jpg';
+            const base = sanitizeFileName(path_1.default.basename(file.originalname, path_1.default.extname(file.originalname)));
+            cb(null, `${base}-${Date.now()}${ext}`);
+        },
+    });
+}
+/** One optional customer-review photo, sent in the multipart field named `image`. */
+exports.uploadReviewImage = (0, multer_1.default)({
+    storage: (0, cloudinaryService_1.isCloudinaryConfigured)() ? multer_1.default.memoryStorage() : reviewImageStorage(),
+    limits: { fileSize: maxSizeBytes },
+    fileFilter: imageFileFilter,
+}).single('image');
 /** Relative path from upload base for storage in DB */
 function getProductImageRelativePath(filename) {
     return path_1.default.join('products', 'images', filename).replace(/\\/g, '/');
@@ -189,6 +208,9 @@ function getSettingsLogoRelativePath(filename) {
 }
 function getBannerImageRelativePath(filename) {
     return path_1.default.join('banners', 'images', filename).replace(/\\/g, '/');
+}
+function getReviewImageRelativePath(filename) {
+    return path_1.default.join('reviews', 'images', filename).replace(/\\/g, '/');
 }
 function categoryFilesStorage() {
     ensureDir(CATEGORY_IMAGES_DIR);

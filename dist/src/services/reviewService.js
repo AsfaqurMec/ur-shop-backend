@@ -39,11 +39,14 @@ exports.listByProduct = listByProduct;
 exports.listByProductAdmin = listByProductAdmin;
 exports.listAllAdmin = listAllAdmin;
 exports.setReviewHidden = setReviewHidden;
+exports.listAllPublic = listAllPublic;
+exports.createAdminReview = createAdminReview;
 exports.getReviewDetail = getReviewDetail;
 const errorHandler_1 = require("../middlewares/errorHandler");
 const reviewRepo = __importStar(require("../repositories/reviewRepository"));
 const orderRepo = __importStar(require("../repositories/orderRepository"));
 const productRepo = __importStar(require("../repositories/productRepository"));
+const authRepo = __importStar(require("../repositories/authRepository"));
 /** Submit review (verified purchasers only; one per user per product). */
 async function submitReview(userId, productId, data) {
     const orderId = await orderRepo.findPaidOrderIdContainingProduct(userId, productId);
@@ -57,6 +60,7 @@ async function submitReview(userId, productId, data) {
     const product = await productRepo.findProductById(productId);
     if (!product)
         throw new errorHandler_1.AppError(404, 'Product not found');
+    const user = await authRepo.findUserById(userId);
     const id = await reviewRepo.create({
         product_id: productId,
         user_id: userId,
@@ -64,6 +68,8 @@ async function submitReview(userId, productId, data) {
         rating: data.rating,
         title: data.title ?? null,
         body: data.body ?? null,
+        image_path: data.image_path ?? null,
+        reviewer_name: user?.name ?? null,
     });
     const review = await reviewRepo.findById(id);
     if (!review)
@@ -97,6 +103,8 @@ async function listByProduct(productId, options = {}) {
         rating: r.rating,
         title: r.title,
         body: r.body,
+        image_path: r.image_path,
+        reviewer_name: r.reviewer_name,
         is_verified_purchase: r.order_id != null,
         created_at: r.created_at.toISOString(),
         updated_at: r.updated_at.toISOString(),
@@ -116,6 +124,8 @@ async function listByProductAdmin(productId, options = {}) {
         rating: r.rating,
         title: r.title,
         body: r.body,
+        image_path: r.image_path,
+        reviewer_name: r.reviewer_name,
         status: r.status,
         is_hidden: r.deleted_at != null,
         is_verified_purchase: r.order_id != null,
@@ -132,6 +142,8 @@ function mapJoinRowToAdminTable(r) {
         rating: r.rating,
         title: r.title,
         body: r.body,
+        image_path: r.image_path,
+        reviewer_name: r.reviewer_name,
         status: r.status,
         is_hidden: r.deleted_at != null,
         is_verified_purchase: r.order_id != null,
@@ -163,6 +175,52 @@ async function setReviewHidden(reviewId, hidden) {
     const product = await productRepo.findProductById(updated.product_id);
     return toDetailPublic(updated, product?.name ?? '');
 }
+/** Public: newest published reviews across the catalogue, including product links. */
+async function listAllPublic(options = {}) {
+    const [reviews, total] = await Promise.all([
+        reviewRepo.findAllPublic(options),
+        reviewRepo.countAllPublic(),
+    ]);
+    return {
+        reviews: reviews.map((r) => ({
+            id: r.id,
+            product_id: r.product_id,
+            user_id: r.user_id,
+            rating: r.rating,
+            title: r.title,
+            body: r.body,
+            image_path: r.image_path,
+            reviewer_name: r.reviewer_name,
+            is_verified_purchase: r.order_id != null,
+            created_at: r.created_at.toISOString(),
+            updated_at: r.updated_at.toISOString(),
+            product_name: r.product_name,
+            product_slug: r.product_slug,
+        })),
+        total,
+    };
+}
+/** Admin: create a published testimonial without requiring a customer account or order. */
+async function createAdminReview(data) {
+    const product = await productRepo.findProductById(data.product_id);
+    if (!product)
+        throw new errorHandler_1.AppError(404, 'Product not found');
+    const id = await reviewRepo.create({
+        product_id: data.product_id,
+        // `0` deliberately identifies an admin-imported testimonial; it is never a customer user id.
+        user_id: 0,
+        order_id: null,
+        rating: data.rating,
+        title: data.title ?? null,
+        body: data.body ?? null,
+        image_path: data.image_path ?? null,
+        reviewer_name: data.reviewer_name,
+    });
+    const review = await reviewRepo.findById(id);
+    if (!review)
+        throw new errorHandler_1.AppError(500, 'Failed to load created review');
+    return toDetailPublic(review, product.name);
+}
 /** Get single review as detail (for owner or admin). */
 async function getReviewDetail(reviewId, userId, isAdmin) {
     const review = await reviewRepo.findById(reviewId);
@@ -184,6 +242,8 @@ function toDetailPublic(r, productName) {
         rating: r.rating,
         title: r.title,
         body: r.body,
+        image_path: r.image_path,
+        reviewer_name: r.reviewer_name,
         status: r.status,
         is_hidden: r.deleted_at != null,
         is_verified_purchase: r.order_id != null,

@@ -87,6 +87,7 @@ exports.env = {
         bannerFolder: (process.env.CLOUDINARY_BANNER_FOLDER ?? 'ur-shop/banners').trim(),
         categoryFolder: (process.env.CLOUDINARY_CATEGORY_FOLDER ?? 'ur-shop/categories').trim(),
         categoryBannerFolder: (process.env.CLOUDINARY_CATEGORY_BANNER_FOLDER ?? 'ur-shop/categories/banners').trim(),
+        reviewFolder: (process.env.CLOUDINARY_REVIEW_FOLDER ?? 'ur-shop/reviews').trim(),
     },
     mail: {
         host: getEnv('SMTP_HOST', '').trim(),

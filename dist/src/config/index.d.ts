@@ -25,6 +25,7 @@ export declare const env: {
         readonly bannerFolder: string;
         readonly categoryFolder: string;
         readonly categoryBannerFolder: string;
+        readonly reviewFolder: string;
     };
     readonly mail: {
         readonly host: string;

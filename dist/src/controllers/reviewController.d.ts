@@ -3,8 +3,12 @@ import { Request, Response } from 'express';
 export declare function submitReview(req: Request, res: Response): Promise<Response>;
 /** Customer: update own review. */
 export declare function updateReview(req: Request, res: Response): Promise<Response>;
+/** Admin: add an imported/manual testimonial, with an optional review photo. */
+export declare function createAdminReview(req: Request, res: Response): Promise<Response>;
 /** Public: list reviews for a product (not hidden). */
 export declare function listByProduct(req: Request, res: Response): Promise<Response>;
+/** Public: newest published reviews across all products, used by the homepage slider. */
+export declare function listAllPublic(req: Request, res: Response): Promise<Response>;
 /** Admin: list all reviews for a product (pending, approved, hidden). */
 export declare function listByProductAdmin(req: Request, res: Response): Promise<Response>;
 /** Admin: paginated list of all reviews, optional category filter. */

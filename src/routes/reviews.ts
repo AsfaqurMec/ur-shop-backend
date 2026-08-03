@@ -10,15 +10,24 @@ import {
   submitReviewValidator,
   updateReviewValidator,
   listReviewsValidator,
+  listAllPublicReviewsValidator,
   listAllAdminReviewsValidator,
   setHiddenValidator,
+  createAdminReviewValidator,
 } from '../validators/reviewValidators';
+import { uploadReviewImage } from '../middlewares/upload';
 
 const router = Router();
 
 // More specific paths first so /product/... and /admin/... are not matched as :reviewId
 
 // ---- Public: product reviews list ----
+router.get(
+  '/',
+  validate(listAllPublicReviewsValidator),
+  asyncHandler(reviewController.listAllPublic)
+);
+
 router.get(
   '/product/:productId',
   validate(listReviewsValidator),
@@ -29,8 +38,18 @@ router.get(
 router.post(
   '/product/:productId',
   auth,
+  (req, res, next) => uploadReviewImage(req, res, (err) => (err ? next(err) : next())),
   validate(submitReviewValidator),
   asyncHandler(reviewController.submitReview)
+);
+
+router.post(
+  '/admin',
+  auth,
+  admin,
+  (req, res, next) => uploadReviewImage(req, res, (err) => (err ? next(err) : next())),
+  validate(createAdminReviewValidator),
+  asyncHandler(reviewController.createAdminReview)
 );
 
 // ---- Admin: global list (before /admin/product and /admin/:reviewId) ----
@@ -73,6 +92,7 @@ router.patch(
 router.put(
   '/:reviewId',
   auth,
+  (req, res, next) => uploadReviewImage(req, res, (err) => (err ? next(err) : next())),
   validate(updateReviewValidator),
   asyncHandler(reviewController.updateReview)
 );
