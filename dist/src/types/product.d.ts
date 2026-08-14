@@ -7,6 +7,7 @@ export interface ProductRow {
     slug: string;
     description: string | null;
     full_description: string | null;
+    size_chart_image: string | null;
     features: string | null;
     product_type: ProductType;
     manual_fulfillment_required: number;
@@ -95,6 +96,7 @@ export interface ProductPublic {
     slug: string;
     description: string | null;
     full_description?: string | null;
+    size_chart_image?: string | null;
     features?: string[];
     product_type: ProductType;
     manual_fulfillment_required?: boolean;

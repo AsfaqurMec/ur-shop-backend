@@ -21,6 +21,7 @@ export declare function update(id: number, data: {
     slug?: string;
     description?: string | null;
     full_description?: string | null;
+    size_chart_image?: string | null;
     features?: string[] | null;
     category_id?: number | null;
     product_type?: ProductType;
@@ -33,6 +34,8 @@ export declare function update(id: number, data: {
     is_active?: boolean;
     is_featured?: boolean;
 }): Promise<ProductPublic>;
+/** Stores a single optional size-chart image path alongside the product. */
+export declare function setSizeChartImage(id: number, path: string | null): Promise<ProductPublic>;
 export declare function remove(id: number): Promise<void>;
 export declare function list(query: ProductListQuery): Promise<ProductListResult>;
 export declare function getBySlug(slug: string, forPublic?: boolean): Promise<ProductPublic>;

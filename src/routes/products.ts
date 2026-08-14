@@ -22,7 +22,7 @@ import {
   replaceCatalogVariationsValidator,
   generateCatalogVariationsValidator,
 } from '../validators/productValidators';
-import { uploadProductImage, uploadProductImages, uploadProductFile } from '../middlewares/upload';
+import { uploadProductImage, uploadProductImages, uploadProductFile, uploadProductSizeChartImage } from '../middlewares/upload';
 
 const router = Router();
 
@@ -88,6 +88,21 @@ router.delete(
   admin,
   validate(imageIdParamValidator),
   asyncHandler(productController.removeImage)
+);
+router.post(
+  '/:id/size-chart-image',
+  auth,
+  admin,
+  (req, res, next) => uploadProductSizeChartImage(req, res, (err) => (err ? next(err) : next())),
+  validate(productIdParamValidator),
+  asyncHandler(productController.uploadSizeChartImage)
+);
+router.delete(
+  '/:id/size-chart-image',
+  auth,
+  admin,
+  validate(productIdParamValidator),
+  asyncHandler(productController.removeSizeChartImage)
 );
 
 // ---- Admin: Files ----

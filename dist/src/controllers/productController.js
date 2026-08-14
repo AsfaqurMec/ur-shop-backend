@@ -46,6 +46,8 @@ exports.replacePurchaseVariables = replacePurchaseVariables;
 exports.addImage = addImage;
 exports.addImages = addImages;
 exports.removeImage = removeImage;
+exports.uploadSizeChartImage = uploadSizeChartImage;
+exports.removeSizeChartImage = removeSizeChartImage;
 exports.addFile = addFile;
 exports.removeFile = removeFile;
 exports.addLicenses = addLicenses;
@@ -215,6 +217,21 @@ async function removeImage(req, res) {
     const imageId = Number(req.params.imageId);
     await productService.removeImage(productId, imageId);
     return (0, apiResponse_1.sendSuccess)(res, { message: 'Image deleted' });
+}
+async function uploadSizeChartImage(req, res) {
+    const productId = Number(req.params.id);
+    const file = req.file;
+    if (!file)
+        return (0, apiResponse_1.sendError)(res, 'Choose a size chart image to upload.', 400);
+    const storedPath = cloudinaryService.isCloudinaryConfigured()
+        ? await cloudinaryService.uploadImageBuffer(file, config_1.env.cloudinary.productFolder)
+        : file.filename;
+    const product = await productService.setSizeChartImage(productId, storedPath || null);
+    return (0, apiResponse_1.sendSuccess)(res, { product });
+}
+async function removeSizeChartImage(req, res) {
+    const product = await productService.setSizeChartImage(Number(req.params.id), null);
+    return (0, apiResponse_1.sendSuccess)(res, { product });
 }
 async function addFile(req, res) {
     const productId = Number(req.params.id);

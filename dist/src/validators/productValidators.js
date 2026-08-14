@@ -10,6 +10,7 @@ exports.createProductValidator = [
     (0, express_validator_1.body)('slug').optional().trim().isLength({ max: SLUG_MAX }).withMessage(`Slug max ${SLUG_MAX} characters`),
     (0, express_validator_1.body)('description').optional().trim(),
     (0, express_validator_1.body)('full_description').optional({ nullable: true }).isString().trim(),
+    (0, express_validator_1.body)('size_chart_image').optional({ nullable: true }).isString().trim(),
     (0, express_validator_1.body)('features').optional({ nullable: true }).isArray().withMessage('features must be an array'),
     (0, express_validator_1.body)('features.*').optional().isString().trim(),
     (0, express_validator_1.body)('category_id')
@@ -29,6 +30,7 @@ exports.updateProductValidator = [
     (0, express_validator_1.body)('slug').optional().trim().isLength({ max: SLUG_MAX }).withMessage(`Slug max ${SLUG_MAX} characters`),
     (0, express_validator_1.body)('description').optional().trim(),
     (0, express_validator_1.body)('full_description').optional({ nullable: true }).isString().trim(),
+    (0, express_validator_1.body)('size_chart_image').optional({ nullable: true }).isString().trim(),
     (0, express_validator_1.body)('features').optional({ nullable: true }).isArray().withMessage('features must be an array'),
     (0, express_validator_1.body)('features.*').optional().isString().trim(),
     (0, express_validator_1.body)('category_id').optional().custom((val) => val === null || (Number.isInteger(Number(val)) && Number(val) >= 1)),

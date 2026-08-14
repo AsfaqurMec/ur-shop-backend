@@ -189,6 +189,22 @@ export async function removeImage(req: Request, res: Response): Promise<Response
   return sendSuccess(res, { message: 'Image deleted' });
 }
 
+export async function uploadSizeChartImage(req: Request, res: Response): Promise<Response> {
+  const productId = Number(req.params.id);
+  const file = req.file;
+  if (!file) return sendError(res, 'Choose a size chart image to upload.', 400);
+  const storedPath = cloudinaryService.isCloudinaryConfigured()
+    ? await cloudinaryService.uploadImageBuffer(file, env.cloudinary.productFolder)
+    : file.filename;
+  const product = await productService.setSizeChartImage(productId, storedPath || null);
+  return sendSuccess(res, { product });
+}
+
+export async function removeSizeChartImage(req: Request, res: Response): Promise<Response> {
+  const product = await productService.setSizeChartImage(Number(req.params.id), null);
+  return sendSuccess(res, { product });
+}
+
 export async function addFile(req: Request, res: Response): Promise<Response> {
   const productId = Number(req.params.id);
   const file = req.file;

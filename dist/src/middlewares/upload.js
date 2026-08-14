@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.uploadCategoryImage = exports.uploadCategoryImages = exports.uploadBannerImage = exports.uploadSettingsLogo = exports.uploadTicketAttachment = exports.uploadReviewImage = exports.uploadPaymentProof = exports.uploadProductFile = exports.uploadProductImages = exports.uploadProductImage = void 0;
+exports.uploadCategoryImage = exports.uploadCategoryImages = exports.uploadBannerImage = exports.uploadSettingsLogo = exports.uploadTicketAttachment = exports.uploadProductSizeChartImage = exports.uploadReviewImage = exports.uploadPaymentProof = exports.uploadProductFile = exports.uploadProductImages = exports.uploadProductImage = void 0;
 exports.getProductImageRelativePath = getProductImageRelativePath;
 exports.getProductFileRelativePath = getProductFileRelativePath;
 exports.getPaymentProofRelativePath = getPaymentProofRelativePath;
@@ -125,6 +125,12 @@ exports.uploadReviewImage = (0, multer_1.default)({
     limits: { fileSize: maxSizeBytes },
     fileFilter: imageFileFilter,
 }).single('image');
+/** One optional size chart image, kept with other product imagery. */
+exports.uploadProductSizeChartImage = (0, multer_1.default)({
+    storage: (0, cloudinaryService_1.isCloudinaryConfigured)() ? multer_1.default.memoryStorage() : productImageStorage(),
+    limits: { fileSize: maxSizeBytes },
+    fileFilter: imageFileFilter,
+}).single('size_chart_image');
 /** Relative path from upload base for storage in DB */
 function getProductImageRelativePath(filename) {
     return path_1.default.join('products', 'images', filename).replace(/\\/g, '/');

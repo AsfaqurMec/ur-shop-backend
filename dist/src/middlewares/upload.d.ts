@@ -4,6 +4,8 @@ export declare const uploadProductFile: import("express").RequestHandler<import(
 export declare const uploadPaymentProof: import("express").RequestHandler<import("express-serve-static-core").ParamsDictionary, any, any, import("qs").ParsedQs, Record<string, any>>;
 /** One optional customer-review photo, sent in the multipart field named `image`. */
 export declare const uploadReviewImage: import("express").RequestHandler<import("express-serve-static-core").ParamsDictionary, any, any, import("qs").ParsedQs, Record<string, any>>;
+/** One optional size chart image, kept with other product imagery. */
+export declare const uploadProductSizeChartImage: import("express").RequestHandler<import("express-serve-static-core").ParamsDictionary, any, any, import("qs").ParsedQs, Record<string, any>>;
 /** Relative path from upload base for storage in DB */
 export declare function getProductImageRelativePath(filename: string): string;
 export declare function getProductFileRelativePath(filename: string): string;

@@ -47,6 +47,7 @@ function toProductRow(doc) {
         slug: String(doc.slug),
         description: doc.description ?? null,
         full_description: doc.full_description ?? null,
+        size_chart_image: doc.size_chart_image ?? null,
         features: Array.isArray(doc.features) ? JSON.stringify(doc.features) : doc.features ?? null,
         product_type: doc.product_type,
         manual_fulfillment_required: Number(doc.manual_fulfillment_required ?? 0),

@@ -122,6 +122,13 @@ export const uploadReviewImage = multer({
   fileFilter: imageFileFilter,
 }).single('image');
 
+/** One optional size chart image, kept with other product imagery. */
+export const uploadProductSizeChartImage = multer({
+  storage: isCloudinaryConfigured() ? multer.memoryStorage() : productImageStorage(),
+  limits: { fileSize: maxSizeBytes },
+  fileFilter: imageFileFilter,
+}).single('size_chart_image');
+
 /** Relative path from upload base for storage in DB */
 export function getProductImageRelativePath(filename: string): string {
   return path.join('products', 'images', filename).replace(/\\/g, '/');

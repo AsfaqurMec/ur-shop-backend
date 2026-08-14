@@ -204,6 +204,7 @@ function toPublic(
     slug: row.slug,
     description: row.description,
     full_description: row.full_description,
+    size_chart_image: row.size_chart_image,
     features: parseFeatures(row.features),
     product_type: row.product_type,
     manual_fulfillment_required: Boolean(row.manual_fulfillment_required),
@@ -254,6 +255,7 @@ export async function create(data: {
     slug,
     description: data.description?.trim() || null,
     full_description: data.full_description?.trim() || null,
+    size_chart_image: null,
     features: Array.isArray(data.features)
       ? data.features.map((f) => String(f).trim()).filter(Boolean)
       : null,
@@ -279,6 +281,7 @@ export async function update(
     slug?: string;
     description?: string | null;
     full_description?: string | null;
+    size_chart_image?: string | null;
     features?: string[] | null;
     category_id?: number | null;
     product_type?: ProductType;
@@ -312,6 +315,7 @@ export async function update(
   if (data.full_description !== undefined) {
     updates.full_description = data.full_description?.trim() || null;
   }
+  if (data.size_chart_image !== undefined) updates.size_chart_image = data.size_chart_image?.trim() || null;
   if (data.features !== undefined) {
     updates.features = Array.isArray(data.features)
       ? data.features.map((f) => String(f).trim()).filter(Boolean)
@@ -345,6 +349,23 @@ export async function update(
   if (Object.keys(updates).length > 0) {
     await productRepo.updateProduct(id, updates);
   }
+  return getById(id);
+}
+
+/** Stores a single optional size-chart image path alongside the product. */
+export async function setSizeChartImage(id: number, path: string | null): Promise<ProductPublic> {
+  const existing = await productRepo.findProductById(id);
+  if (!existing) throw new AppError(404, 'Product not found');
+  const nextPath = path ? (/^https?:\/\//i.test(path) ? path : getProductImageRelativePath(path)) : null;
+  if (existing.size_chart_image && existing.size_chart_image !== nextPath && !/^https?:\/\//i.test(existing.size_chart_image)) {
+    try {
+      const previousFile = getProductFileAbsolutePath(existing.size_chart_image);
+      if (fs.existsSync(previousFile)) fs.unlinkSync(previousFile);
+    } catch {
+      // The replacement should still succeed if an old local file was already removed.
+    }
+  }
+  await productRepo.updateProduct(id, { size_chart_image: nextPath });
   return getById(id);
 }
 

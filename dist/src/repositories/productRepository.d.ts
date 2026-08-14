@@ -5,6 +5,7 @@ export declare function createProduct(data: {
     slug: string;
     description: string | null;
     full_description: string | null;
+    size_chart_image: string | null;
     features: string[] | null;
     product_type: ProductType;
     manual_fulfillment_required: number;
@@ -19,6 +20,7 @@ export declare function updateProduct(id: number, data: {
     slug?: string;
     description?: string | null;
     full_description?: string | null;
+    size_chart_image?: string | null;
     features?: string[] | null;
     product_type?: ProductType;
     manual_fulfillment_required?: number;

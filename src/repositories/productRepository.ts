@@ -28,6 +28,7 @@ function toProductRow(doc: any): ProductRow {
     slug: String(doc.slug),
     description: doc.description ?? null,
     full_description: doc.full_description ?? null,
+    size_chart_image: doc.size_chart_image ?? null,
     features: Array.isArray(doc.features) ? JSON.stringify(doc.features) : doc.features ?? null,
     product_type: doc.product_type as ProductType,
     manual_fulfillment_required: Number(doc.manual_fulfillment_required ?? 0),
@@ -87,6 +88,7 @@ export async function createProduct(data: {
   slug: string;
   description: string | null;
   full_description: string | null;
+  size_chart_image: string | null;
   features: string[] | null;
   product_type: ProductType;
   manual_fulfillment_required: number;
@@ -108,6 +110,7 @@ export async function updateProduct(
     slug?: string;
     description?: string | null;
     full_description?: string | null;
+    size_chart_image?: string | null;
     features?: string[] | null;
     product_type?: ProductType;
     manual_fulfillment_required?: number;
