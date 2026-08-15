@@ -93,6 +93,22 @@ function orderRow(doc) {
         shipping_address: doc.shipping_address != null && String(doc.shipping_address).trim()
             ? String(doc.shipping_address).trim()
             : null,
+        shipping_city: doc.shipping_city != null && String(doc.shipping_city).trim()
+            ? String(doc.shipping_city).trim()
+            : null,
+        shipping_postal_code: doc.shipping_postal_code != null && String(doc.shipping_postal_code).trim()
+            ? String(doc.shipping_postal_code).trim()
+            : null,
+        shipping_address_line2: doc.shipping_address_line2 != null && String(doc.shipping_address_line2).trim()
+            ? String(doc.shipping_address_line2).trim()
+            : null,
+        shipping_method_id: doc.shipping_method_id != null && String(doc.shipping_method_id).trim()
+            ? String(doc.shipping_method_id).trim()
+            : null,
+        shipping_method_title: doc.shipping_method_title != null && String(doc.shipping_method_title).trim()
+            ? String(doc.shipping_method_title).trim()
+            : null,
+        shipping_fee: Number(doc.shipping_fee ?? 0),
         created_at: date(doc.created_at),
         updated_at: date(doc.updated_at),
     };

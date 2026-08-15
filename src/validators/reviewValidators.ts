@@ -33,6 +33,14 @@ export const createAdminReviewValidator = [
   body('body').optional().trim(),
 ];
 
+export const updateAdminReviewValidator = [
+  param('reviewId').isInt({ min: 1 }).toInt(),
+  body('reviewer_name').optional().trim().isLength({ min: 1, max: 120 }).withMessage('Reviewer name is required'),
+  body('rating').optional().isInt({ min: 1, max: 5 }).toInt(),
+  body('title').optional().trim().isLength({ max: 255 }),
+  body('body').optional().trim(),
+];
+
 export const listReviewsValidator = [
   param('productId').isInt({ min: 1 }).toInt(),
   query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),

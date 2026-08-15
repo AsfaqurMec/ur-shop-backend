@@ -60,9 +60,11 @@ exports.listProductsValidator = [
     (0, express_validator_1.query)('product_type').optional().isIn(product_1.PRODUCT_TYPES),
     (0, express_validator_1.query)('min_price').optional().isFloat({ min: 0 }).toFloat(),
     (0, express_validator_1.query)('max_price').optional().isFloat({ min: 0 }).toFloat(),
+    (0, express_validator_1.query)('on_sale').optional().isIn(['0', '1', 'true', 'false']),
     (0, express_validator_1.query)('search').optional().trim().isLength({ max: 100 }),
     (0, express_validator_1.query)('featured').optional().isIn(['0', '1', 'true', 'false']),
     (0, express_validator_1.query)('is_active').optional().isIn(['0', '1', 'true', 'false']),
+    (0, express_validator_1.query)('sort').optional().isIn(['newest', 'price_asc', 'price_desc', 'name_asc', 'name_desc']),
 ];
 exports.addImageValidator = [
     (0, express_validator_1.param)('id').isInt({ min: 1 }).toInt(),

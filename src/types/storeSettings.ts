@@ -1,3 +1,11 @@
+/** Checkout shipping option configured in admin settings. */
+export interface ShippingMethod {
+  id: string;
+  title: string;
+  subtitle: string;
+  extraPrice: number;
+}
+
 /** Public floating social shortcuts (home FAB). Logo and link must be http(s) URLs. */
 export interface SocialLink {
   id: string;
@@ -25,6 +33,7 @@ export interface StoreSettings {
   currency: string;
   timezone: string;
   socialLinks: SocialLink[];
+  shippingMethods: ShippingMethod[];
 }
 
 export const STORE_SETTINGS_KEY = 'store_settings';

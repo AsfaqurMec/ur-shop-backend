@@ -63,9 +63,11 @@ export const listProductsValidator = [
   query('product_type').optional().isIn(PRODUCT_TYPES),
   query('min_price').optional().isFloat({ min: 0 }).toFloat(),
   query('max_price').optional().isFloat({ min: 0 }).toFloat(),
+  query('on_sale').optional().isIn(['0', '1', 'true', 'false']),
   query('search').optional().trim().isLength({ max: 100 }),
   query('featured').optional().isIn(['0', '1', 'true', 'false']),
   query('is_active').optional().isIn(['0', '1', 'true', 'false']),
+  query('sort').optional().isIn(['newest', 'price_asc', 'price_desc', 'name_asc', 'name_desc']),
 ];
 
 export const addImageValidator = [

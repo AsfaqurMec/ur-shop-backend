@@ -181,13 +181,14 @@ export async function countByProductIdAdmin(productId: number): Promise<number> 
 
 export async function update(
   id: number,
-  data: { rating?: number; title?: string | null; body?: string | null; image_path?: string | null }
+  data: { rating?: number; title?: string | null; body?: string | null; image_path?: string | null; reviewer_name?: string | null }
 ): Promise<boolean> {
   const patch: Record<string, unknown> = {};
   if (data.rating !== undefined) patch.rating = data.rating;
   if (data.title !== undefined) patch.title = data.title;
   if (data.body !== undefined) patch.body = data.body;
   if (data.image_path !== undefined) patch.image_path = data.image_path;
+  if (data.reviewer_name !== undefined) patch.reviewer_name = data.reviewer_name;
   if (Object.keys(patch).length === 0) return true;
   const result = await ReviewModel.updateOne({ id }, { $set: patch });
   return result.modifiedCount > 0;

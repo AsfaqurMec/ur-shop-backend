@@ -19,6 +19,7 @@ import adminStoreSettingsRoutes from './adminStoreSettings';
 import storeSettingsRoutes from './storeSettings';
 import cronRoutes from './cron';
 import bannerRoutes from './banners';
+import adRoutes from './ads';
 
 const router = Router();
 
@@ -41,6 +42,7 @@ router.use('/admin/payment-options', adminPaymentOptionsRoutes);
 router.use('/admin/store-settings', adminStoreSettingsRoutes);
 router.use('/store-settings', storeSettingsRoutes);
 router.use('/banners', bannerRoutes);
+router.use('/ads', adRoutes);
 router.use('/cron', cronRoutes);
 
 export default router;

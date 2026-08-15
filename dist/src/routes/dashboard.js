@@ -44,6 +44,7 @@ router.use(auth_1.auth);
 /** My orders list (paginated). */
 router.get('/orders', (0, validate_1.validate)(dashboardValidators_1.ordersListValidator), (0, asyncHandler_1.asyncHandler)(dashboardController.getMyOrders));
 /** Order details (must own order). */
+router.get('/orders/:orderId/invoice', (0, validate_1.validate)(dashboardValidators_1.orderIdParamValidator), (0, asyncHandler_1.asyncHandler)(dashboardController.downloadOrderInvoice));
 router.get('/orders/:orderId', (0, validate_1.validate)(dashboardValidators_1.orderIdParamValidator), (0, asyncHandler_1.asyncHandler)(dashboardController.getOrderDetails));
 /** My downloadable items. */
 router.get('/downloads', (0, asyncHandler_1.asyncHandler)(dashboardController.getMyDownloads));

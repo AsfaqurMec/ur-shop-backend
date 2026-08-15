@@ -141,6 +141,8 @@ async function update(id, data) {
         patch.body = data.body;
     if (data.image_path !== undefined)
         patch.image_path = data.image_path;
+    if (data.reviewer_name !== undefined)
+        patch.reviewer_name = data.reviewer_name;
     if (Object.keys(patch).length === 0)
         return true;
     const result = await models_1.ReviewModel.updateOne({ id }, { $set: patch });

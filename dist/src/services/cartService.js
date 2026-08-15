@@ -100,6 +100,7 @@ async function assertLineQuantityAllowed(productId, quantity, variationId) {
     await validateProductForCart(product, quantity, { variationId });
 }
 async function buildCartPublic(cartId, items) {
+    const productImagePaths = await productRepo.findPrimaryImagePathsByProductIds([...new Set(items.map((item) => item.product_id))]);
     const lines = await Promise.all(items.map(async (i) => {
         const resolved = await purchaseSelectionService.resolveLinePricing(i.product_id, Number(i.base_price), i.selections, i.variation_id);
         const maxQ = await resolveMaxCartQuantity(i.product_id, i.product_type, i.variation_id, i.product_quantity);
@@ -110,6 +111,7 @@ async function buildCartPublic(cartId, items) {
             product_name: i.product_name,
             product_slug: i.product_slug,
             product_type: i.product_type,
+            product_thumbnail: productImagePaths.get(i.product_id) ?? null,
             quantity: i.quantity,
             max_quantity: maxQ,
             unit_price: resolved.unit_price,
@@ -127,6 +129,7 @@ async function buildCartPublic(cartId, items) {
         product_name: i.product_name,
         product_slug: i.product_slug,
         product_type: i.product_type,
+        product_thumbnail: i.product_thumbnail,
         quantity: i.quantity,
         max_quantity: i.max_quantity,
         unit_price: i.unit_price,

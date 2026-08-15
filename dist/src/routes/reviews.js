@@ -55,6 +55,7 @@ router.get('/admin', auth_1.auth, admin_1.admin, (0, validate_1.validate)(review
 router.get('/admin/product/:productId', auth_1.auth, admin_1.admin, (0, validate_1.validate)(reviewValidators_1.listReviewsValidator), (0, asyncHandler_1.asyncHandler)(reviewController.listByProductAdmin));
 // ---- Admin: get any review ----
 router.get('/admin/:reviewId', auth_1.auth, admin_1.admin, (0, validate_1.validate)(reviewValidators_1.reviewIdParamValidator), (0, asyncHandler_1.asyncHandler)(reviewController.getReviewDetailAdmin));
+router.put('/admin/:reviewId', auth_1.auth, admin_1.admin, (req, res, next) => (0, upload_1.uploadReviewImage)(req, res, (err) => (err ? next(err) : next())), (0, validate_1.validate)(reviewValidators_1.updateAdminReviewValidator), (0, asyncHandler_1.asyncHandler)(reviewController.updateAdminReview));
 // ---- Admin: hide/unhide ----
 router.patch('/:reviewId/hidden', auth_1.auth, admin_1.admin, (0, validate_1.validate)(reviewValidators_1.setHiddenValidator), (0, asyncHandler_1.asyncHandler)(reviewController.setHidden));
 // ---- Customer: update own, get own ----

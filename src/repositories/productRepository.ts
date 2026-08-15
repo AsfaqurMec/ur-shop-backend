@@ -152,9 +152,11 @@ export interface ProductListFilters {
   product_type?: ProductType;
   min_price?: number;
   max_price?: number;
+  on_sale?: boolean;
   search?: string;
   featured?: boolean;
   is_active?: boolean;
+  sort?: 'newest' | 'price_asc' | 'price_desc' | 'name_asc' | 'name_desc';
 }
 
 function productQuery(filters: ProductListFilters): Record<string, unknown> {
@@ -169,6 +171,7 @@ function productQuery(filters: ProductListFilters): Record<string, unknown> {
       ...(filters.max_price != null ? { $lte: filters.max_price } : {}),
     };
   }
+  if (filters.on_sale === true) query.$expr = { $gt: ['$compare_at_price', '$price'] };
   if (filters.search?.trim()) {
     const rx = new RegExp(filters.search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
     query.$or = [{ name: rx }, { slug: rx }];
@@ -181,8 +184,14 @@ export async function findProducts(
   limit: number,
   offset: number
 ): Promise<ProductRow[]> {
+  const sort: Record<string, 1 | -1> =
+    filters.sort === 'price_asc' ? { price: 1, created_at: -1 } :
+    filters.sort === 'price_desc' ? { price: -1, created_at: -1 } :
+    filters.sort === 'name_asc' ? { name: 1, created_at: -1 } :
+    filters.sort === 'name_desc' ? { name: -1, created_at: -1 } :
+    { is_featured: -1, created_at: -1 };
   const rows = await ProductModel.find(productQuery(filters))
-    .sort({ is_featured: -1, created_at: -1 })
+    .sort(sort)
     .skip(offset)
     .limit(limit)
     .lean();

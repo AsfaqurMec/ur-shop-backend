@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { sendSuccess, sendError } from '../utils/apiResponse';
 import * as dashboardService from '../services/dashboardService';
+import * as invoiceService from '../services/invoiceService';
 
 export async function getMyOrders(req: Request, res: Response): Promise<Response> {
   if (!req.user) return sendError(res, 'Unauthorized', 401);
@@ -15,6 +16,19 @@ export async function getOrderDetails(req: Request, res: Response): Promise<Resp
   const orderId = Number(req.params.orderId);
   const order = await dashboardService.getOrderDetails(req.user.id, orderId);
   return sendSuccess(res, order);
+}
+
+export async function downloadOrderInvoice(req: Request, res: Response): Promise<void> {
+  if (!req.user) {
+    sendError(res, 'Unauthorized', 401);
+    return;
+  }
+  const orderId = Number(req.params.orderId);
+  const invoice = await invoiceService.createInvoicePdf(req.user.id, orderId);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${invoice.filename.replace(/[^a-zA-Z0-9._-]/g, '_')}"`);
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.status(200).send(invoice.buffer);
 }
 
 export async function getMyDownloads(req: Request, res: Response): Promise<Response> {

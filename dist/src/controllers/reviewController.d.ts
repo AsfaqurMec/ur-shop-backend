@@ -5,6 +5,8 @@ export declare function submitReview(req: Request, res: Response): Promise<Respo
 export declare function updateReview(req: Request, res: Response): Promise<Response>;
 /** Admin: add an imported/manual testimonial, with an optional review photo. */
 export declare function createAdminReview(req: Request, res: Response): Promise<Response>;
+/** Admin: edit a review's displayed content, optionally replacing its photo. */
+export declare function updateAdminReview(req: Request, res: Response): Promise<Response>;
 /** Public: list reviews for a product (not hidden). */
 export declare function listByProduct(req: Request, res: Response): Promise<Response>;
 /** Public: newest published reviews across all products, used by the homepage slider. */

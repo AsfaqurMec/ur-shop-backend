@@ -162,6 +162,20 @@ export async function setReviewHidden(reviewId: number, hidden: boolean): Promis
   return toDetailPublic(updated, product?.name ?? '');
 }
 
+/** Admin: correct the displayed content of any review without changing its purchase record. */
+export async function updateAdminReview(
+  reviewId: number,
+  data: { rating?: number; title?: string | null; body?: string | null; image_path?: string | null; reviewer_name?: string | null }
+): Promise<ReviewDetailPublic> {
+  const review = await reviewRepo.findById(reviewId);
+  if (!review) throw new AppError(404, 'Review not found');
+  await reviewRepo.update(reviewId, data);
+  const updated = await reviewRepo.findById(reviewId);
+  if (!updated) throw new AppError(500, 'Failed to load review');
+  const product = await productRepo.findProductById(updated.product_id);
+  return toDetailPublic(updated, product?.name ?? '');
+}
+
 /** Public: newest published reviews across the catalogue, including product links. */
 export async function listAllPublic(
   options: { limit?: number; offset?: number } = {}

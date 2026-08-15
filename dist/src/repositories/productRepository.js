@@ -139,6 +139,8 @@ function productQuery(filters) {
             ...(filters.max_price != null ? { $lte: filters.max_price } : {}),
         };
     }
+    if (filters.on_sale === true)
+        query.$expr = { $gt: ['$compare_at_price', '$price'] };
     if (filters.search?.trim()) {
         const rx = new RegExp(filters.search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
         query.$or = [{ name: rx }, { slug: rx }];
@@ -146,8 +148,13 @@ function productQuery(filters) {
     return query;
 }
 async function findProducts(filters, limit, offset) {
+    const sort = filters.sort === 'price_asc' ? { price: 1, created_at: -1 } :
+        filters.sort === 'price_desc' ? { price: -1, created_at: -1 } :
+            filters.sort === 'name_asc' ? { name: 1, created_at: -1 } :
+                filters.sort === 'name_desc' ? { name: -1, created_at: -1 } :
+                    { is_featured: -1, created_at: -1 };
     const rows = await models_1.ProductModel.find(productQuery(filters))
-        .sort({ is_featured: -1, created_at: -1 })
+        .sort(sort)
         .skip(offset)
         .limit(limit)
         .lean();

@@ -11,5 +11,9 @@ exports.createOrderValidator = [
     (0, express_validator_1.body)('payment_type').optional().trim().isLength({ max: 32 }),
     (0, express_validator_1.body)('mobile').trim().notEmpty().withMessage('Mobile number is required').isLength({ max: 32 }),
     (0, express_validator_1.body)('address').trim().notEmpty().withMessage('Address is required').isLength({ max: 1000 }),
+    (0, express_validator_1.body)('city').trim().notEmpty().withMessage('City is required').isLength({ max: 120 }),
+    (0, express_validator_1.body)('postal_code').optional({ values: 'null' }).trim().isLength({ max: 32 }),
+    (0, express_validator_1.body)('address_line2').optional({ values: 'null' }).trim().isLength({ max: 255 }),
+    (0, express_validator_1.body)('shipping_method_id').optional({ values: 'null' }).trim().isLength({ max: 64 }),
 ];
 //# sourceMappingURL=checkoutValidators.js.map

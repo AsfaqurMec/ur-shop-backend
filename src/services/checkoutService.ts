@@ -13,6 +13,7 @@ import * as purchaseSelectionService from './purchaseSelectionService';
 import * as bkashService from './bkashService';
 import * as paymentProofRepo from '../repositories/paymentProofRepository';
 import * as paymentOptionService from './paymentOptionService';
+import * as storeSettingsService from './storeSettingsService';
 import type { OrderPublic, OrderItemPublic, OrderItemProductType } from '../types/order';
 import type { CartItemWithProduct } from '../repositories/cartRepository';
 import { orderItemEmailParts } from '../utils/orderItemDisplay';
@@ -31,6 +32,10 @@ export interface CreateOrderPaymentDetails {
   /** Customer contact for delivery. */
   mobile?: string;
   address?: string;
+  city?: string;
+  postalCode?: string | null;
+  addressLine2?: string | null;
+  shippingMethodId?: string | null;
 }
 
 async function validateCartItemsForCheckout(
@@ -123,14 +128,43 @@ export async function createOrder(
   const paymentTypeClient = paymentInput.paymentType?.trim() || null;
   const shippingMobile = paymentInput.mobile?.trim() ?? '';
   const shippingAddress = paymentInput.address?.trim() ?? '';
+  const shippingCity = paymentInput.city?.trim() ?? '';
+  const shippingPostalCode = paymentInput.postalCode?.trim() || null;
+  const shippingAddressLine2 = paymentInput.addressLine2?.trim() || null;
+  const shippingMethodIdRaw = paymentInput.shippingMethodId?.trim() ?? '';
   const isCashOnDelivery = methodRaw === 'cash_on_delivery';
 
   if (!shippingMobile) throw new AppError(400, 'Mobile number is required');
   if (!shippingAddress) throw new AppError(400, 'Address is required');
+  if (!shippingCity) throw new AppError(400, 'City is required');
+
+  const storeSettings = await storeSettingsService.getStoreSettings();
+  const configuredShippingMethods = storeSettings.shippingMethods;
+  let shippingFee = 0;
+  let shippingMethodId: string | null = null;
+  let shippingMethodTitle: string | null = null;
+
+  if (configuredShippingMethods.length > 0) {
+    if (!shippingMethodIdRaw) throw new AppError(400, 'Shipping method is required');
+    const selectedMethod = storeSettingsService.findShippingMethodById(
+      configuredShippingMethods,
+      shippingMethodIdRaw
+    );
+    if (!selectedMethod) throw new AppError(400, 'Invalid shipping method');
+    shippingFee = selectedMethod.extraPrice;
+    shippingMethodId = selectedMethod.id;
+    shippingMethodTitle = selectedMethod.title;
+  }
+
+  const profileAddressParts = [
+    shippingAddress,
+    shippingAddressLine2,
+    [shippingCity, shippingPostalCode].filter(Boolean).join(' '),
+  ].filter(Boolean);
 
   await authRepo.updateUserContact(userId, {
     mobile: shippingMobile,
-    address: shippingAddress,
+    address: profileAddressParts.join('\n'),
   });
 
   const optionRow = isCashOnDelivery ? null : await paymentOptionService.assertCheckoutGatewayAllowed(methodRaw);
@@ -184,7 +218,8 @@ export async function createOrder(
 
   const discount = Math.round(discountAmount * 100) / 100;
   const tax = 0;
-  const total = Math.round((subtotalRounded - discount + tax) * 100) / 100;
+  const shippingFeeRounded = Math.round(shippingFee * 100) / 100;
+  const total = Math.round((subtotalRounded - discount + tax + shippingFeeRounded) * 100) / 100;
 
   const gateway = isCashOnDelivery ? 'cash_on_delivery' : optionRow!.gateway_key;
 
@@ -200,6 +235,12 @@ export async function createOrder(
     currency: CURRENCY,
     shipping_mobile: shippingMobile,
     shipping_address: shippingAddress,
+    shipping_city: shippingCity,
+    shipping_postal_code: shippingPostalCode,
+    shipping_address_line2: shippingAddressLine2,
+    shipping_method_id: shippingMethodId,
+    shipping_method_title: shippingMethodTitle,
+    shipping_fee: shippingFeeRounded,
   });
   try {
     await orderRepo.createOrderItems(null, orderId, orderItemsInput);

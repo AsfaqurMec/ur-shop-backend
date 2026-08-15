@@ -35,6 +35,7 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getMyOrders = getMyOrders;
 exports.getOrderDetails = getOrderDetails;
+exports.downloadOrderInvoice = downloadOrderInvoice;
 exports.getMyDownloads = getMyDownloads;
 exports.getMyLicenses = getMyLicenses;
 exports.getMySubscriptions = getMySubscriptions;
@@ -43,6 +44,7 @@ exports.getMyDeliveredItems = getMyDeliveredItems;
 exports.getDashboardSummary = getDashboardSummary;
 const apiResponse_1 = require("../utils/apiResponse");
 const dashboardService = __importStar(require("../services/dashboardService"));
+const invoiceService = __importStar(require("../services/invoiceService"));
 async function getMyOrders(req, res) {
     if (!req.user)
         return (0, apiResponse_1.sendError)(res, 'Unauthorized', 401);
@@ -57,6 +59,18 @@ async function getOrderDetails(req, res) {
     const orderId = Number(req.params.orderId);
     const order = await dashboardService.getOrderDetails(req.user.id, orderId);
     return (0, apiResponse_1.sendSuccess)(res, order);
+}
+async function downloadOrderInvoice(req, res) {
+    if (!req.user) {
+        (0, apiResponse_1.sendError)(res, 'Unauthorized', 401);
+        return;
+    }
+    const orderId = Number(req.params.orderId);
+    const invoice = await invoiceService.createInvoicePdf(req.user.id, orderId);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${invoice.filename.replace(/[^a-zA-Z0-9._-]/g, '_')}"`);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.status(200).send(invoice.buffer);
 }
 async function getMyDownloads(req, res) {
     if (!req.user)

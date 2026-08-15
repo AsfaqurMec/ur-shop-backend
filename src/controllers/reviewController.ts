@@ -60,6 +60,20 @@ export async function createAdminReview(req: Request, res: Response): Promise<Re
   return sendSuccess(res, review, 201, 'Review created');
 }
 
+/** Admin: edit a review's displayed content, optionally replacing its photo. */
+export async function updateAdminReview(req: Request, res: Response): Promise<Response> {
+  const reviewId = Number(req.params.reviewId);
+  const imagePath = req.file ? await getUploadedImagePath(req.file) : undefined;
+  const review = await reviewService.updateAdminReview(reviewId, {
+    reviewer_name: req.body.reviewer_name !== undefined ? String(req.body.reviewer_name).trim() : undefined,
+    rating: req.body.rating !== undefined ? Number(req.body.rating) : undefined,
+    title: req.body.title !== undefined ? String(req.body.title).trim() || null : undefined,
+    body: req.body.body !== undefined ? String(req.body.body).trim() || null : undefined,
+    image_path: imagePath,
+  });
+  return sendSuccess(res, review, 200, 'Review updated');
+}
+
 /** Public: list reviews for a product (not hidden). */
 export async function listByProduct(req: Request, res: Response): Promise<Response> {
   const productId = Number(req.params.productId);

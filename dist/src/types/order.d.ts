@@ -12,6 +12,12 @@ export interface OrderRow {
     currency: string;
     shipping_mobile: string | null;
     shipping_address: string | null;
+    shipping_city: string | null;
+    shipping_postal_code: string | null;
+    shipping_address_line2: string | null;
+    shipping_method_id: string | null;
+    shipping_method_title: string | null;
+    shipping_fee: number;
     created_at: Date;
     updated_at: Date;
 }

@@ -9,4 +9,8 @@ export const createOrderValidator = [
   body('payment_type').optional().trim().isLength({ max: 32 }),
   body('mobile').trim().notEmpty().withMessage('Mobile number is required').isLength({ max: 32 }),
   body('address').trim().notEmpty().withMessage('Address is required').isLength({ max: 1000 }),
+  body('city').trim().notEmpty().withMessage('City is required').isLength({ max: 120 }),
+  body('postal_code').optional({ values: 'null' }).trim().isLength({ max: 32 }),
+  body('address_line2').optional({ values: 'null' }).trim().isLength({ max: 255 }),
+  body('shipping_method_id').optional({ values: 'null' }).trim().isLength({ max: 64 }),
 ];

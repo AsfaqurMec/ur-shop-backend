@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 export declare function getMyOrders(req: Request, res: Response): Promise<Response>;
 export declare function getOrderDetails(req: Request, res: Response): Promise<Response>;
+export declare function downloadOrderInvoice(req: Request, res: Response): Promise<void>;
 export declare function getMyDownloads(req: Request, res: Response): Promise<Response>;
 export declare function getMyLicenses(req: Request, res: Response): Promise<Response>;
 export declare function getMySubscriptions(req: Request, res: Response): Promise<Response>;

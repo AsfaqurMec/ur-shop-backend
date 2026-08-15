@@ -49,6 +49,7 @@ const purchaseSelectionService = __importStar(require("./purchaseSelectionServic
 const bkashService = __importStar(require("./bkashService"));
 const paymentProofRepo = __importStar(require("../repositories/paymentProofRepository"));
 const paymentOptionService = __importStar(require("./paymentOptionService"));
+const storeSettingsService = __importStar(require("./storeSettingsService"));
 const orderItemDisplay_1 = require("../utils/orderItemDisplay");
 const CURRENCY = 'BDT';
 async function validateCartItemsForCheckout(userId) {
@@ -126,14 +127,40 @@ async function createOrder(userId, couponCode, paymentInput = { method: 'manual_
     const paymentTypeClient = paymentInput.paymentType?.trim() || null;
     const shippingMobile = paymentInput.mobile?.trim() ?? '';
     const shippingAddress = paymentInput.address?.trim() ?? '';
+    const shippingCity = paymentInput.city?.trim() ?? '';
+    const shippingPostalCode = paymentInput.postalCode?.trim() || null;
+    const shippingAddressLine2 = paymentInput.addressLine2?.trim() || null;
+    const shippingMethodIdRaw = paymentInput.shippingMethodId?.trim() ?? '';
     const isCashOnDelivery = methodRaw === 'cash_on_delivery';
     if (!shippingMobile)
         throw new errorHandler_1.AppError(400, 'Mobile number is required');
     if (!shippingAddress)
         throw new errorHandler_1.AppError(400, 'Address is required');
+    if (!shippingCity)
+        throw new errorHandler_1.AppError(400, 'City is required');
+    const storeSettings = await storeSettingsService.getStoreSettings();
+    const configuredShippingMethods = storeSettings.shippingMethods;
+    let shippingFee = 0;
+    let shippingMethodId = null;
+    let shippingMethodTitle = null;
+    if (configuredShippingMethods.length > 0) {
+        if (!shippingMethodIdRaw)
+            throw new errorHandler_1.AppError(400, 'Shipping method is required');
+        const selectedMethod = storeSettingsService.findShippingMethodById(configuredShippingMethods, shippingMethodIdRaw);
+        if (!selectedMethod)
+            throw new errorHandler_1.AppError(400, 'Invalid shipping method');
+        shippingFee = selectedMethod.extraPrice;
+        shippingMethodId = selectedMethod.id;
+        shippingMethodTitle = selectedMethod.title;
+    }
+    const profileAddressParts = [
+        shippingAddress,
+        shippingAddressLine2,
+        [shippingCity, shippingPostalCode].filter(Boolean).join(' '),
+    ].filter(Boolean);
     await authRepo.updateUserContact(userId, {
         mobile: shippingMobile,
-        address: shippingAddress,
+        address: profileAddressParts.join('\n'),
     });
     const optionRow = isCashOnDelivery ? null : await paymentOptionService.assertCheckoutGatewayAllowed(methodRaw);
     if (optionRow && paymentOptionService.isMfsReferenceRow(optionRow)) {
@@ -174,7 +201,8 @@ async function createOrder(userId, couponCode, paymentInput = { method: 'manual_
     }
     const discount = Math.round(discountAmount * 100) / 100;
     const tax = 0;
-    const total = Math.round((subtotalRounded - discount + tax) * 100) / 100;
+    const shippingFeeRounded = Math.round(shippingFee * 100) / 100;
+    const total = Math.round((subtotalRounded - discount + tax + shippingFeeRounded) * 100) / 100;
     const gateway = isCashOnDelivery ? 'cash_on_delivery' : optionRow.gateway_key;
     let orderId;
     let paymentId;
@@ -188,6 +216,12 @@ async function createOrder(userId, couponCode, paymentInput = { method: 'manual_
         currency: CURRENCY,
         shipping_mobile: shippingMobile,
         shipping_address: shippingAddress,
+        shipping_city: shippingCity,
+        shipping_postal_code: shippingPostalCode,
+        shipping_address_line2: shippingAddressLine2,
+        shipping_method_id: shippingMethodId,
+        shipping_method_title: shippingMethodTitle,
+        shipping_fee: shippingFeeRounded,
     });
     try {
         await orderRepo.createOrderItems(null, orderId, orderItemsInput);

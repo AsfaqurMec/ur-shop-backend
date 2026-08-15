@@ -63,6 +63,7 @@ export declare function update(id: number, data: {
     title?: string | null;
     body?: string | null;
     image_path?: string | null;
+    reviewer_name?: string | null;
 }): Promise<boolean>;
 export declare function setHidden(id: number, hidden: boolean): Promise<boolean>;
 //# sourceMappingURL=reviewRepository.d.ts.map

@@ -41,4 +41,5 @@ export declare const PaymentOptionModel: import("mongoose").Model<any, {}, {}, {
 export declare const EmailLogModel: import("mongoose").Model<any, {}, {}, {}, any, any, any>;
 export declare const AuditLogModel: import("mongoose").Model<any, {}, {}, {}, any, any, any>;
 export declare const BannerModel: import("mongoose").Model<any, {}, {}, {}, any, any, any>;
+export declare const AdModel: import("mongoose").Model<any, {}, {}, {}, any, any, any>;
 //# sourceMappingURL=models.d.ts.map

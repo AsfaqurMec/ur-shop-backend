@@ -61,3 +61,4 @@ export const PaymentOptionModel = makeModel<AnyDoc>('PaymentOption', 'payment_op
 export const EmailLogModel = makeModel<AnyDoc>('EmailLog', 'email_logs');
 export const AuditLogModel = makeModel<AnyDoc>('AuditLog', 'audit_logs');
 export const BannerModel = makeModel<AnyDoc>('Banner', 'banners');
+export const AdModel = makeModel<AnyDoc>('Ad', 'ads');

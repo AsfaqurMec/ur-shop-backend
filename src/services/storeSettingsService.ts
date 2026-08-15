@@ -1,6 +1,6 @@
 import { env } from '../config';
 import * as repo from '../repositories/storeSettingsRepository';
-import type { SocialLink, StoreSettings } from '../types/storeSettings';
+import type { ShippingMethod, SocialLink, StoreSettings } from '../types/storeSettings';
 
 const CURRENCIES = new Set(['BDT', 'USD', 'EUR', 'GBP', 'INR', 'CAD', 'AUD']);
 const TIMEZONES = new Set([
@@ -59,6 +59,28 @@ function normalizeSocialLinks(input: unknown): SocialLink[] {
   return out;
 }
 
+function normalizeShippingMethods(input: unknown): ShippingMethod[] {
+  if (!Array.isArray(input)) return [];
+  const out: ShippingMethod[] = [];
+  for (const raw of input.slice(0, 20)) {
+    if (!raw || typeof raw !== 'object') continue;
+    const r = raw as Record<string, unknown>;
+    const id = typeof r.id === 'string' ? r.id.trim().slice(0, 64) : '';
+    const title = typeof r.title === 'string' ? r.title.trim().slice(0, 120) : '';
+    const subtitle = typeof r.subtitle === 'string' ? r.subtitle.trim().slice(0, 255) : '';
+    const extraRaw = r.extraPrice;
+    const extraPrice =
+      typeof extraRaw === 'number' && Number.isFinite(extraRaw)
+        ? Math.max(0, Math.round(extraRaw * 100) / 100)
+        : typeof extraRaw === 'string' && extraRaw.trim()
+          ? Math.max(0, Math.round(Number(extraRaw) * 100) / 100) || 0
+          : 0;
+    if (!id || !title) continue;
+    out.push({ id, title, subtitle, extraPrice: Number.isFinite(extraPrice) ? extraPrice : 0 });
+  }
+  return out;
+}
+
 function defaults(): StoreSettings {
   const name = env.store.name || 'Digital Store';
   const supportEmail = env.store.supportEmail || '';
@@ -76,6 +98,7 @@ function defaults(): StoreSettings {
     currency: 'BDT',
     timezone: 'UTC',
     socialLinks: [],
+    shippingMethods: [],
   };
 }
 
@@ -105,6 +128,7 @@ function normalizeSettings(input?: Partial<StoreSettings> | null): StoreSettings
     currency,
     timezone,
     socialLinks: normalizeSocialLinks(merged.socialLinks),
+    shippingMethods: normalizeShippingMethods(merged.shippingMethods),
   };
 }
 
@@ -148,6 +172,7 @@ export async function getPublicStoreSettings(): Promise<
     | 'emailFooterSupportNumber'
     | 'contactEmail'
     | 'socialLinks'
+    | 'shippingMethods'
   >
 > {
   const settings = await getStoreSettings();
@@ -161,7 +186,17 @@ export async function getPublicStoreSettings(): Promise<
     emailFooterSupportNumber: settings.emailFooterSupportNumber,
     contactEmail: settings.contactEmail,
     socialLinks: settings.socialLinks,
+    shippingMethods: settings.shippingMethods,
   };
+}
+
+export function findShippingMethodById(
+  methods: ShippingMethod[],
+  id: string
+): ShippingMethod | undefined {
+  const trimmed = id.trim();
+  if (!trimmed) return undefined;
+  return methods.find((m) => m.id === trimmed);
 }
 
 export function getStoreSettingsSnapshot(): StoreSettings {

@@ -383,9 +383,11 @@ export async function list(query: ProductListQuery): Promise<ProductListResult> 
     ...(query.product_type && { product_type: query.product_type }),
     ...(query.min_price != null && { min_price: query.min_price }),
     ...(query.max_price != null && { max_price: query.max_price }),
+    ...(query.on_sale === true && { on_sale: true }),
     ...(query.search && { search: query.search }),
     ...(query.featured === true && { featured: true }),
     is_active: query.is_active !== undefined ? query.is_active : true,
+    ...(query.sort && { sort: query.sort }),
   };
   const [products, total] = await Promise.all([
     productRepo.findProducts(filters, limit, offset),

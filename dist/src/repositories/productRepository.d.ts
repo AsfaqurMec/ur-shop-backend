@@ -41,9 +41,11 @@ export interface ProductListFilters {
     product_type?: ProductType;
     min_price?: number;
     max_price?: number;
+    on_sale?: boolean;
     search?: string;
     featured?: boolean;
     is_active?: boolean;
+    sort?: 'newest' | 'price_asc' | 'price_desc' | 'name_asc' | 'name_desc';
 }
 export declare function findProducts(filters: ProductListFilters, limit: number, offset: number): Promise<ProductRow[]>;
 export declare function getNeedsPdpConfigMap(productIds: number[]): Promise<Map<number, boolean>>;

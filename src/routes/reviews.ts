@@ -14,6 +14,7 @@ import {
   listAllAdminReviewsValidator,
   setHiddenValidator,
   createAdminReviewValidator,
+  updateAdminReviewValidator,
 } from '../validators/reviewValidators';
 import { uploadReviewImage } from '../middlewares/upload';
 
@@ -77,6 +78,15 @@ router.get(
   admin,
   validate(reviewIdParamValidator),
   asyncHandler(reviewController.getReviewDetailAdmin)
+);
+
+router.put(
+  '/admin/:reviewId',
+  auth,
+  admin,
+  (req, res, next) => uploadReviewImage(req, res, (err) => (err ? next(err) : next())),
+  validate(updateAdminReviewValidator),
+  asyncHandler(reviewController.updateAdminReview)
 );
 
 // ---- Admin: hide/unhide ----

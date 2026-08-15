@@ -30,5 +30,6 @@ exports.updateStoreSettingsValidator = [
         'Australia/Sydney',
     ]),
     (0, express_validator_1.body)('socialLinks').optional().isArray({ max: 30 }),
+    (0, express_validator_1.body)('shippingMethods').optional().isArray({ max: 20 }),
 ];
 //# sourceMappingURL=storeSettingsValidators.js.map

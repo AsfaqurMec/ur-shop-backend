@@ -11,6 +11,10 @@ export interface CreateOrderPaymentDetails {
     /** Customer contact for delivery. */
     mobile?: string;
     address?: string;
+    city?: string;
+    postalCode?: string | null;
+    addressLine2?: string | null;
+    shippingMethodId?: string | null;
 }
 export declare function createOrder(userId: number, couponCode?: string | null, paymentInput?: CreateOrderPaymentDetails): Promise<OrderPublic>;
 //# sourceMappingURL=checkoutService.d.ts.map

@@ -39,6 +39,14 @@ export declare function listAllAdmin(categoryId: number | undefined, options?: {
 }>;
 /** Admin: hide or unhide a review (soft delete / restore). */
 export declare function setReviewHidden(reviewId: number, hidden: boolean): Promise<ReviewDetailPublic>;
+/** Admin: correct the displayed content of any review without changing its purchase record. */
+export declare function updateAdminReview(reviewId: number, data: {
+    rating?: number;
+    title?: string | null;
+    body?: string | null;
+    image_path?: string | null;
+    reviewer_name?: string | null;
+}): Promise<ReviewDetailPublic>;
 /** Public: newest published reviews across the catalogue, including product links. */
 export declare function listAllPublic(options?: {
     limit?: number;

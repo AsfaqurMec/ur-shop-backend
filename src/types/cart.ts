@@ -24,6 +24,7 @@ export interface CartItemPublic {
   product_name: string;
   product_slug: string;
   product_type: string;
+  product_thumbnail: string | null;
   quantity: number;
   /** Max quantity allowed for this line (variation stock, license pool, or 1 for fixed digital types). */
   max_quantity: number;

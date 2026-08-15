@@ -28,4 +28,5 @@ export const updateStoreSettingsValidator = [
       'Australia/Sydney',
     ]),
   body('socialLinks').optional().isArray({ max: 30 }),
+  body('shippingMethods').optional().isArray({ max: 20 }),
 ];

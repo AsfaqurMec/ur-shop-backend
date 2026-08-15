@@ -24,6 +24,7 @@ const adminStoreSettings_1 = __importDefault(require("./adminStoreSettings"));
 const storeSettings_1 = __importDefault(require("./storeSettings"));
 const cron_1 = __importDefault(require("./cron"));
 const banners_1 = __importDefault(require("./banners"));
+const ads_1 = __importDefault(require("./ads"));
 const router = (0, express_1.Router)();
 router.use('/health', health_1.default);
 router.use('/auth', auth_1.default);
@@ -44,6 +45,7 @@ router.use('/admin/payment-options', adminPaymentOptions_1.default);
 router.use('/admin/store-settings', adminStoreSettings_1.default);
 router.use('/store-settings', storeSettings_1.default);
 router.use('/banners', banners_1.default);
+router.use('/ads', ads_1.default);
 router.use('/cron', cron_1.default);
 exports.default = router;
 //# sourceMappingURL=index.js.map

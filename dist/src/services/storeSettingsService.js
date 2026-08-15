@@ -36,6 +36,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getStoreSettings = getStoreSettings;
 exports.updateStoreSettings = updateStoreSettings;
 exports.getPublicStoreSettings = getPublicStoreSettings;
+exports.findShippingMethodById = findShippingMethodById;
 exports.getStoreSettingsSnapshot = getStoreSettingsSnapshot;
 const config_1 = require("../config");
 const repo = __importStar(require("../repositories/storeSettingsRepository"));
@@ -100,6 +101,29 @@ function normalizeSocialLinks(input) {
     }
     return out;
 }
+function normalizeShippingMethods(input) {
+    if (!Array.isArray(input))
+        return [];
+    const out = [];
+    for (const raw of input.slice(0, 20)) {
+        if (!raw || typeof raw !== 'object')
+            continue;
+        const r = raw;
+        const id = typeof r.id === 'string' ? r.id.trim().slice(0, 64) : '';
+        const title = typeof r.title === 'string' ? r.title.trim().slice(0, 120) : '';
+        const subtitle = typeof r.subtitle === 'string' ? r.subtitle.trim().slice(0, 255) : '';
+        const extraRaw = r.extraPrice;
+        const extraPrice = typeof extraRaw === 'number' && Number.isFinite(extraRaw)
+            ? Math.max(0, Math.round(extraRaw * 100) / 100)
+            : typeof extraRaw === 'string' && extraRaw.trim()
+                ? Math.max(0, Math.round(Number(extraRaw) * 100) / 100) || 0
+                : 0;
+        if (!id || !title)
+            continue;
+        out.push({ id, title, subtitle, extraPrice: Number.isFinite(extraPrice) ? extraPrice : 0 });
+    }
+    return out;
+}
 function defaults() {
     const name = config_1.env.store.name || 'Digital Store';
     const supportEmail = config_1.env.store.supportEmail || '';
@@ -117,6 +141,7 @@ function defaults() {
         currency: 'BDT',
         timezone: 'UTC',
         socialLinks: [],
+        shippingMethods: [],
     };
 }
 let cachedSettings = defaults();
@@ -144,6 +169,7 @@ function normalizeSettings(input) {
         currency,
         timezone,
         socialLinks: normalizeSocialLinks(merged.socialLinks),
+        shippingMethods: normalizeShippingMethods(merged.shippingMethods),
     };
 }
 async function getStoreSettings() {
@@ -185,7 +211,14 @@ async function getPublicStoreSettings() {
         emailFooterSupportNumber: settings.emailFooterSupportNumber,
         contactEmail: settings.contactEmail,
         socialLinks: settings.socialLinks,
+        shippingMethods: settings.shippingMethods,
     };
+}
+function findShippingMethodById(methods, id) {
+    const trimmed = id.trim();
+    if (!trimmed)
+        return undefined;
+    return methods.find((m) => m.id === trimmed);
 }
 function getStoreSettingsSnapshot() {
     return cachedSettings;

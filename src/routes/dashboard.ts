@@ -18,6 +18,12 @@ router.get(
 
 /** Order details (must own order). */
 router.get(
+  '/orders/:orderId/invoice',
+  validate(orderIdParamValidator),
+  asyncHandler(dashboardController.downloadOrderInvoice)
+);
+
+router.get(
   '/orders/:orderId',
   validate(orderIdParamValidator),
   asyncHandler(dashboardController.getOrderDetails)

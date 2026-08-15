@@ -3,6 +3,7 @@ export declare const reviewIdParamValidator: import("express-validator").Validat
 export declare const submitReviewValidator: import("express-validator").ValidationChain[];
 export declare const updateReviewValidator: import("express-validator").ValidationChain[];
 export declare const createAdminReviewValidator: import("express-validator").ValidationChain[];
+export declare const updateAdminReviewValidator: import("express-validator").ValidationChain[];
 export declare const listReviewsValidator: import("express-validator").ValidationChain[];
 export declare const listAllPublicReviewsValidator: import("express-validator").ValidationChain[];
 export declare const setHiddenValidator: import("express-validator").ValidationChain[];

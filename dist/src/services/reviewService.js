@@ -39,6 +39,7 @@ exports.listByProduct = listByProduct;
 exports.listByProductAdmin = listByProductAdmin;
 exports.listAllAdmin = listAllAdmin;
 exports.setReviewHidden = setReviewHidden;
+exports.updateAdminReview = updateAdminReview;
 exports.listAllPublic = listAllPublic;
 exports.createAdminReview = createAdminReview;
 exports.getReviewDetail = getReviewDetail;
@@ -169,6 +170,18 @@ async function setReviewHidden(reviewId, hidden) {
     if (!review)
         throw new errorHandler_1.AppError(404, 'Review not found');
     await reviewRepo.setHidden(reviewId, hidden);
+    const updated = await reviewRepo.findById(reviewId);
+    if (!updated)
+        throw new errorHandler_1.AppError(500, 'Failed to load review');
+    const product = await productRepo.findProductById(updated.product_id);
+    return toDetailPublic(updated, product?.name ?? '');
+}
+/** Admin: correct the displayed content of any review without changing its purchase record. */
+async function updateAdminReview(reviewId, data) {
+    const review = await reviewRepo.findById(reviewId);
+    if (!review)
+        throw new errorHandler_1.AppError(404, 'Review not found');
+    await reviewRepo.update(reviewId, data);
     const updated = await reviewRepo.findById(reviewId);
     if (!updated)
         throw new errorHandler_1.AppError(500, 'Failed to load review');

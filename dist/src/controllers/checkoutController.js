@@ -50,6 +50,10 @@ async function createOrder(req, res) {
     const paymentType = typeof req.body.payment_type === 'string' ? req.body.payment_type : null;
     const mobile = typeof req.body.mobile === 'string' ? req.body.mobile.trim() : '';
     const address = typeof req.body.address === 'string' ? req.body.address.trim() : '';
+    const city = typeof req.body.city === 'string' ? req.body.city.trim() : '';
+    const postalCode = typeof req.body.postal_code === 'string' ? req.body.postal_code.trim() || null : null;
+    const addressLine2 = typeof req.body.address_line2 === 'string' ? req.body.address_line2.trim() || null : null;
+    const shippingMethodId = typeof req.body.shipping_method_id === 'string' ? req.body.shipping_method_id.trim() || null : null;
     const order = await checkoutService.createOrder(userId, couponCode, {
         method,
         transactionId: transactionIdRaw,
@@ -57,6 +61,10 @@ async function createOrder(req, res) {
         paymentType,
         mobile,
         address,
+        city,
+        postalCode,
+        addressLine2,
+        shippingMethodId,
     });
     return (0, apiResponse_1.sendSuccess)(res, { order }, 201, 'Order created successfully');
 }

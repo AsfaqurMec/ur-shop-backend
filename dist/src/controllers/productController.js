@@ -112,11 +112,13 @@ async function list(req, res) {
     const product_type = req.query.product_type;
     const min_price = req.query.min_price != null ? Number(req.query.min_price) : undefined;
     const max_price = req.query.max_price != null ? Number(req.query.max_price) : undefined;
+    const on_sale = req.query.on_sale === '1' || req.query.on_sale === 'true';
     const search = typeof req.query.search === 'string' ? req.query.search : undefined;
     const featured = req.query.featured === '1' || req.query.featured === 'true';
     const is_active = req.query.is_active === undefined
         ? undefined
         : req.query.is_active === '1' || req.query.is_active === 'true';
+    const sort = typeof req.query.sort === 'string' ? req.query.sort : undefined;
     const result = await productService.list({
         page,
         limit,
@@ -124,9 +126,11 @@ async function list(req, res) {
         product_type: product_type,
         min_price,
         max_price,
+        on_sale: on_sale || undefined,
         search,
         featured: featured || undefined,
         is_active,
+        sort: sort,
     });
     return (0, apiResponse_1.sendSuccess)(res, result);
 }

@@ -36,6 +36,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.submitReview = submitReview;
 exports.updateReview = updateReview;
 exports.createAdminReview = createAdminReview;
+exports.updateAdminReview = updateAdminReview;
 exports.listByProduct = listByProduct;
 exports.listAllPublic = listAllPublic;
 exports.listByProductAdmin = listByProductAdmin;
@@ -101,6 +102,19 @@ async function createAdminReview(req, res) {
         image_path: imagePath,
     });
     return (0, apiResponse_1.sendSuccess)(res, review, 201, 'Review created');
+}
+/** Admin: edit a review's displayed content, optionally replacing its photo. */
+async function updateAdminReview(req, res) {
+    const reviewId = Number(req.params.reviewId);
+    const imagePath = req.file ? await getUploadedImagePath(req.file) : undefined;
+    const review = await reviewService.updateAdminReview(reviewId, {
+        reviewer_name: req.body.reviewer_name !== undefined ? String(req.body.reviewer_name).trim() : undefined,
+        rating: req.body.rating !== undefined ? Number(req.body.rating) : undefined,
+        title: req.body.title !== undefined ? String(req.body.title).trim() || null : undefined,
+        body: req.body.body !== undefined ? String(req.body.body).trim() || null : undefined,
+        image_path: imagePath,
+    });
+    return (0, apiResponse_1.sendSuccess)(res, review, 200, 'Review updated');
 }
 /** Public: list reviews for a product (not hidden). */
 async function listByProduct(req, res) {
