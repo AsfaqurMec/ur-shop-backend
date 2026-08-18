@@ -19,6 +19,7 @@ function userRow(doc: any): UserRow {
     name: String(doc.name),
     mobile: doc.mobile != null && String(doc.mobile).trim() ? String(doc.mobile).trim() : null,
     address: doc.address != null && String(doc.address).trim() ? String(doc.address).trim() : null,
+    needs_password_change: doc.needs_password_change === true,
     email_verified_at: doc.email_verified_at ? date(doc.email_verified_at) : null,
     created_at: date(doc.created_at),
     updated_at: date(doc.updated_at),
@@ -66,6 +67,11 @@ export async function findUserByEmail(email: string): Promise<UserRow | null> {
   return row ? userRow(row) : null;
 }
 
+export async function findUserByMobile(mobile: string): Promise<UserRow | null> {
+  const row = await UserModel.findOne({ mobile: mobile.trim(), deleted_at: null }).lean();
+  return row ? userRow(row) : null;
+}
+
 export async function findUserById(id: number): Promise<UserRow | null> {
   //console.log(id);
   
@@ -79,7 +85,7 @@ export async function createUser(
   email: string,
   passwordHash: string,
   name: string,
-  contact?: { mobile?: string | null; address?: string | null }
+  contact?: { mobile?: string | null; address?: string | null; needsPasswordChange?: boolean }
 ): Promise<number> {
   const id = await nextId('users');
   await UserModel.create({
@@ -90,6 +96,7 @@ export async function createUser(
     mobile: contact?.mobile?.trim() || null,
     address: contact?.address?.trim() || null,
     email_verified_at: null,
+    needs_password_change: contact?.needsPasswordChange === true,
     deleted_at: null,
   });
   return id;
@@ -100,7 +107,7 @@ export async function updateUserEmailVerified(userId: number): Promise<void> {
 }
 
 export async function updateUserPassword(userId: number, passwordHash: string): Promise<void> {
-  await UserModel.updateOne({ id: userId }, { $set: { password_hash: passwordHash } });
+  await UserModel.updateOne({ id: userId }, { $set: { password_hash: passwordHash, needs_password_change: false } });
 }
 
 export async function emailExistsExcludingUser(email: string, excludeUserId: number): Promise<boolean> {

@@ -64,8 +64,7 @@ export async function remove(req: Request, res: Response): Promise<Response> {
 }
 
 export async function validate(req: Request, res: Response): Promise<Response> {
-  if (!req.user) return sendError(res, 'Unauthorized', 401);
-  const userId = req.user.id;
+  const userId = req.user?.id ?? null;
   const { code, subtotal, items } = req.body;
   const result = await couponService.validateCoupon(code, userId, subtotal, items);
   return sendSuccess(res, result);

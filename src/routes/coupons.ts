@@ -14,8 +14,8 @@ import {
 
 const router = Router();
 
-// Authenticated: validate coupon (for cart/checkout)
-router.post('/validate', auth, validate(validateCouponValidator), asyncHandler(couponController.validate));
+// Public preview supports guest checkout; final validation runs again while the order is created.
+router.post('/validate', validate(validateCouponValidator), asyncHandler(couponController.validate));
 
 // Admin only
 router.get('/', auth, admin, asyncHandler(couponController.list));

@@ -13,6 +13,7 @@ import {
   resetPasswordValidator,
   updateProfileValidator,
   guestCheckoutValidator,
+  changePasswordValidator,
 } from '../validators/authValidators';
 
 const router = Router();
@@ -28,5 +29,6 @@ router.post('/forgot-password', validate(forgotPasswordValidator), asyncHandler(
 router.post('/reset-password', validate(resetPasswordValidator), asyncHandler(authController.resetPassword));
 router.get('/me', auth, asyncHandler(authController.getProfile));
 router.patch('/me', auth, validate(updateProfileValidator), asyncHandler(authController.updateProfile));
+router.post('/change-password', auth, validate(changePasswordValidator), asyncHandler(authController.changePassword));
 
 export default router;

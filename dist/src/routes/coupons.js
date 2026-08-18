@@ -41,8 +41,8 @@ const admin_1 = require("../middlewares/admin");
 const asyncHandler_1 = require("../utils/asyncHandler");
 const couponValidators_1 = require("../validators/couponValidators");
 const router = (0, express_1.Router)();
-// Authenticated: validate coupon (for cart/checkout)
-router.post('/validate', auth_1.auth, (0, validate_1.validate)(couponValidators_1.validateCouponValidator), (0, asyncHandler_1.asyncHandler)(couponController.validate));
+// Public preview supports guest checkout; final validation runs again while the order is created.
+router.post('/validate', (0, validate_1.validate)(couponValidators_1.validateCouponValidator), (0, asyncHandler_1.asyncHandler)(couponController.validate));
 // Admin only
 router.get('/', auth_1.auth, admin_1.admin, (0, asyncHandler_1.asyncHandler)(couponController.list));
 router.get('/:id', auth_1.auth, admin_1.admin, (0, validate_1.validate)(couponValidators_1.couponIdParamValidator), (0, asyncHandler_1.asyncHandler)(couponController.getById));

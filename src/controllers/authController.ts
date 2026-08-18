@@ -23,10 +23,10 @@ function pickResetBaseUrl(req: Request): string | undefined {
 }
 
 export async function register(req: Request, res: Response): Promise<Response> {
-  const { email, password, name } = req.body;
+  const { identifier, password, name } = req.body;
   const verificationBaseUrl = pickVerificationBaseUrl(req);
   const result = await authService.register(
-    email,
+    identifier,
     password,
     name ?? '',
     verificationBaseUrl
@@ -35,10 +35,10 @@ export async function register(req: Request, res: Response): Promise<Response> {
 }
 
 export async function login(req: Request, res: Response): Promise<Response> {
-  const { email, password } = req.body;
+  const { identifier, password } = req.body;
   const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? req.socket?.remoteAddress ?? null;
   const userAgent = req.headers['user-agent'] ?? null;
-  const result = await authService.login(email, password, ip, userAgent);
+  const result = await authService.login(identifier, password, ip, userAgent);
   return sendSuccess(res, result);
 }
 
@@ -101,14 +101,20 @@ export async function updateProfile(req: Request, res: Response): Promise<Respon
 }
 
 export async function guestCheckout(req: Request, res: Response): Promise<Response> {
-  const { name, email, mobile, address } = req.body as {
+  const { name, mobile, address } = req.body as {
     name: string;
-    email: string;
     mobile: string;
     address: string;
   };
   const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? req.socket?.remoteAddress ?? null;
   const userAgent = req.headers['user-agent'] ?? null;
-  const result = await authService.guestCheckout(name, email, mobile, address, ip, userAgent);
+  const result = await authService.guestCheckout(name, mobile, address, ip, userAgent);
   return sendSuccess(res, result, 201, 'Guest account ready');
+}
+
+export async function changePassword(req: Request, res: Response): Promise<Response> {
+  if (!req.user) return sendError(res, 'Unauthorized', 401);
+  await authService.changePassword(req.user.id, req.user.role, req.body.current_password, req.body.new_password);
+  if (req.user.sessionId) await authService.logout(req.user.sessionId, req.user.role);
+  return sendSuccess(res, { message: 'Password changed. Please sign in again.' });
 }

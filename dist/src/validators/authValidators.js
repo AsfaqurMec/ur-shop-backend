@@ -1,18 +1,18 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.guestCheckoutValidator = exports.updateProfileValidator = exports.resetPasswordValidator = exports.forgotPasswordValidator = exports.verifyEmailQueryValidator = exports.verifyEmailValidator = exports.refreshValidator = exports.loginValidator = exports.registerValidator = void 0;
+exports.changePasswordValidator = exports.guestCheckoutValidator = exports.updateProfileValidator = exports.resetPasswordValidator = exports.forgotPasswordValidator = exports.verifyEmailQueryValidator = exports.verifyEmailValidator = exports.refreshValidator = exports.loginValidator = exports.registerValidator = void 0;
 const express_validator_1 = require("express-validator");
 const PASSWORD_MIN = 8;
 const NAME_MAX = 255;
 exports.registerValidator = [
-    (0, express_validator_1.body)('email').trim().isEmail().normalizeEmail().withMessage('Valid email is required'),
+    (0, express_validator_1.body)('identifier').trim().notEmpty().withMessage('Email or mobile number is required'),
     (0, express_validator_1.body)('password')
         .isLength({ min: PASSWORD_MIN })
         .withMessage(`Password must be at least ${PASSWORD_MIN} characters`),
     (0, express_validator_1.body)('name').optional().trim().isLength({ max: NAME_MAX }).withMessage(`Name max ${NAME_MAX} characters`),
 ];
 exports.loginValidator = [
-    (0, express_validator_1.body)('email').trim().isEmail().normalizeEmail().withMessage('Valid email is required'),
+    (0, express_validator_1.body)('identifier').trim().notEmpty().withMessage('Email or mobile number is required'),
     (0, express_validator_1.body)('password').notEmpty().withMessage('Password is required'),
 ];
 exports.refreshValidator = [
@@ -45,8 +45,11 @@ exports.updateProfileValidator = [
 ];
 exports.guestCheckoutValidator = [
     (0, express_validator_1.body)('name').trim().notEmpty().withMessage('Name is required').isLength({ max: NAME_MAX }),
-    (0, express_validator_1.body)('email').trim().isEmail().normalizeEmail().withMessage('Valid email is required'),
     (0, express_validator_1.body)('mobile').trim().notEmpty().withMessage('Mobile number is required').isLength({ max: 32 }),
     (0, express_validator_1.body)('address').trim().notEmpty().withMessage('Address is required').isLength({ max: 1000 }),
+];
+exports.changePasswordValidator = [
+    (0, express_validator_1.body)('current_password').notEmpty().withMessage('Current password is required'),
+    (0, express_validator_1.body)('new_password').isLength({ min: PASSWORD_MIN }).withMessage(`New password must be at least ${PASSWORD_MIN} characters`),
 ];
 //# sourceMappingURL=authValidators.js.map

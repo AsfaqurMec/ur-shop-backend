@@ -1,4 +1,4 @@
-export type OrderStatus = 'pending' | 'paid' | 'unpaid' | 'processing' | 'completed' | 'refunded' | 'cancelled';
+export type OrderStatus = 'pending' | 'placed' | 'delivered' | 'complete' | 'completed' | 'cancelled' | 'refunded' | 'processing' | 'paid' | 'unpaid';
 export type OrderItemProductType = 'downloadable' | 'license_key' | 'subscription_manual' | 'digital_service';
 
 export interface OrderRow {

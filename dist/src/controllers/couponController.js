@@ -98,9 +98,7 @@ async function remove(req, res) {
     return (0, apiResponse_1.sendSuccess)(res, {}, 200, 'Coupon deleted');
 }
 async function validate(req, res) {
-    if (!req.user)
-        return (0, apiResponse_1.sendError)(res, 'Unauthorized', 401);
-    const userId = req.user.id;
+    const userId = req.user?.id ?? null;
     const { code, subtotal, items } = req.body;
     const result = await couponService.validateCoupon(code, userId, subtotal, items);
     return (0, apiResponse_1.sendSuccess)(res, result);

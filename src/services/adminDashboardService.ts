@@ -41,7 +41,7 @@ export async function getRecentOrders(
 
 export async function updateOrderStatus(
   orderId: number,
-  status: 'pending' | 'paid' | 'unpaid'
+  status: import('../types/order').OrderStatus
 ): Promise<AdminRecentOrder> {
   const ok = await adminDashboardRepo.updateOrderStatus(orderId, status);
   if (!ok) throw new AppError(404, 'Order not found');

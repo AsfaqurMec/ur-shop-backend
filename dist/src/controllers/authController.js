@@ -43,6 +43,7 @@ exports.resetPassword = resetPassword;
 exports.getProfile = getProfile;
 exports.updateProfile = updateProfile;
 exports.guestCheckout = guestCheckout;
+exports.changePassword = changePassword;
 const config_1 = require("../config");
 const apiResponse_1 = require("../utils/apiResponse");
 const authService = __importStar(require("../services/authService"));
@@ -69,16 +70,16 @@ function pickResetBaseUrl(req) {
     return undefined;
 }
 async function register(req, res) {
-    const { email, password, name } = req.body;
+    const { identifier, password, name } = req.body;
     const verificationBaseUrl = pickVerificationBaseUrl(req);
-    const result = await authService.register(email, password, name ?? '', verificationBaseUrl);
+    const result = await authService.register(identifier, password, name ?? '', verificationBaseUrl);
     return (0, apiResponse_1.sendSuccess)(res, result, 201, result.message);
 }
 async function login(req, res) {
-    const { email, password } = req.body;
+    const { identifier, password } = req.body;
     const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() ?? req.socket?.remoteAddress ?? null;
     const userAgent = req.headers['user-agent'] ?? null;
-    const result = await authService.login(email, password, ip, userAgent);
+    const result = await authService.login(identifier, password, ip, userAgent);
     return (0, apiResponse_1.sendSuccess)(res, result);
 }
 async function logout(req, res) {
@@ -131,10 +132,18 @@ async function updateProfile(req, res) {
     return (0, apiResponse_1.sendSuccess)(res, { user }, 200, 'Profile updated');
 }
 async function guestCheckout(req, res) {
-    const { name, email, mobile, address } = req.body;
+    const { name, mobile, address } = req.body;
     const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() ?? req.socket?.remoteAddress ?? null;
     const userAgent = req.headers['user-agent'] ?? null;
-    const result = await authService.guestCheckout(name, email, mobile, address, ip, userAgent);
+    const result = await authService.guestCheckout(name, mobile, address, ip, userAgent);
     return (0, apiResponse_1.sendSuccess)(res, result, 201, 'Guest account ready');
+}
+async function changePassword(req, res) {
+    if (!req.user)
+        return (0, apiResponse_1.sendError)(res, 'Unauthorized', 401);
+    await authService.changePassword(req.user.id, req.user.role, req.body.current_password, req.body.new_password);
+    if (req.user.sessionId)
+        await authService.logout(req.user.sessionId, req.user.role);
+    return (0, apiResponse_1.sendSuccess)(res, { message: 'Password changed. Please sign in again.' });
 }
 //# sourceMappingURL=authController.js.map

@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.deleteOrderValidator = exports.updateCustomerValidator = exports.customerUserIdParamValidator = exports.customersListQueryValidator = exports.lowStockValidator = exports.topProductsValidator = exports.emailLogsQueryValidator = exports.updateOrderStatusValidator = exports.recentOrdersQueryValidator = exports.recentListValidator = void 0;
 const express_validator_1 = require("express-validator");
-const ADMIN_ORDER_STATUSES = ['pending', 'paid', 'unpaid', 'processing', 'completed', 'refunded', 'cancelled'];
+const ADMIN_ORDER_STATUSES = ['pending', 'placed', 'delivered', 'complete', 'completed', 'cancelled', 'refunded', 'processing', 'paid', 'unpaid'];
 exports.recentListValidator = [
     (0, express_validator_1.query)('limit').optional().isInt({ min: 1, max: 200 }).toInt(),
 ];
@@ -14,7 +14,7 @@ exports.recentOrdersQueryValidator = [
 ];
 exports.updateOrderStatusValidator = [
     (0, express_validator_1.param)('orderId').isInt({ min: 1 }).withMessage('Valid order id is required').toInt(),
-    (0, express_validator_1.body)('status').isIn(['pending', 'paid', 'unpaid']).withMessage('Status must be pending, paid, or unpaid'),
+    (0, express_validator_1.body)('status').isIn(['pending', 'placed', 'delivered', 'complete', 'cancelled', 'refunded', 'processing', 'paid', 'unpaid']).withMessage('Invalid order status'),
 ];
 /** Email logs: pagination + optional template filter (slug-style name). */
 exports.emailLogsQueryValidator = [

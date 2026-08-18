@@ -7,7 +7,7 @@ export declare function getRecentOrders(limit?: number, offset?: number, status?
     orders: AdminRecentOrder[];
     total: number;
 }>;
-export declare function updateOrderStatus(orderId: number, status: 'pending' | 'paid' | 'unpaid'): Promise<AdminRecentOrder>;
+export declare function updateOrderStatus(orderId: number, status: import('../types/order').OrderStatus): Promise<AdminRecentOrder>;
 export declare function getEmailLogs(limit?: number, offset?: number, template?: string): Promise<{
     logs: EmailLogRow[];
     total: number;

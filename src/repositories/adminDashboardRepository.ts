@@ -98,7 +98,7 @@ export async function getRecentOrders(
   };
 }
 
-export async function updateOrderStatus(orderId: number, status: 'pending' | 'paid' | 'unpaid'): Promise<boolean> {
+export async function updateOrderStatus(orderId: number, status: import('../types/order').OrderStatus): Promise<boolean> {
   const result = await OrderModel.updateOne({ id: orderId }, { $set: { status } });
   return result.modifiedCount > 0;
 }

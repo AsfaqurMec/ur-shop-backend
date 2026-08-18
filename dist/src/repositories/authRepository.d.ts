@@ -1,9 +1,11 @@
 import type { UserRow, UserSessionRow, EmailVerificationRow, PasswordResetRow } from '../types/auth';
 export declare function findUserByEmail(email: string): Promise<UserRow | null>;
+export declare function findUserByMobile(mobile: string): Promise<UserRow | null>;
 export declare function findUserById(id: number): Promise<UserRow | null>;
 export declare function createUser(email: string, passwordHash: string, name: string, contact?: {
     mobile?: string | null;
     address?: string | null;
+    needsPasswordChange?: boolean;
 }): Promise<number>;
 export declare function updateUserEmailVerified(userId: number): Promise<void>;
 export declare function updateUserPassword(userId: number, passwordHash: string): Promise<void>;

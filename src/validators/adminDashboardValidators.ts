@@ -1,6 +1,6 @@
 import { query, param, body } from 'express-validator';
 
-const ADMIN_ORDER_STATUSES = ['pending', 'paid', 'unpaid', 'processing', 'completed', 'refunded', 'cancelled'];
+const ADMIN_ORDER_STATUSES = ['pending', 'placed', 'delivered', 'complete', 'completed', 'cancelled', 'refunded', 'processing', 'paid', 'unpaid'];
 
 export const recentListValidator = [
   query('limit').optional().isInt({ min: 1, max: 200 }).toInt(),
@@ -15,7 +15,7 @@ export const recentOrdersQueryValidator = [
 
 export const updateOrderStatusValidator = [
   param('orderId').isInt({ min: 1 }).withMessage('Valid order id is required').toInt(),
-  body('status').isIn(['pending', 'paid', 'unpaid']).withMessage('Status must be pending, paid, or unpaid'),
+  body('status').isIn(['pending', 'placed', 'delivered', 'complete', 'cancelled', 'refunded', 'processing', 'paid', 'unpaid']).withMessage('Invalid order status'),
 ];
 
 /** Email logs: pagination + optional template filter (slug-style name). */

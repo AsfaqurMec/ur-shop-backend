@@ -5,6 +5,7 @@ export interface UserRow {
     name: string;
     mobile: string | null;
     address: string | null;
+    needs_password_change: boolean;
     email_verified_at: Date | null;
     created_at: Date;
     updated_at: Date;
@@ -65,5 +66,6 @@ export interface SafeUser {
     created_at: string;
     updated_at: string;
     role: 'user' | 'admin';
+    needs_password_change?: boolean;
 }
 //# sourceMappingURL=auth.d.ts.map

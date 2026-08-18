@@ -183,8 +183,8 @@ async function validateCoupon(code, userId, subtotal, items) {
     if (coupon.max_uses != null && coupon.used_count >= coupon.max_uses) {
         return { valid: false, message: 'Coupon has reached maximum uses' };
     }
-    const userUsageCount = await couponRepo.countUsagesByUser(coupon.id, userId);
-    if (coupon.max_uses_per_user != null && userUsageCount >= coupon.max_uses_per_user) {
+    const userUsageCount = userId == null ? 0 : await couponRepo.countUsagesByUser(coupon.id, userId);
+    if (userId != null && coupon.max_uses_per_user != null && userUsageCount >= coupon.max_uses_per_user) {
         return { valid: false, message: 'You have already used this coupon the maximum number of times' };
     }
     const minOrder = coupon.min_order_amount != null ? Number(coupon.min_order_amount) : null;

@@ -47,6 +47,7 @@ exports.getProfile = getProfile;
 exports.updateProfileName = updateProfileName;
 exports.updateUserProfile = updateUserProfile;
 exports.guestCheckout = guestCheckout;
+exports.changePassword = changePassword;
 const crypto_1 = __importDefault(require("crypto"));
 const errorHandler_1 = require("../middlewares/errorHandler");
 const authRepo = __importStar(require("../repositories/authRepository"));
@@ -68,6 +69,7 @@ function toSafeUser(row) {
         created_at: row.created_at.toISOString(),
         updated_at: row.updated_at.toISOString(),
         role: 'user',
+        needs_password_change: row.needs_password_change === true,
     };
 }
 function toSafeAdmin(row) {
@@ -81,29 +83,35 @@ function toSafeAdmin(row) {
         created_at: row.created_at.toISOString(),
         updated_at: row.updated_at.toISOString(),
         role: 'admin',
+        needs_password_change: false,
     };
 }
 function randomToken() {
     return crypto_1.default.randomBytes(32).toString('hex');
 }
-async function register(email, password, name, verificationBaseUrl) {
-    const existing = await authRepo.findUserByEmail(email);
+async function register(identifier, password, name, verificationBaseUrl) {
+    const normalizedIdentifier = identifier.trim().toLowerCase();
+    const isEmail = normalizedIdentifier.includes('@');
+    const mobile = isEmail ? null : normalizedIdentifier;
+    const email = isEmail ? normalizedIdentifier : `${mobile}@guest.local`;
+    const existing = isEmail ? await authRepo.findUserByEmail(email) : await authRepo.findUserByMobile(mobile);
     if (existing) {
         throw new errorHandler_1.AppError(409, 'Email already registered');
     }
     const passwordHash = await (0, passwordHelpers_1.hashPassword)(password);
-    const userId = await authRepo.createUser(email, passwordHash, name.trim() || email);
+    const userId = await authRepo.createUser(email, passwordHash, name.trim() || identifier, { mobile });
     const user = await authRepo.findUserById(userId);
     if (!user)
         throw new errorHandler_1.AppError(500, 'Failed to create user');
     const token = randomToken();
     const expiresAt = new Date(Date.now() + VERIFICATION_EXPIRY_HOURS * 60 * 60 * 1000);
-    await authRepo.createEmailVerification(userId, email, token, expiresAt);
-    if (verificationBaseUrl) {
+    if (isEmail)
+        await authRepo.createEmailVerification(userId, email, token, expiresAt);
+    if (isEmail && verificationBaseUrl) {
         const verifyUrl = `${verificationBaseUrl.replace(/\/$/, '')}?token=${token}`;
         await emailService.sendVerifyEmail(email, { verifyUrl });
     }
-    if (config_1.env.mail.sendWelcomeEmail) {
+    if (isEmail && config_1.env.mail.sendWelcomeEmail) {
         const base = config_1.env.frontendUrl.replace(/\/$/, '');
         const loginUrl = base ? `${base}/login` : undefined;
         const shopUrl = base ? `${base}/shop` : undefined;
@@ -116,13 +124,16 @@ async function register(email, password, name, verificationBaseUrl) {
     }
     return {
         user: toSafeUser(user),
-        message: verificationBaseUrl
+        message: isEmail && verificationBaseUrl
             ? 'Registration successful. Please check your email to verify your account.'
-            : 'Registration successful. Use the verification token to verify your email.',
+            : 'Registration successful. You can now sign in.',
     };
 }
-async function login(email, password, ip, userAgent) {
-    const user = await authRepo.findUserByEmail(email);
+async function login(identifier, password, ip, userAgent) {
+    const normalizedIdentifier = identifier.trim();
+    const user = normalizedIdentifier.includes('@')
+        ? await authRepo.findUserByEmail(normalizedIdentifier)
+        : await authRepo.findUserByMobile(normalizedIdentifier);
     if (user) {
         const valid = await (0, passwordHelpers_1.comparePassword)(password, user.password_hash);
         if (!valid) {
@@ -150,7 +161,7 @@ async function login(email, password, ip, userAgent) {
             expiresAt: expiresAt.toISOString(),
         };
     }
-    const admin = await adminAuthRepo.findAdminByEmail(email);
+    const admin = await adminAuthRepo.findAdminByEmail(normalizedIdentifier);
     if (!admin) {
         throw new errorHandler_1.AppError(401, 'Invalid email or password');
     }
@@ -422,18 +433,18 @@ async function createUserSession(user, ip, userAgent) {
     };
 }
 /** Register or sign in a guest shopper (password = email) and return auth tokens. */
-async function guestCheckout(name, email, mobile, address, ip, userAgent) {
-    const trimmedEmail = email.trim();
-    const trimmedName = name.trim() || trimmedEmail;
+async function guestCheckout(name, mobile, address, ip, userAgent) {
     const trimmedMobile = mobile.trim();
+    const generatedEmail = `${trimmedMobile}@guest.local`;
+    const trimmedName = name.trim() || trimmedMobile;
     const trimmedAddress = address.trim();
     if (!trimmedMobile)
         throw new errorHandler_1.AppError(400, 'Mobile number is required');
     if (!trimmedAddress)
         throw new errorHandler_1.AppError(400, 'Address is required');
-    const existing = await authRepo.findUserByEmail(trimmedEmail);
+    const existing = await authRepo.findUserByMobile(trimmedMobile);
     if (existing) {
-        const valid = await (0, passwordHelpers_1.comparePassword)(trimmedEmail, existing.password_hash);
+        const valid = await (0, passwordHelpers_1.comparePassword)(trimmedMobile.slice(0, 5), existing.password_hash);
         if (!valid) {
             throw new errorHandler_1.AppError(409, 'An account with this email already exists. Please log in to continue.');
         }
@@ -444,14 +455,27 @@ async function guestCheckout(name, email, mobile, address, ip, userAgent) {
         });
         return createUserSession(existing, ip, userAgent);
     }
-    const passwordHash = await (0, passwordHelpers_1.hashPassword)(trimmedEmail);
-    const userId = await authRepo.createUser(trimmedEmail, passwordHash, trimmedName, {
+    const passwordHash = await (0, passwordHelpers_1.hashPassword)(trimmedMobile.slice(0, 5));
+    const userId = await authRepo.createUser(generatedEmail, passwordHash, trimmedName, {
         mobile: trimmedMobile,
         address: trimmedAddress,
+        needsPasswordChange: true,
     });
     const user = await authRepo.findUserById(userId);
     if (!user)
         throw new errorHandler_1.AppError(500, 'Failed to create user');
     return createUserSession(user, ip, userAgent);
+}
+async function changePassword(userId, role, currentPassword, newPassword) {
+    if (role === tokenHelpers_1.ROLE_ADMIN)
+        throw new errorHandler_1.AppError(403, 'Password changes are not available here');
+    const user = await authRepo.findUserById(userId);
+    if (!user)
+        throw new errorHandler_1.AppError(404, 'User not found');
+    if (!(await (0, passwordHelpers_1.comparePassword)(currentPassword, user.password_hash)))
+        throw new errorHandler_1.AppError(400, 'Current password is incorrect');
+    if (currentPassword === newPassword)
+        throw new errorHandler_1.AppError(400, 'Choose a different new password');
+    await authRepo.updateUserPassword(userId, await (0, passwordHelpers_1.hashPassword)(newPassword));
 }
 //# sourceMappingURL=authService.js.map

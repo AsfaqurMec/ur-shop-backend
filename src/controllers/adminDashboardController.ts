@@ -28,7 +28,7 @@ export async function getRecentOrders(req: Request, res: Response): Promise<Resp
 
 export async function updateOrderStatus(req: Request, res: Response): Promise<Response> {
   const orderId = Number(req.params.orderId);
-  const status = req.body.status as 'pending' | 'paid' | 'unpaid';
+  const status = req.body.status as import('../types/order').OrderStatus;
   const order = await adminDashboardService.updateOrderStatus(orderId, status);
   return sendSuccess(res, { order }, 200, 'Order status updated');
 }

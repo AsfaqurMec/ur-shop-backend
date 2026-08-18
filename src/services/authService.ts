@@ -24,6 +24,7 @@ function toSafeUser(row: {
   name: string;
   mobile?: string | null;
   address?: string | null;
+  needs_password_change?: boolean;
   email_verified_at: Date | null;
   created_at: Date;
   updated_at: Date;
@@ -38,6 +39,7 @@ function toSafeUser(row: {
     created_at: row.created_at.toISOString(),
     updated_at: row.updated_at.toISOString(),
     role: 'user',
+    needs_password_change: row.needs_password_change === true,
   };
 }
 
@@ -58,6 +60,7 @@ function toSafeAdmin(row: {
     created_at: row.created_at.toISOString(),
     updated_at: row.updated_at.toISOString(),
     role: 'admin',
+    needs_password_change: false,
   };
 }
 
@@ -66,30 +69,34 @@ function randomToken(): string {
 }
 
 export async function register(
-  email: string,
+  identifier: string,
   password: string,
   name: string,
   verificationBaseUrl?: string
 ): Promise<{ user: SafeUser; message: string }> {
-  const existing = await authRepo.findUserByEmail(email);
+  const normalizedIdentifier = identifier.trim().toLowerCase();
+  const isEmail = normalizedIdentifier.includes('@');
+  const mobile = isEmail ? null : normalizedIdentifier;
+  const email = isEmail ? normalizedIdentifier : `${mobile}@guest.local`;
+  const existing = isEmail ? await authRepo.findUserByEmail(email) : await authRepo.findUserByMobile(mobile!);
   if (existing) {
     throw new AppError(409, 'Email already registered');
   }
   const passwordHash = await hashPassword(password);
-  const userId = await authRepo.createUser(email, passwordHash, name.trim() || email);
+  const userId = await authRepo.createUser(email, passwordHash, name.trim() || identifier, { mobile });
   const user = await authRepo.findUserById(userId);
   if (!user) throw new AppError(500, 'Failed to create user');
 
   const token = randomToken();
   const expiresAt = new Date(Date.now() + VERIFICATION_EXPIRY_HOURS * 60 * 60 * 1000);
-  await authRepo.createEmailVerification(userId, email, token, expiresAt);
+  if (isEmail) await authRepo.createEmailVerification(userId, email, token, expiresAt);
 
-  if (verificationBaseUrl) {
+  if (isEmail && verificationBaseUrl) {
     const verifyUrl = `${verificationBaseUrl.replace(/\/$/, '')}?token=${token}`;
     await emailService.sendVerifyEmail(email, { verifyUrl });
   }
 
-  if (env.mail.sendWelcomeEmail) {
+  if (isEmail && env.mail.sendWelcomeEmail) {
     const base = env.frontendUrl.replace(/\/$/, '');
     const loginUrl = base ? `${base}/login` : undefined;
     const shopUrl = base ? `${base}/shop` : undefined;
@@ -103,14 +110,14 @@ export async function register(
 
   return {
     user: toSafeUser(user),
-    message: verificationBaseUrl
+    message: isEmail && verificationBaseUrl
       ? 'Registration successful. Please check your email to verify your account.'
-      : 'Registration successful. Use the verification token to verify your email.',
+      : 'Registration successful. You can now sign in.',
   };
 }
 
 export async function login(
-  email: string,
+  identifier: string,
   password: string,
   ip: string | null,
   userAgent: string | null
@@ -120,7 +127,10 @@ export async function login(
   refreshToken: string;
   expiresAt: string;
 }> {
-  const user = await authRepo.findUserByEmail(email);
+  const normalizedIdentifier = identifier.trim();
+  const user = normalizedIdentifier.includes('@')
+    ? await authRepo.findUserByEmail(normalizedIdentifier)
+    : await authRepo.findUserByMobile(normalizedIdentifier);
   if (user) {
     const valid = await comparePassword(password, user.password_hash);
     if (!valid) {
@@ -158,7 +168,7 @@ export async function login(
     };
   }
 
-  const admin = await adminAuthRepo.findAdminByEmail(email);
+  const admin = await adminAuthRepo.findAdminByEmail(normalizedIdentifier);
   if (!admin) {
     throw new AppError(401, 'Invalid email or password');
   }
@@ -506,7 +516,6 @@ async function createUserSession(
 /** Register or sign in a guest shopper (password = email) and return auth tokens. */
 export async function guestCheckout(
   name: string,
-  email: string,
   mobile: string,
   address: string,
   ip: string | null,
@@ -517,16 +526,16 @@ export async function guestCheckout(
   refreshToken: string;
   expiresAt: string;
 }> {
-  const trimmedEmail = email.trim();
-  const trimmedName = name.trim() || trimmedEmail;
   const trimmedMobile = mobile.trim();
+  const generatedEmail = `${trimmedMobile}@guest.local`;
+  const trimmedName = name.trim() || trimmedMobile;
   const trimmedAddress = address.trim();
   if (!trimmedMobile) throw new AppError(400, 'Mobile number is required');
   if (!trimmedAddress) throw new AppError(400, 'Address is required');
 
-  const existing = await authRepo.findUserByEmail(trimmedEmail);
+  const existing = await authRepo.findUserByMobile(trimmedMobile);
   if (existing) {
-    const valid = await comparePassword(trimmedEmail, existing.password_hash);
+    const valid = await comparePassword(trimmedMobile.slice(0, 5), existing.password_hash);
     if (!valid) {
       throw new AppError(409, 'An account with this email already exists. Please log in to continue.');
     }
@@ -538,12 +547,22 @@ export async function guestCheckout(
     return createUserSession(existing, ip, userAgent);
   }
 
-  const passwordHash = await hashPassword(trimmedEmail);
-  const userId = await authRepo.createUser(trimmedEmail, passwordHash, trimmedName, {
+  const passwordHash = await hashPassword(trimmedMobile.slice(0, 5));
+  const userId = await authRepo.createUser(generatedEmail, passwordHash, trimmedName, {
     mobile: trimmedMobile,
     address: trimmedAddress,
+    needsPasswordChange: true,
   });
   const user = await authRepo.findUserById(userId);
   if (!user) throw new AppError(500, 'Failed to create user');
   return createUserSession(user, ip, userAgent);
+}
+
+export async function changePassword(userId: number, role: string, currentPassword: string, newPassword: string): Promise<void> {
+  if (role === ROLE_ADMIN) throw new AppError(403, 'Password changes are not available here');
+  const user = await authRepo.findUserById(userId);
+  if (!user) throw new AppError(404, 'User not found');
+  if (!(await comparePassword(currentPassword, user.password_hash))) throw new AppError(400, 'Current password is incorrect');
+  if (currentPassword === newPassword) throw new AppError(400, 'Choose a different new password');
+  await authRepo.updateUserPassword(userId, await hashPassword(newPassword));
 }

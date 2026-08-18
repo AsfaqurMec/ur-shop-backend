@@ -1,9 +1,9 @@
 import type { SafeUser } from '../types/auth';
-export declare function register(email: string, password: string, name: string, verificationBaseUrl?: string): Promise<{
+export declare function register(identifier: string, password: string, name: string, verificationBaseUrl?: string): Promise<{
     user: SafeUser;
     message: string;
 }>;
-export declare function login(email: string, password: string, ip: string | null, userAgent: string | null): Promise<{
+export declare function login(identifier: string, password: string, ip: string | null, userAgent: string | null): Promise<{
     user: SafeUser;
     accessToken: string;
     refreshToken: string;
@@ -33,10 +33,11 @@ export declare function updateUserProfile(userId: number, role: string, data: {
     address?: string | null;
 }): Promise<SafeUser>;
 /** Register or sign in a guest shopper (password = email) and return auth tokens. */
-export declare function guestCheckout(name: string, email: string, mobile: string, address: string, ip: string | null, userAgent: string | null): Promise<{
+export declare function guestCheckout(name: string, mobile: string, address: string, ip: string | null, userAgent: string | null): Promise<{
     user: SafeUser;
     accessToken: string;
     refreshToken: string;
     expiresAt: string;
 }>;
+export declare function changePassword(userId: number, role: string, currentPassword: string, newPassword: string): Promise<void>;
 //# sourceMappingURL=authService.d.ts.map

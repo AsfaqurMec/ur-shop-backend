@@ -9,4 +9,5 @@ export declare function resetPassword(req: Request, res: Response): Promise<Resp
 export declare function getProfile(req: Request, res: Response): Promise<Response>;
 export declare function updateProfile(req: Request, res: Response): Promise<Response>;
 export declare function guestCheckout(req: Request, res: Response): Promise<Response>;
+export declare function changePassword(req: Request, res: Response): Promise<Response>;
 //# sourceMappingURL=authController.d.ts.map

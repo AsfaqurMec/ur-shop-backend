@@ -39,7 +39,7 @@ export declare function getById(id: number): Promise<CouponPublic & {
  * @param subtotal - Cart/order subtotal
  * @param items - Optional cart/order lines for product/category restrictions
  */
-export declare function validateCoupon(code: string, userId: number, subtotal: number, items?: CouponEligibleItem[]): Promise<CouponValidationResult>;
+export declare function validateCoupon(code: string, userId: number | null, subtotal: number, items?: CouponEligibleItem[]): Promise<CouponValidationResult>;
 /**
  * Record coupon usage after order is placed. Call from checkout/order service.
  */

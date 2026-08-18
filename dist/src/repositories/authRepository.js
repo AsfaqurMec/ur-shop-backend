@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.findUserByEmail = findUserByEmail;
+exports.findUserByMobile = findUserByMobile;
 exports.findUserById = findUserById;
 exports.createUser = createUser;
 exports.updateUserEmailVerified = updateUserEmailVerified;
@@ -35,6 +36,7 @@ function userRow(doc) {
         name: String(doc.name),
         mobile: doc.mobile != null && String(doc.mobile).trim() ? String(doc.mobile).trim() : null,
         address: doc.address != null && String(doc.address).trim() ? String(doc.address).trim() : null,
+        needs_password_change: doc.needs_password_change === true,
         email_verified_at: doc.email_verified_at ? date(doc.email_verified_at) : null,
         created_at: date(doc.created_at),
         updated_at: date(doc.updated_at),
@@ -77,6 +79,10 @@ async function findUserByEmail(email) {
     const row = await models_1.UserModel.findOne({ email: email.trim(), deleted_at: null }).lean();
     return row ? userRow(row) : null;
 }
+async function findUserByMobile(mobile) {
+    const row = await models_1.UserModel.findOne({ mobile: mobile.trim(), deleted_at: null }).lean();
+    return row ? userRow(row) : null;
+}
 async function findUserById(id) {
     //console.log(id);
     const row = await models_1.UserModel.findOne({ id, deleted_at: null }).lean();
@@ -93,6 +99,7 @@ async function createUser(email, passwordHash, name, contact) {
         mobile: contact?.mobile?.trim() || null,
         address: contact?.address?.trim() || null,
         email_verified_at: null,
+        needs_password_change: contact?.needsPasswordChange === true,
         deleted_at: null,
     });
     return id;
@@ -101,7 +108,7 @@ async function updateUserEmailVerified(userId) {
     await models_1.UserModel.updateOne({ id: userId }, { $set: { email_verified_at: new Date() } });
 }
 async function updateUserPassword(userId, passwordHash) {
-    await models_1.UserModel.updateOne({ id: userId }, { $set: { password_hash: passwordHash } });
+    await models_1.UserModel.updateOne({ id: userId }, { $set: { password_hash: passwordHash, needs_password_change: false } });
 }
 async function emailExistsExcludingUser(email, excludeUserId) {
     return Boolean(await models_1.UserModel.exists({ email: email.trim(), id: { $ne: excludeUserId }, deleted_at: null }));

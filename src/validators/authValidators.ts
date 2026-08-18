@@ -4,7 +4,7 @@ const PASSWORD_MIN = 8;
 const NAME_MAX = 255;
 
 export const registerValidator = [
-  body('email').trim().isEmail().normalizeEmail().withMessage('Valid email is required'),
+  body('identifier').trim().notEmpty().withMessage('Email or mobile number is required'),
   body('password')
     .isLength({ min: PASSWORD_MIN })
     .withMessage(`Password must be at least ${PASSWORD_MIN} characters`),
@@ -12,7 +12,7 @@ export const registerValidator = [
 ];
 
 export const loginValidator = [
-  body('email').trim().isEmail().normalizeEmail().withMessage('Valid email is required'),
+  body('identifier').trim().notEmpty().withMessage('Email or mobile number is required'),
   body('password').notEmpty().withMessage('Password is required'),
 ];
 
@@ -52,7 +52,11 @@ export const updateProfileValidator = [
 
 export const guestCheckoutValidator = [
   body('name').trim().notEmpty().withMessage('Name is required').isLength({ max: NAME_MAX }),
-  body('email').trim().isEmail().normalizeEmail().withMessage('Valid email is required'),
   body('mobile').trim().notEmpty().withMessage('Mobile number is required').isLength({ max: 32 }),
   body('address').trim().notEmpty().withMessage('Address is required').isLength({ max: 1000 }),
+];
+
+export const changePasswordValidator = [
+  body('current_password').notEmpty().withMessage('Current password is required'),
+  body('new_password').isLength({ min: PASSWORD_MIN }).withMessage(`New password must be at least ${PASSWORD_MIN} characters`),
 ];

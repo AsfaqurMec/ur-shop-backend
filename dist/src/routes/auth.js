@@ -51,5 +51,6 @@ router.post('/forgot-password', (0, validate_1.validate)(authValidators_1.forgot
 router.post('/reset-password', (0, validate_1.validate)(authValidators_1.resetPasswordValidator), (0, asyncHandler_1.asyncHandler)(authController.resetPassword));
 router.get('/me', auth_1.auth, (0, asyncHandler_1.asyncHandler)(authController.getProfile));
 router.patch('/me', auth_1.auth, (0, validate_1.validate)(authValidators_1.updateProfileValidator), (0, asyncHandler_1.asyncHandler)(authController.updateProfile));
+router.post('/change-password', auth_1.auth, (0, validate_1.validate)(authValidators_1.changePasswordValidator), (0, asyncHandler_1.asyncHandler)(authController.changePassword));
 exports.default = router;
 //# sourceMappingURL=auth.js.map
