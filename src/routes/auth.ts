@@ -14,12 +14,16 @@ import {
   updateProfileValidator,
   guestCheckoutValidator,
   changePasswordValidator,
+  guestAccountStatusValidator,
+  continueCheckoutValidator,
 } from '../validators/authValidators';
 
 const router = Router();
 
 router.post('/register', validate(registerValidator), asyncHandler(authController.register));
 router.post('/guest-checkout', validate(guestCheckoutValidator), asyncHandler(authController.guestCheckout));
+router.post('/guest-account-status', validate(guestAccountStatusValidator), asyncHandler(authController.guestAccountStatus));
+router.post('/continue-checkout', validate(continueCheckoutValidator), asyncHandler(authController.continueCheckout));
 router.post('/login', validate(loginValidator), asyncHandler(authController.login));
 router.post('/logout', auth, asyncHandler(authController.logout));
 router.post('/refresh', validate(refreshValidator), asyncHandler(authController.refresh));

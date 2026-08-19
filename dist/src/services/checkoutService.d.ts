@@ -11,7 +11,6 @@ export interface CreateOrderPaymentDetails {
     /** Customer contact for delivery. */
     mobile?: string;
     address?: string;
-    city?: string;
     postalCode?: string | null;
     addressLine2?: string | null;
     shippingMethodId?: string | null;

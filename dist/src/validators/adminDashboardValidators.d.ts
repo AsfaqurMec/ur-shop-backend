@@ -11,4 +11,5 @@ export declare const customersListQueryValidator: import("express-validator").Va
 export declare const customerUserIdParamValidator: import("express-validator").ValidationChain[];
 export declare const updateCustomerValidator: import("express-validator").ValidationChain[];
 export declare const deleteOrderValidator: import("express-validator").ValidationChain[];
+export declare const updateOrderPaymentStatusValidator: import("express-validator").ValidationChain[];
 //# sourceMappingURL=adminDashboardValidators.d.ts.map

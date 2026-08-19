@@ -8,4 +8,6 @@ export declare const resetPasswordValidator: import("express-validator").Validat
 export declare const updateProfileValidator: import("express-validator").ValidationChain[];
 export declare const guestCheckoutValidator: import("express-validator").ValidationChain[];
 export declare const changePasswordValidator: import("express-validator").ValidationChain[];
+export declare const guestAccountStatusValidator: import("express-validator").ValidationChain[];
+export declare const continueCheckoutValidator: import("express-validator").ValidationChain[];
 //# sourceMappingURL=authValidators.d.ts.map

@@ -60,3 +60,11 @@ export const changePasswordValidator = [
   body('current_password').notEmpty().withMessage('Current password is required'),
   body('new_password').isLength({ min: PASSWORD_MIN }).withMessage(`New password must be at least ${PASSWORD_MIN} characters`),
 ];
+
+export const guestAccountStatusValidator = [
+  body('mobile').trim().notEmpty().withMessage('Mobile number is required').isLength({ max: 32 }),
+];
+
+export const continueCheckoutValidator = [
+  body('mobile').trim().notEmpty().withMessage('Mobile number is required').isLength({ max: 32 }),
+];

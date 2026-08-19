@@ -38,6 +38,8 @@ exports.getSalesSummary = getSalesSummary;
 exports.getOrdersByStatus = getOrdersByStatus;
 exports.getRecentOrders = getRecentOrders;
 exports.updateOrderStatus = updateOrderStatus;
+exports.updateOrderPaymentStatus = updateOrderPaymentStatus;
+exports.getPaidRevenueHistory = getPaidRevenueHistory;
 exports.getEmailLogs = getEmailLogs;
 exports.getRecentPayments = getRecentPayments;
 exports.getTopProducts = getTopProducts;
@@ -76,6 +78,18 @@ async function updateOrderStatus(orderId, status) {
     if (detail)
         return detail;
     throw new errorHandler_1.AppError(404, 'Order not found');
+}
+async function updateOrderPaymentStatus(orderId, paymentStatus) {
+    const ok = await adminDashboardRepo.updateOrderPaymentStatus(orderId, paymentStatus);
+    if (!ok)
+        throw new errorHandler_1.AppError(404, 'Order not found');
+    const detail = await adminDashboardRepo.getOrderListItemById(orderId);
+    if (!detail)
+        throw new errorHandler_1.AppError(404, 'Order not found');
+    return detail;
+}
+async function getPaidRevenueHistory() {
+    return adminDashboardRepo.getPaidRevenueHistory();
 }
 async function getEmailLogs(limit, offset, template) {
     const lim = limit ?? DEFAULT_EMAIL_LOG_LIMIT;

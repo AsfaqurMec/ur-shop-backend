@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.changePasswordValidator = exports.guestCheckoutValidator = exports.updateProfileValidator = exports.resetPasswordValidator = exports.forgotPasswordValidator = exports.verifyEmailQueryValidator = exports.verifyEmailValidator = exports.refreshValidator = exports.loginValidator = exports.registerValidator = void 0;
+exports.continueCheckoutValidator = exports.guestAccountStatusValidator = exports.changePasswordValidator = exports.guestCheckoutValidator = exports.updateProfileValidator = exports.resetPasswordValidator = exports.forgotPasswordValidator = exports.verifyEmailQueryValidator = exports.verifyEmailValidator = exports.refreshValidator = exports.loginValidator = exports.registerValidator = void 0;
 const express_validator_1 = require("express-validator");
 const PASSWORD_MIN = 8;
 const NAME_MAX = 255;
@@ -51,5 +51,11 @@ exports.guestCheckoutValidator = [
 exports.changePasswordValidator = [
     (0, express_validator_1.body)('current_password').notEmpty().withMessage('Current password is required'),
     (0, express_validator_1.body)('new_password').isLength({ min: PASSWORD_MIN }).withMessage(`New password must be at least ${PASSWORD_MIN} characters`),
+];
+exports.guestAccountStatusValidator = [
+    (0, express_validator_1.body)('mobile').trim().notEmpty().withMessage('Mobile number is required').isLength({ max: 32 }),
+];
+exports.continueCheckoutValidator = [
+    (0, express_validator_1.body)('mobile').trim().notEmpty().withMessage('Mobile number is required').isLength({ max: 32 }),
 ];
 //# sourceMappingURL=authValidators.js.map

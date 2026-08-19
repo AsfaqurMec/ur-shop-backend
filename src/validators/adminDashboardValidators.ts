@@ -59,3 +59,8 @@ export const updateCustomerValidator = [
 export const deleteOrderValidator = [
   param('id').isInt({ min: 1 }).withMessage('Valid order id is required').toInt(),
 ];
+
+export const updateOrderPaymentStatusValidator = [
+  param('orderId').isInt({ min: 1 }).toInt(),
+  body('payment_status').isIn(['paid', 'unpaid']).withMessage('Payment status must be paid or unpaid'),
+];

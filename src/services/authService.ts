@@ -566,3 +566,30 @@ export async function changePassword(userId: number, role: string, currentPasswo
   if (currentPassword === newPassword) throw new AppError(400, 'Choose a different new password');
   await authRepo.updateUserPassword(userId, await hashPassword(newPassword));
 }
+
+export async function hasAccountForMobile(mobile: string): Promise<boolean> {
+  return Boolean(await authRepo.findUserByMobile(mobile.trim()));
+}
+
+/** Sign in an existing account by mobile for guest checkout continuation (no password required). */
+export async function continueCheckout(
+  mobile: string,
+  ip: string | null,
+  userAgent: string | null
+): Promise<{
+  user: SafeUser;
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: string;
+}> {
+  const trimmedMobile = mobile.trim();
+  if (!trimmedMobile) throw new AppError(400, 'Mobile number is required');
+
+  const existing = await authRepo.findUserByMobile(trimmedMobile);
+  if (!existing) throw new AppError(404, 'No account found for this mobile number');
+  if (!existing.address?.trim()) {
+    throw new AppError(400, 'This account has no saved address. Please log in to update your profile.');
+  }
+
+  return createUserSession(existing, ip, userAgent);
+}

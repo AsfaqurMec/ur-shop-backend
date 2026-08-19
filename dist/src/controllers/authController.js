@@ -44,6 +44,8 @@ exports.getProfile = getProfile;
 exports.updateProfile = updateProfile;
 exports.guestCheckout = guestCheckout;
 exports.changePassword = changePassword;
+exports.guestAccountStatus = guestAccountStatus;
+exports.continueCheckout = continueCheckout;
 const config_1 = require("../config");
 const apiResponse_1 = require("../utils/apiResponse");
 const authService = __importStar(require("../services/authService"));
@@ -145,5 +147,16 @@ async function changePassword(req, res) {
     if (req.user.sessionId)
         await authService.logout(req.user.sessionId, req.user.role);
     return (0, apiResponse_1.sendSuccess)(res, { message: 'Password changed. Please sign in again.' });
+}
+async function guestAccountStatus(req, res) {
+    const exists = await authService.hasAccountForMobile(req.body.mobile);
+    return (0, apiResponse_1.sendSuccess)(res, { exists });
+}
+async function continueCheckout(req, res) {
+    const { mobile } = req.body;
+    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() ?? req.socket?.remoteAddress ?? null;
+    const userAgent = req.headers['user-agent'] ?? null;
+    const result = await authService.continueCheckout(mobile, ip, userAgent);
+    return (0, apiResponse_1.sendSuccess)(res, result, 200, 'Signed in to continue checkout');
 }
 //# sourceMappingURL=authController.js.map

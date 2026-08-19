@@ -50,6 +50,18 @@ export async function updateOrderStatus(
   throw new AppError(404, 'Order not found');
 }
 
+export async function updateOrderPaymentStatus(orderId: number, paymentStatus: 'paid' | 'unpaid'): Promise<AdminRecentOrder> {
+  const ok = await adminDashboardRepo.updateOrderPaymentStatus(orderId, paymentStatus);
+  if (!ok) throw new AppError(404, 'Order not found');
+  const detail = await adminDashboardRepo.getOrderListItemById(orderId);
+  if (!detail) throw new AppError(404, 'Order not found');
+  return detail;
+}
+
+export async function getPaidRevenueHistory(): Promise<Array<{ date: string; revenue: number }>> {
+  return adminDashboardRepo.getPaidRevenueHistory();
+}
+
 export async function getEmailLogs(
   limit?: number,
   offset?: number,

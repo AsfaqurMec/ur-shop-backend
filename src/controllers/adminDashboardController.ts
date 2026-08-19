@@ -33,6 +33,15 @@ export async function updateOrderStatus(req: Request, res: Response): Promise<Re
   return sendSuccess(res, { order }, 200, 'Order status updated');
 }
 
+export async function updateOrderPaymentStatus(req: Request, res: Response): Promise<Response> {
+  const order = await adminDashboardService.updateOrderPaymentStatus(Number(req.params.orderId), req.body.payment_status);
+  return sendSuccess(res, { order }, 200, 'Payment status updated');
+}
+
+export async function getPaidRevenueHistory(_req: Request, res: Response): Promise<Response> {
+  return sendSuccess(res, { history: await adminDashboardService.getPaidRevenueHistory() });
+}
+
 export async function getEmailLogs(req: Request, res: Response): Promise<Response> {
   const limit = req.query.limit != null ? Number(req.query.limit) : undefined;
   const offset = req.query.offset != null ? Number(req.query.offset) : undefined;

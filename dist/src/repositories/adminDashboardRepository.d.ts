@@ -7,6 +7,11 @@ export declare function getRecentOrders(limit: number, offset: number, status?: 
     total: number;
 }>;
 export declare function updateOrderStatus(orderId: number, status: import('../types/order').OrderStatus): Promise<boolean>;
+export declare function updateOrderPaymentStatus(orderId: number, paymentStatus: 'paid' | 'unpaid'): Promise<boolean>;
+export declare function getPaidRevenueHistory(days?: number): Promise<Array<{
+    date: string;
+    revenue: number;
+}>>;
 export declare function getOrderListItemById(orderId: number): Promise<AdminRecentOrder | null>;
 export declare function getRecentPayments(limit: number): Promise<AdminRecentPayment[]>;
 export declare function getTopProducts(limit: number): Promise<AdminTopProduct[]>;

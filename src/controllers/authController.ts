@@ -118,3 +118,16 @@ export async function changePassword(req: Request, res: Response): Promise<Respo
   if (req.user.sessionId) await authService.logout(req.user.sessionId, req.user.role);
   return sendSuccess(res, { message: 'Password changed. Please sign in again.' });
 }
+
+export async function guestAccountStatus(req: Request, res: Response): Promise<Response> {
+  const exists = await authService.hasAccountForMobile(req.body.mobile);
+  return sendSuccess(res, { exists });
+}
+
+export async function continueCheckout(req: Request, res: Response): Promise<Response> {
+  const { mobile } = req.body as { mobile: string };
+  const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? req.socket?.remoteAddress ?? null;
+  const userAgent = req.headers['user-agent'] ?? null;
+  const result = await authService.continueCheckout(mobile, ip, userAgent);
+  return sendSuccess(res, result, 200, 'Signed in to continue checkout');
+}

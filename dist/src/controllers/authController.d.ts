@@ -10,4 +10,6 @@ export declare function getProfile(req: Request, res: Response): Promise<Respons
 export declare function updateProfile(req: Request, res: Response): Promise<Response>;
 export declare function guestCheckout(req: Request, res: Response): Promise<Response>;
 export declare function changePassword(req: Request, res: Response): Promise<Response>;
+export declare function guestAccountStatus(req: Request, res: Response): Promise<Response>;
+export declare function continueCheckout(req: Request, res: Response): Promise<Response>;
 //# sourceMappingURL=authController.d.ts.map

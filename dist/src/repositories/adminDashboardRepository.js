@@ -5,6 +5,8 @@ exports.getSalesSummary = getSalesSummary;
 exports.getOrdersByStatus = getOrdersByStatus;
 exports.getRecentOrders = getRecentOrders;
 exports.updateOrderStatus = updateOrderStatus;
+exports.updateOrderPaymentStatus = updateOrderPaymentStatus;
+exports.getPaidRevenueHistory = getPaidRevenueHistory;
 exports.getOrderListItemById = getOrderListItemById;
 exports.getRecentPayments = getRecentPayments;
 exports.getTopProducts = getTopProducts;
@@ -22,8 +24,8 @@ function iso(v) {
 async function getDashboardSummary() {
     const [ordersTotal, ordersPaid, completedPayments, distinctOrders, pendingFulfillment, pendingTickets] = await Promise.all([
         models_1.OrderModel.countDocuments({}),
-        models_1.OrderModel.countDocuments({ status: { $in: ['paid', 'processing', 'completed'] } }),
-        models_1.OrderModel.find({ status: 'paid' }).lean(),
+        models_1.OrderModel.countDocuments({ payment_status: 'paid' }),
+        models_1.OrderModel.find({ payment_status: 'paid' }).lean(),
         models_1.UserModel.find({}), // Fixed this line
         models_1.FulfillmentQueueModel.countDocuments({ status: 'pending' }),
         models_1.TicketModel.countDocuments({ status: { $in: ['open', 'answered', 'customer_reply'] } }),
@@ -38,7 +40,7 @@ async function getDashboardSummary() {
     };
 }
 async function getSalesSummary() {
-    const payments = await models_1.OrderModel.find({ status: 'paid' }).lean();
+    const payments = await models_1.OrderModel.find({ payment_status: 'paid' }).lean();
     return {
         total_revenue: payments.reduce((sum, p) => sum + p.total, 0),
         total_orders_paid: new Set(payments.map((p) => Number(p.order_id))).size,
@@ -81,6 +83,18 @@ async function getRecentOrders(limit, offset, status) {
 async function updateOrderStatus(orderId, status) {
     const result = await models_1.OrderModel.updateOne({ id: orderId }, { $set: { status } });
     return result.modifiedCount > 0;
+}
+async function updateOrderPaymentStatus(orderId, paymentStatus) {
+    const result = await models_1.OrderModel.updateOne({ id: orderId }, { $set: { payment_status: paymentStatus } });
+    return result.modifiedCount > 0;
+}
+async function getPaidRevenueHistory(days = 14) {
+    const since = new Date();
+    since.setDate(since.getDate() - (days - 1));
+    since.setHours(0, 0, 0, 0);
+    const rows = await models_1.OrderModel.aggregate([{ $match: { payment_status: 'paid', created_at: { $gte: since } } }, { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$created_at' } }, revenue: { $sum: '$total' } } }, { $sort: { _id: 1 } }]);
+    const values = new Map(rows.map((row) => [String(row._id), Number(row.revenue ?? 0)]));
+    return Array.from({ length: days }, (_, index) => { const date = new Date(since); date.setDate(since.getDate() + index); const key = date.toISOString().slice(0, 10); return { date: key, revenue: values.get(key) ?? 0 }; });
 }
 async function getOrderListItemById(orderId) {
     const row = await models_1.OrderModel.findOne({ id: orderId }).lean();

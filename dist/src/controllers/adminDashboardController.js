@@ -38,6 +38,8 @@ exports.getSalesSummary = getSalesSummary;
 exports.getOrdersByStatus = getOrdersByStatus;
 exports.getRecentOrders = getRecentOrders;
 exports.updateOrderStatus = updateOrderStatus;
+exports.updateOrderPaymentStatus = updateOrderPaymentStatus;
+exports.getPaidRevenueHistory = getPaidRevenueHistory;
 exports.getEmailLogs = getEmailLogs;
 exports.getRecentPayments = getRecentPayments;
 exports.getTopProducts = getTopProducts;
@@ -76,6 +78,13 @@ async function updateOrderStatus(req, res) {
     const status = req.body.status;
     const order = await adminDashboardService.updateOrderStatus(orderId, status);
     return (0, apiResponse_1.sendSuccess)(res, { order }, 200, 'Order status updated');
+}
+async function updateOrderPaymentStatus(req, res) {
+    const order = await adminDashboardService.updateOrderPaymentStatus(Number(req.params.orderId), req.body.payment_status);
+    return (0, apiResponse_1.sendSuccess)(res, { order }, 200, 'Payment status updated');
+}
+async function getPaidRevenueHistory(_req, res) {
+    return (0, apiResponse_1.sendSuccess)(res, { history: await adminDashboardService.getPaidRevenueHistory() });
 }
 async function getEmailLogs(req, res) {
     const limit = req.query.limit != null ? Number(req.query.limit) : undefined;

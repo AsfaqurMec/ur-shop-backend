@@ -32,7 +32,6 @@ export interface CreateOrderPaymentDetails {
   /** Customer contact for delivery. */
   mobile?: string;
   address?: string;
-  city?: string;
   postalCode?: string | null;
   addressLine2?: string | null;
   shippingMethodId?: string | null;
@@ -128,7 +127,6 @@ export async function createOrder(
   const paymentTypeClient = paymentInput.paymentType?.trim() || null;
   const shippingMobile = paymentInput.mobile?.trim() ?? '';
   const shippingAddress = paymentInput.address?.trim() ?? '';
-  const shippingCity = paymentInput.city?.trim() ?? '';
   const shippingPostalCode = paymentInput.postalCode?.trim() || null;
   const shippingAddressLine2 = paymentInput.addressLine2?.trim() || null;
   const shippingMethodIdRaw = paymentInput.shippingMethodId?.trim() ?? '';
@@ -136,7 +134,6 @@ export async function createOrder(
 
   if (!shippingMobile) throw new AppError(400, 'Mobile number is required');
   if (!shippingAddress) throw new AppError(400, 'Address is required');
-  if (!shippingCity) throw new AppError(400, 'City is required');
 
   const storeSettings = await storeSettingsService.getStoreSettings();
   const configuredShippingMethods = storeSettings.shippingMethods;
@@ -159,7 +156,7 @@ export async function createOrder(
   const profileAddressParts = [
     shippingAddress,
     shippingAddressLine2,
-    [shippingCity, shippingPostalCode].filter(Boolean).join(' '),
+    shippingPostalCode,
   ].filter(Boolean);
 
   await authRepo.updateUserContact(userId, {
@@ -228,6 +225,7 @@ export async function createOrder(
   orderId = await orderRepo.createOrder(null, {
     user_id: userId,
     status: 'pending',
+    payment_status: 'unpaid',
     subtotal: subtotalRounded,
     discount,
     tax,
@@ -235,7 +233,6 @@ export async function createOrder(
     currency: CURRENCY,
     shipping_mobile: shippingMobile,
     shipping_address: shippingAddress,
-    shipping_city: shippingCity,
     shipping_postal_code: shippingPostalCode,
     shipping_address_line2: shippingAddressLine2,
     shipping_method_id: shippingMethodId,

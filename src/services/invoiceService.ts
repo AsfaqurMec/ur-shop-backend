@@ -77,7 +77,7 @@ export async function createInvoicePdf(userId: number, orderId: number): Promise
   doc.font('Helvetica').fontSize(10).text(customer?.name || 'Customer', MARGIN, y + 17);
   text(doc, customer?.email || '', MARGIN, y + 32);
   text(doc, order.shipping_mobile || customer?.mobile || '', MARGIN, y + 47);
-  const address = [order.shipping_address, order.shipping_address_line2, [order.shipping_city, order.shipping_postal_code].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+  const address = [order.shipping_address, order.shipping_address_line2, order.shipping_postal_code].filter(Boolean).join(', ');
   text(doc, address, MARGIN, y + 62, { width: 250 });
 
   doc.font('Helvetica-Bold').fontSize(9).text('ORDER INFORMATION', 350, y);

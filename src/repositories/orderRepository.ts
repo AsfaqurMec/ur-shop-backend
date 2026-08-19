@@ -132,6 +132,7 @@ export async function createOrder(
     user_id: number;
     order_number?: string;
     status: OrderStatus;
+    payment_status?: 'paid' | 'unpaid';
     subtotal: number;
     discount: number;
     tax: number;

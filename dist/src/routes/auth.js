@@ -42,6 +42,8 @@ const authValidators_1 = require("../validators/authValidators");
 const router = (0, express_1.Router)();
 router.post('/register', (0, validate_1.validate)(authValidators_1.registerValidator), (0, asyncHandler_1.asyncHandler)(authController.register));
 router.post('/guest-checkout', (0, validate_1.validate)(authValidators_1.guestCheckoutValidator), (0, asyncHandler_1.asyncHandler)(authController.guestCheckout));
+router.post('/guest-account-status', (0, validate_1.validate)(authValidators_1.guestAccountStatusValidator), (0, asyncHandler_1.asyncHandler)(authController.guestAccountStatus));
+router.post('/continue-checkout', (0, validate_1.validate)(authValidators_1.continueCheckoutValidator), (0, asyncHandler_1.asyncHandler)(authController.continueCheckout));
 router.post('/login', (0, validate_1.validate)(authValidators_1.loginValidator), (0, asyncHandler_1.asyncHandler)(authController.login));
 router.post('/logout', auth_1.auth, (0, asyncHandler_1.asyncHandler)(authController.logout));
 router.post('/refresh', (0, validate_1.validate)(authValidators_1.refreshValidator), (0, asyncHandler_1.asyncHandler)(authController.refresh));

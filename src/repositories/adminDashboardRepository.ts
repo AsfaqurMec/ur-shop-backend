@@ -27,8 +27,8 @@ export async function getDashboardSummary(): Promise<AdminDashboardSummary> {
   const [ordersTotal, ordersPaid, completedPayments, distinctOrders, pendingFulfillment, pendingTickets] =
   await Promise.all([
     OrderModel.countDocuments({}),
-    OrderModel.countDocuments({ status: { $in: ['paid', 'processing', 'completed'] } }),
-    OrderModel.find({ status: 'paid' }).lean(),
+    OrderModel.countDocuments({ payment_status: 'paid' }),
+    OrderModel.find({ payment_status: 'paid' }).lean(),
     UserModel.find({}), // Fixed this line
     FulfillmentQueueModel.countDocuments({ status: 'pending' }),
     TicketModel.countDocuments({ status: { $in: ['open', 'answered', 'customer_reply'] } }),
@@ -49,7 +49,7 @@ export async function getDashboardSummary(): Promise<AdminDashboardSummary> {
 }
 
 export async function getSalesSummary(): Promise<AdminSalesSummary> {
-  const payments = await OrderModel.find({ status: 'paid' }).lean();
+  const payments = await OrderModel.find({ payment_status: 'paid' }).lean();
   return {
     total_revenue: payments.reduce((sum, p: any) => sum + p.total, 0),
     total_orders_paid: new Set(payments.map((p: any) => Number(p.order_id))).size,
@@ -101,6 +101,18 @@ export async function getRecentOrders(
 export async function updateOrderStatus(orderId: number, status: import('../types/order').OrderStatus): Promise<boolean> {
   const result = await OrderModel.updateOne({ id: orderId }, { $set: { status } });
   return result.modifiedCount > 0;
+}
+
+export async function updateOrderPaymentStatus(orderId: number, paymentStatus: 'paid' | 'unpaid'): Promise<boolean> {
+  const result = await OrderModel.updateOne({ id: orderId }, { $set: { payment_status: paymentStatus } });
+  return result.modifiedCount > 0;
+}
+
+export async function getPaidRevenueHistory(days = 14): Promise<Array<{ date: string; revenue: number }>> {
+  const since = new Date(); since.setDate(since.getDate() - (days - 1)); since.setHours(0, 0, 0, 0);
+  const rows = await OrderModel.aggregate([{ $match: { payment_status: 'paid', created_at: { $gte: since } } }, { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$created_at' } }, revenue: { $sum: '$total' } } }, { $sort: { _id: 1 } }]);
+  const values = new Map(rows.map((row: any) => [String(row._id), Number(row.revenue ?? 0)]));
+  return Array.from({ length: days }, (_, index) => { const date = new Date(since); date.setDate(since.getDate() + index); const key = date.toISOString().slice(0, 10); return { date: key, revenue: values.get(key) ?? 0 }; });
 }
 
 export async function getOrderListItemById(orderId: number): Promise<AdminRecentOrder | null> {

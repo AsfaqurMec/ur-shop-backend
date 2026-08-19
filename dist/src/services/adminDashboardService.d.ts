@@ -8,6 +8,11 @@ export declare function getRecentOrders(limit?: number, offset?: number, status?
     total: number;
 }>;
 export declare function updateOrderStatus(orderId: number, status: import('../types/order').OrderStatus): Promise<AdminRecentOrder>;
+export declare function updateOrderPaymentStatus(orderId: number, paymentStatus: 'paid' | 'unpaid'): Promise<AdminRecentOrder>;
+export declare function getPaidRevenueHistory(): Promise<Array<{
+    date: string;
+    revenue: number;
+}>>;
 export declare function getEmailLogs(limit?: number, offset?: number, template?: string): Promise<{
     logs: EmailLogRow[];
     total: number;

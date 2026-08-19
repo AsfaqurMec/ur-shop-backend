@@ -40,4 +40,12 @@ export declare function guestCheckout(name: string, mobile: string, address: str
     expiresAt: string;
 }>;
 export declare function changePassword(userId: number, role: string, currentPassword: string, newPassword: string): Promise<void>;
+export declare function hasAccountForMobile(mobile: string): Promise<boolean>;
+/** Sign in an existing account by mobile for guest checkout continuation (no password required). */
+export declare function continueCheckout(mobile: string, ip: string | null, userAgent: string | null): Promise<{
+    user: SafeUser;
+    accessToken: string;
+    refreshToken: string;
+    expiresAt: string;
+}>;
 //# sourceMappingURL=authService.d.ts.map

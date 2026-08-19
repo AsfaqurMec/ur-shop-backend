@@ -48,6 +48,8 @@ exports.updateProfileName = updateProfileName;
 exports.updateUserProfile = updateUserProfile;
 exports.guestCheckout = guestCheckout;
 exports.changePassword = changePassword;
+exports.hasAccountForMobile = hasAccountForMobile;
+exports.continueCheckout = continueCheckout;
 const crypto_1 = __importDefault(require("crypto"));
 const errorHandler_1 = require("../middlewares/errorHandler");
 const authRepo = __importStar(require("../repositories/authRepository"));
@@ -477,5 +479,21 @@ async function changePassword(userId, role, currentPassword, newPassword) {
     if (currentPassword === newPassword)
         throw new errorHandler_1.AppError(400, 'Choose a different new password');
     await authRepo.updateUserPassword(userId, await (0, passwordHelpers_1.hashPassword)(newPassword));
+}
+async function hasAccountForMobile(mobile) {
+    return Boolean(await authRepo.findUserByMobile(mobile.trim()));
+}
+/** Sign in an existing account by mobile for guest checkout continuation (no password required). */
+async function continueCheckout(mobile, ip, userAgent) {
+    const trimmedMobile = mobile.trim();
+    if (!trimmedMobile)
+        throw new errorHandler_1.AppError(400, 'Mobile number is required');
+    const existing = await authRepo.findUserByMobile(trimmedMobile);
+    if (!existing)
+        throw new errorHandler_1.AppError(404, 'No account found for this mobile number');
+    if (!existing.address?.trim()) {
+        throw new errorHandler_1.AppError(400, 'This account has no saved address. Please log in to update your profile.');
+    }
+    return createUserSession(existing, ip, userAgent);
 }
 //# sourceMappingURL=authService.js.map

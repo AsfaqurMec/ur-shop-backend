@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteOrderValidator = exports.updateCustomerValidator = exports.customerUserIdParamValidator = exports.customersListQueryValidator = exports.lowStockValidator = exports.topProductsValidator = exports.emailLogsQueryValidator = exports.updateOrderStatusValidator = exports.recentOrdersQueryValidator = exports.recentListValidator = void 0;
+exports.updateOrderPaymentStatusValidator = exports.deleteOrderValidator = exports.updateCustomerValidator = exports.customerUserIdParamValidator = exports.customersListQueryValidator = exports.lowStockValidator = exports.topProductsValidator = exports.emailLogsQueryValidator = exports.updateOrderStatusValidator = exports.recentOrdersQueryValidator = exports.recentListValidator = void 0;
 const express_validator_1 = require("express-validator");
 const ADMIN_ORDER_STATUSES = ['pending', 'placed', 'delivered', 'complete', 'completed', 'cancelled', 'refunded', 'processing', 'paid', 'unpaid'];
 exports.recentListValidator = [
@@ -50,5 +50,9 @@ exports.updateCustomerValidator = [
 ];
 exports.deleteOrderValidator = [
     (0, express_validator_1.param)('id').isInt({ min: 1 }).withMessage('Valid order id is required').toInt(),
+];
+exports.updateOrderPaymentStatusValidator = [
+    (0, express_validator_1.param)('orderId').isInt({ min: 1 }).toInt(),
+    (0, express_validator_1.body)('payment_status').isIn(['paid', 'unpaid']).withMessage('Payment status must be paid or unpaid'),
 ];
 //# sourceMappingURL=adminDashboardValidators.js.map
