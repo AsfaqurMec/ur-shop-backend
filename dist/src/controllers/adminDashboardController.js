@@ -66,8 +66,11 @@ async function getSalesSummary(req, res) {
     return (0, apiResponse_1.sendSuccess)(res, { summary });
 }
 async function getOrdersByStatus(req, res) {
-    const data = await adminDashboardService.getOrdersByStatus();
-    return (0, apiResponse_1.sendSuccess)(res, { by_status: data });
+    const month = req.query.month != null ? Number(req.query.month) : undefined;
+    const year = req.query.year != null ? Number(req.query.year) : undefined;
+    const period = typeof req.query.period === 'string' ? req.query.period : undefined;
+    const data = await adminDashboardService.getOrdersByStatus({ month, year, period });
+    return (0, apiResponse_1.sendSuccess)(res, data);
 }
 async function getRecentOrders(req, res) {
     const limit = req.query.limit != null ? Number(req.query.limit) : undefined;
@@ -86,8 +89,13 @@ async function updateOrderPaymentStatus(req, res) {
     const order = await adminDashboardService.updateOrderPaymentStatus(Number(req.params.orderId), req.body.payment_status);
     return (0, apiResponse_1.sendSuccess)(res, { order }, 200, 'Payment status updated');
 }
-async function getPaidRevenueHistory(_req, res) {
-    return (0, apiResponse_1.sendSuccess)(res, { history: await adminDashboardService.getPaidRevenueHistory() });
+async function getPaidRevenueHistory(req, res) {
+    const month = req.query.month != null ? Number(req.query.month) : undefined;
+    const year = req.query.year != null ? Number(req.query.year) : undefined;
+    const period = typeof req.query.period === 'string' ? req.query.period : undefined;
+    const days = req.query.days != null ? Number(req.query.days) : undefined;
+    const history = await adminDashboardService.getPaidRevenueHistory({ month, year, period, days });
+    return (0, apiResponse_1.sendSuccess)(res, { history });
 }
 async function getEmailLogs(req, res) {
     const limit = req.query.limit != null ? Number(req.query.limit) : undefined;

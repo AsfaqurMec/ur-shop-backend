@@ -23,6 +23,7 @@ export interface AdminRecentOrder {
     id: number;
     order_number: string;
     status: string;
+    payment_status: string;
     total: number;
     currency: string;
     user_id: number;

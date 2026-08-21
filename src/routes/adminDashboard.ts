@@ -8,6 +8,7 @@ import {
   recentListValidator,
   recentOrdersQueryValidator,
   updateOrderStatusValidator,
+  updateOrderPaymentStatusValidator,
   emailLogsQueryValidator,
   topProductsValidator,
   lowStockValidator,
@@ -40,6 +41,12 @@ router.get(
 router.get(
   '/orders-by-status',
   asyncHandler(adminDashboardController.getOrdersByStatus)
+);
+
+/** Paid revenue history for charts. */
+router.get(
+  '/revenue-history',
+  asyncHandler(adminDashboardController.getPaidRevenueHistory)
 );
 
 /** Recent orders (query: limit, offset; default limit 10). */
@@ -133,6 +140,12 @@ router.patch(
   '/orders/:orderId/status',
   validate(updateOrderStatusValidator),
   asyncHandler(adminDashboardController.updateOrderStatus)
+);
+
+router.patch(
+  '/orders/:orderId/payment-status',
+  validate(updateOrderPaymentStatusValidator),
+  asyncHandler(adminDashboardController.updateOrderPaymentStatus)
 );
 
 router.delete('/orders/:id', auth, admin, validate(deleteOrderValidator), asyncHandler(adminDashboardController.remove));

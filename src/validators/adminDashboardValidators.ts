@@ -1,6 +1,6 @@
 import { query, param, body } from 'express-validator';
 
-const ADMIN_ORDER_STATUSES = ['pending', 'placed', 'delivered', 'complete', 'completed', 'cancelled', 'refunded', 'processing', 'paid', 'unpaid'];
+const ADMIN_ORDER_STATUSES = ['pending', 'placed', 'delivered', 'complete', 'completed', 'cancelled', 'refunded', 'processing'];
 
 export const recentListValidator = [
   query('limit').optional().isInt({ min: 1, max: 200 }).toInt(),
@@ -15,7 +15,12 @@ export const recentOrdersQueryValidator = [
 
 export const updateOrderStatusValidator = [
   param('orderId').isInt({ min: 1 }).withMessage('Valid order id is required').toInt(),
-  body('status').isIn(['pending', 'placed', 'delivered', 'complete', 'cancelled', 'refunded', 'processing', 'paid', 'unpaid']).withMessage('Invalid order status'),
+  body('status').isIn(['pending', 'placed', 'delivered', 'complete', 'completed', 'cancelled', 'refunded', 'processing']).withMessage('Invalid order status'),
+];
+
+export const updateOrderPaymentStatusValidator = [
+  param('orderId').isInt({ min: 1 }).withMessage('Valid order id is required').toInt(),
+  body('payment_status').isIn(['paid', 'unpaid']).withMessage('Payment status must be paid or unpaid'),
 ];
 
 /** Email logs: pagination + optional template filter (slug-style name). */
@@ -58,9 +63,4 @@ export const updateCustomerValidator = [
 
 export const deleteOrderValidator = [
   param('id').isInt({ min: 1 }).withMessage('Valid order id is required').toInt(),
-];
-
-export const updateOrderPaymentStatusValidator = [
-  param('orderId').isInt({ min: 1 }).toInt(),
-  body('payment_status').isIn(['paid', 'unpaid']).withMessage('Payment status must be paid or unpaid'),
 ];

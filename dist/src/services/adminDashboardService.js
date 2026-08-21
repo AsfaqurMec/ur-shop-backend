@@ -65,8 +65,8 @@ async function getDashboardSummary() {
 async function getSalesSummary() {
     return adminDashboardRepo.getSalesSummary();
 }
-async function getOrdersByStatus() {
-    return adminDashboardRepo.getOrdersByStatus();
+async function getOrdersByStatus(params) {
+    return adminDashboardRepo.getOrdersByStatus(params);
 }
 async function getRecentOrders(limit, offset, status) {
     return adminDashboardRepo.getRecentOrders(limit ?? DEFAULT_RECENT_LIMIT, offset ?? 0, status);
@@ -89,8 +89,8 @@ async function updateOrderPaymentStatus(orderId, paymentStatus) {
         throw new errorHandler_1.AppError(404, 'Order not found');
     return detail;
 }
-async function getPaidRevenueHistory() {
-    return adminDashboardRepo.getPaidRevenueHistory();
+async function getPaidRevenueHistory(params) {
+    return adminDashboardRepo.getPaidRevenueHistory(params);
 }
 async function getEmailLogs(limit, offset, template) {
     const lim = limit ?? DEFAULT_EMAIL_LOG_LIMIT;

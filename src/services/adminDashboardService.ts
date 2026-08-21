@@ -13,7 +13,6 @@ import type {
   AdminLowStockLicense,
   AdminCustomerListItem,
 } from '../types/adminDashboard';
-
 const DEFAULT_RECENT_LIMIT = 10;
 const DEFAULT_EMAIL_LOG_LIMIT = 10;
 const DEFAULT_TOP_PRODUCTS_LIMIT = 10;
@@ -27,8 +26,21 @@ export async function getSalesSummary(): Promise<AdminSalesSummary> {
   return adminDashboardRepo.getSalesSummary();
 }
 
-export async function getOrdersByStatus(): Promise<AdminOrdersByStatus[]> {
-  return adminDashboardRepo.getOrdersByStatus();
+export async function getOrdersByStatus(params?: {
+  month?: number;
+  year?: number;
+  period?: string;
+}): Promise<{
+  by_status: AdminOrdersByStatus[];
+  payment_distribution: {
+    paid: number;
+    unpaid: number;
+    total: number;
+    paid_revenue: number;
+    unpaid_revenue: number;
+  };
+}> {
+  return adminDashboardRepo.getOrdersByStatus(params);
 }
 
 export async function getRecentOrders(
@@ -58,8 +70,13 @@ export async function updateOrderPaymentStatus(orderId: number, paymentStatus: '
   return detail;
 }
 
-export async function getPaidRevenueHistory(): Promise<Array<{ date: string; revenue: number }>> {
-  return adminDashboardRepo.getPaidRevenueHistory();
+export async function getPaidRevenueHistory(params?: {
+  month?: number;
+  year?: number;
+  period?: string;
+  days?: number;
+}): Promise<Array<{ date: string; revenue: number }>> {
+  return adminDashboardRepo.getPaidRevenueHistory(params);
 }
 
 export async function getEmailLogs(

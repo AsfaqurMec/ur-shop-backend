@@ -13,6 +13,7 @@ export interface DashboardOrderDetail {
     id: number;
     order_number: string;
     status: OrderStatus;
+    payment_status?: string | null;
     subtotal: number;
     discount: number;
     coupon_code?: string | null;

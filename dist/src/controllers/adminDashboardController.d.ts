@@ -5,7 +5,7 @@ export declare function getOrdersByStatus(req: Request, res: Response): Promise<
 export declare function getRecentOrders(req: Request, res: Response): Promise<Response>;
 export declare function updateOrderStatus(req: Request, res: Response): Promise<Response>;
 export declare function updateOrderPaymentStatus(req: Request, res: Response): Promise<Response>;
-export declare function getPaidRevenueHistory(_req: Request, res: Response): Promise<Response>;
+export declare function getPaidRevenueHistory(req: Request, res: Response): Promise<Response>;
 export declare function getEmailLogs(req: Request, res: Response): Promise<Response>;
 export declare function getRecentPayments(req: Request, res: Response): Promise<Response>;
 export declare function getTopProducts(req: Request, res: Response): Promise<Response>;

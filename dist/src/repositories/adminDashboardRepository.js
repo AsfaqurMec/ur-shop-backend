@@ -23,19 +23,20 @@ function iso(v) {
     return (v ? new Date(v) : new Date()).toISOString();
 }
 async function getDashboardSummary() {
-    const [ordersTotal, ordersPaid, completedPayments, distinctOrders, pendingFulfillment, pendingTickets] = await Promise.all([
+    const [ordersTotal, ordersPaid, paidOrders, totalUsers, pendingFulfillment, pendingTickets] = await Promise.all([
         models_1.OrderModel.countDocuments({}),
         models_1.OrderModel.countDocuments({ payment_status: 'paid' }),
         models_1.OrderModel.find({ payment_status: 'paid' }).lean(),
-        models_1.UserModel.find({}), // Fixed this line
+        models_1.UserModel.countDocuments({ deleted_at: null }),
         models_1.FulfillmentQueueModel.countDocuments({ status: 'pending' }),
         models_1.TicketModel.countDocuments({ status: { $in: ['open', 'answered', 'customer_reply'] } }),
     ]);
+    const revenueTotal = paidOrders.reduce((sum, p) => sum + Number(p.total ?? 0), 0);
     return {
         orders_total: ordersTotal,
         orders_paid: ordersPaid,
-        revenue_total: completedPayments.reduce((sum, p) => sum + p.total, 0),
-        customers_count: distinctOrders.length,
+        revenue_total: Math.round(revenueTotal * 100) / 100,
+        customers_count: totalUsers,
         pending_fulfillment_count: pendingFulfillment,
         pending_tickets_count: pendingTickets,
     };
@@ -48,15 +49,91 @@ async function getSalesSummary() {
         currency: String(payments[0]?.currency || 'BDT'),
     };
 }
-async function getOrdersByStatus() {
-    const rows = await models_1.OrderModel.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }, { $sort: { count: -1 } }]);
-    return rows.map((r) => ({ status: String(r._id), count: Number(r.count) }));
+function getDateRangeFilter(params) {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth(); // 0-indexed
+    if (params?.month != null && Number(params.month) >= 1 && Number(params.month) <= 12) {
+        const yr = params.year ? Number(params.year) : currentYear;
+        const m = Number(params.month);
+        const start = new Date(yr, m - 1, 1, 0, 0, 0, 0);
+        const end = new Date(yr, m, 0, 23, 59, 59, 999);
+        return { start, end };
+    }
+    if (params?.period === 'this_month') {
+        const start = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
+        const end = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999);
+        return { start, end };
+    }
+    if (params?.period === 'last_month') {
+        const start = new Date(currentYear, currentMonth - 1, 1, 0, 0, 0, 0);
+        const end = new Date(currentYear, currentMonth, 0, 23, 59, 59, 999);
+        return { start, end };
+    }
+    if (params?.period === 'last_3_months') {
+        const start = new Date(currentYear, currentMonth - 2, 1, 0, 0, 0, 0);
+        const end = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999);
+        return { start, end };
+    }
+    if (params?.period === 'last_6_months') {
+        const start = new Date(currentYear, currentMonth - 5, 1, 0, 0, 0, 0);
+        const end = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999);
+        return { start, end };
+    }
+    if (params?.period === 'this_year') {
+        const start = new Date(currentYear, 0, 1, 0, 0, 0, 0);
+        const end = new Date(currentYear, 11, 31, 23, 59, 59, 999);
+        return { start, end };
+    }
+    if (params?.days != null && Number(params.days) > 0) {
+        const start = new Date();
+        start.setDate(start.getDate() - (Number(params.days) - 1));
+        start.setHours(0, 0, 0, 0);
+        const end = new Date();
+        return { start, end };
+    }
+    return null;
+}
+async function getOrdersByStatus(params) {
+    const range = getDateRangeFilter(params);
+    const match = {};
+    if (range) {
+        match.created_at = { $gte: range.start, $lte: range.end };
+    }
+    const [statusRows, paidOrders, unpaidOrders] = await Promise.all([
+        models_1.OrderModel.aggregate([
+            ...(Object.keys(match).length ? [{ $match: match }] : []),
+            { $group: { _id: '$status', count: { $sum: 1 } } },
+            { $sort: { count: -1 } },
+        ]),
+        models_1.OrderModel.find({ ...match, payment_status: 'paid' }).lean(),
+        models_1.OrderModel.find({ ...match, payment_status: { $ne: 'paid' } }).lean(),
+    ]);
+    const byStatus = statusRows.map((r) => ({
+        status: String(r._id),
+        count: Number(r.count),
+    }));
+    const paidCount = paidOrders.length;
+    const unpaidCount = unpaidOrders.length;
+    const paidRevenue = paidOrders.reduce((sum, o) => sum + Number(o.total ?? 0), 0);
+    const unpaidRevenue = unpaidOrders.reduce((sum, o) => sum + Number(o.total ?? 0), 0);
+    return {
+        by_status: byStatus,
+        payment_distribution: {
+            paid: paidCount,
+            unpaid: unpaidCount,
+            total: paidCount + unpaidCount,
+            paid_revenue: Math.round(paidRevenue * 100) / 100,
+            unpaid_revenue: Math.round(unpaidRevenue * 100) / 100,
+        },
+    };
 }
 function recentOrder(row, customerName) {
     return {
         id: Number(row.id),
         order_number: String(row.order_number),
         status: String(row.status),
+        payment_status: String(row.payment_status || 'unpaid'),
         total: Number(row.total ?? 0),
         currency: String(row.currency ?? 'BDT'),
         user_id: Number(row.user_id),
@@ -89,13 +166,40 @@ async function updateOrderPaymentStatus(orderId, paymentStatus) {
     const result = await models_1.OrderModel.updateOne({ id: orderId }, { $set: { payment_status: paymentStatus } });
     return result.modifiedCount > 0;
 }
-async function getPaidRevenueHistory(days = 14) {
-    const since = new Date();
-    since.setDate(since.getDate() - (days - 1));
-    since.setHours(0, 0, 0, 0);
-    const rows = await models_1.OrderModel.aggregate([{ $match: { payment_status: 'paid', created_at: { $gte: since } } }, { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$created_at' } }, revenue: { $sum: '$total' } } }, { $sort: { _id: 1 } }]);
+async function getPaidRevenueHistory(params) {
+    const range = getDateRangeFilter(params) || {
+        start: (() => {
+            const d = new Date();
+            d.setDate(d.getDate() - 13);
+            d.setHours(0, 0, 0, 0);
+            return d;
+        })(),
+        end: new Date(),
+    };
+    const rows = await models_1.OrderModel.aggregate([
+        {
+            $match: {
+                payment_status: 'paid',
+                created_at: { $gte: range.start, $lte: range.end },
+            },
+        },
+        {
+            $group: {
+                _id: { $dateToString: { format: '%Y-%m-%d', date: '$created_at' } },
+                revenue: { $sum: '$total' },
+            },
+        },
+        { $sort: { _id: 1 } },
+    ]);
     const values = new Map(rows.map((row) => [String(row._id), Number(row.revenue ?? 0)]));
-    return Array.from({ length: days }, (_, index) => { const date = new Date(since); date.setDate(since.getDate() + index); const key = date.toISOString().slice(0, 10); return { date: key, revenue: values.get(key) ?? 0 }; });
+    const out = [];
+    const cur = new Date(range.start);
+    while (cur <= range.end) {
+        const key = cur.toISOString().slice(0, 10);
+        out.push({ date: key, revenue: values.get(key) ?? 0 });
+        cur.setDate(cur.getDate() + 1);
+    }
+    return out;
 }
 async function getOrderListItemById(orderId) {
     const row = await models_1.OrderModel.findOne({ id: orderId }).lean();

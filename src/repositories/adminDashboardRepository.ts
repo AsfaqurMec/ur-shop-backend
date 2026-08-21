@@ -24,28 +24,26 @@ function iso(v: unknown): string {
 }
 
 export async function getDashboardSummary(): Promise<AdminDashboardSummary> {
-  const [ordersTotal, ordersPaid, completedPayments, distinctOrders, pendingFulfillment, pendingTickets] =
-  await Promise.all([
-    OrderModel.countDocuments({}),
-    OrderModel.countDocuments({ payment_status: 'paid' }),
-    OrderModel.find({ payment_status: 'paid' }).lean(),
-    UserModel.find({}), // Fixed this line
-    FulfillmentQueueModel.countDocuments({ status: 'pending' }),
-    TicketModel.countDocuments({ status: { $in: ['open', 'answered', 'customer_reply'] } }),
-  ]);
+  const [ordersTotal, ordersPaid, paidOrders, totalUsers, pendingFulfillment, pendingTickets] =
+    await Promise.all([
+      OrderModel.countDocuments({}),
+      OrderModel.countDocuments({ payment_status: 'paid' }),
+      OrderModel.find({ payment_status: 'paid' }).lean(),
+      UserModel.countDocuments({ deleted_at: null }),
+      FulfillmentQueueModel.countDocuments({ status: 'pending' }),
+      TicketModel.countDocuments({ status: { $in: ['open', 'answered', 'customer_reply'] } }),
+    ]);
 
-    
-    
+  const revenueTotal = paidOrders.reduce((sum, p: any) => sum + Number(p.total ?? 0), 0);
+
   return {
     orders_total: ordersTotal,
     orders_paid: ordersPaid,
-    revenue_total: completedPayments.reduce((sum, p: any) => sum + p.total, 0),
-    customers_count: distinctOrders.length,
+    revenue_total: Math.round(revenueTotal * 100) / 100,
+    customers_count: totalUsers,
     pending_fulfillment_count: pendingFulfillment,
     pending_tickets_count: pendingTickets,
   };
-  
-  
 }
 
 export async function getSalesSummary(): Promise<AdminSalesSummary> {
@@ -57,9 +55,110 @@ export async function getSalesSummary(): Promise<AdminSalesSummary> {
   };
 }
 
-export async function getOrdersByStatus(): Promise<AdminOrdersByStatus[]> {
-  const rows = await OrderModel.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }, { $sort: { count: -1 } }]);
-  return rows.map((r: any) => ({ status: String(r._id), count: Number(r.count) }));
+function getDateRangeFilter(params?: { month?: number; year?: number; period?: string; days?: number }) {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth(); // 0-indexed
+
+  if (params?.month != null && Number(params.month) >= 1 && Number(params.month) <= 12) {
+    const yr = params.year ? Number(params.year) : currentYear;
+    const m = Number(params.month);
+    const start = new Date(yr, m - 1, 1, 0, 0, 0, 0);
+    const end = new Date(yr, m, 0, 23, 59, 59, 999);
+    return { start, end };
+  }
+
+  if (params?.period === 'this_month') {
+    const start = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
+    const end = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999);
+    return { start, end };
+  }
+
+  if (params?.period === 'last_month') {
+    const start = new Date(currentYear, currentMonth - 1, 1, 0, 0, 0, 0);
+    const end = new Date(currentYear, currentMonth, 0, 23, 59, 59, 999);
+    return { start, end };
+  }
+
+  if (params?.period === 'last_3_months') {
+    const start = new Date(currentYear, currentMonth - 2, 1, 0, 0, 0, 0);
+    const end = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999);
+    return { start, end };
+  }
+
+  if (params?.period === 'last_6_months') {
+    const start = new Date(currentYear, currentMonth - 5, 1, 0, 0, 0, 0);
+    const end = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999);
+    return { start, end };
+  }
+
+  if (params?.period === 'this_year') {
+    const start = new Date(currentYear, 0, 1, 0, 0, 0, 0);
+    const end = new Date(currentYear, 11, 31, 23, 59, 59, 999);
+    return { start, end };
+  }
+
+  if (params?.days != null && Number(params.days) > 0) {
+    const start = new Date();
+    start.setDate(start.getDate() - (Number(params.days) - 1));
+    start.setHours(0, 0, 0, 0);
+    const end = new Date();
+    return { start, end };
+  }
+
+  return null;
+}
+
+export async function getOrdersByStatus(params?: {
+  month?: number;
+  year?: number;
+  period?: string;
+}): Promise<{
+  by_status: AdminOrdersByStatus[];
+  payment_distribution: {
+    paid: number;
+    unpaid: number;
+    total: number;
+    paid_revenue: number;
+    unpaid_revenue: number;
+  };
+}> {
+  const range = getDateRangeFilter(params);
+  const match: any = {};
+  if (range) {
+    match.created_at = { $gte: range.start, $lte: range.end };
+  }
+
+  const [statusRows, paidOrders, unpaidOrders] = await Promise.all([
+    OrderModel.aggregate([
+      ...(Object.keys(match).length ? [{ $match: match }] : []),
+      { $group: { _id: '$status', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+    ]),
+    OrderModel.find({ ...match, payment_status: 'paid' }).lean(),
+    OrderModel.find({ ...match, payment_status: { $ne: 'paid' } }).lean(),
+  ]);
+
+  const byStatus: AdminOrdersByStatus[] = statusRows.map((r: any) => ({
+    status: String(r._id),
+    count: Number(r.count),
+  }));
+
+  const paidCount = paidOrders.length;
+  const unpaidCount = unpaidOrders.length;
+  const paidRevenue = paidOrders.reduce((sum, o: any) => sum + Number(o.total ?? 0), 0);
+  const unpaidRevenue = unpaidOrders.reduce((sum, o: any) => sum + Number(o.total ?? 0), 0);
+
+  return {
+    by_status: byStatus,
+    payment_distribution: {
+      paid: paidCount,
+      unpaid: unpaidCount,
+      total: paidCount + unpaidCount,
+      paid_revenue: Math.round(paidRevenue * 100) / 100,
+      unpaid_revenue: Math.round(unpaidRevenue * 100) / 100,
+    },
+  };
 }
 
 function recentOrder(row: any, customerName?: string | null): AdminRecentOrder {
@@ -67,6 +166,7 @@ function recentOrder(row: any, customerName?: string | null): AdminRecentOrder {
     id: Number(row.id),
     order_number: String(row.order_number),
     status: String(row.status),
+    payment_status: String(row.payment_status || 'unpaid'),
     total: Number(row.total ?? 0),
     currency: String(row.currency ?? 'BDT'),
     user_id: Number(row.user_id),
@@ -108,11 +208,48 @@ export async function updateOrderPaymentStatus(orderId: number, paymentStatus: '
   return result.modifiedCount > 0;
 }
 
-export async function getPaidRevenueHistory(days = 14): Promise<Array<{ date: string; revenue: number }>> {
-  const since = new Date(); since.setDate(since.getDate() - (days - 1)); since.setHours(0, 0, 0, 0);
-  const rows = await OrderModel.aggregate([{ $match: { payment_status: 'paid', created_at: { $gte: since } } }, { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$created_at' } }, revenue: { $sum: '$total' } } }, { $sort: { _id: 1 } }]);
+export async function getPaidRevenueHistory(params?: {
+  month?: number;
+  year?: number;
+  period?: string;
+  days?: number;
+}): Promise<Array<{ date: string; revenue: number }>> {
+  const range = getDateRangeFilter(params) || {
+    start: (() => {
+      const d = new Date();
+      d.setDate(d.getDate() - 13);
+      d.setHours(0, 0, 0, 0);
+      return d;
+    })(),
+    end: new Date(),
+  };
+
+  const rows = await OrderModel.aggregate([
+    {
+      $match: {
+        payment_status: 'paid',
+        created_at: { $gte: range.start, $lte: range.end },
+      },
+    },
+    {
+      $group: {
+        _id: { $dateToString: { format: '%Y-%m-%d', date: '$created_at' } },
+        revenue: { $sum: '$total' },
+      },
+    },
+    { $sort: { _id: 1 } },
+  ]);
+
   const values = new Map(rows.map((row: any) => [String(row._id), Number(row.revenue ?? 0)]));
-  return Array.from({ length: days }, (_, index) => { const date = new Date(since); date.setDate(since.getDate() + index); const key = date.toISOString().slice(0, 10); return { date: key, revenue: values.get(key) ?? 0 }; });
+
+  const out: Array<{ date: string; revenue: number }> = [];
+  const cur = new Date(range.start);
+  while (cur <= range.end) {
+    const key = cur.toISOString().slice(0, 10);
+    out.push({ date: key, revenue: values.get(key) ?? 0 });
+    cur.setDate(cur.getDate() + 1);
+  }
+  return out;
 }
 
 export async function getOrderListItemById(orderId: number): Promise<AdminRecentOrder | null> {

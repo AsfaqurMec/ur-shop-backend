@@ -15,8 +15,11 @@ export async function getSalesSummary(req: Request, res: Response): Promise<Resp
 }
 
 export async function getOrdersByStatus(req: Request, res: Response): Promise<Response> {
-  const data = await adminDashboardService.getOrdersByStatus();
-  return sendSuccess(res, { by_status: data });
+  const month = req.query.month != null ? Number(req.query.month) : undefined;
+  const year = req.query.year != null ? Number(req.query.year) : undefined;
+  const period = typeof req.query.period === 'string' ? req.query.period : undefined;
+  const data = await adminDashboardService.getOrdersByStatus({ month, year, period });
+  return sendSuccess(res, data);
 }
 
 export async function getRecentOrders(req: Request, res: Response): Promise<Response> {
@@ -39,8 +42,13 @@ export async function updateOrderPaymentStatus(req: Request, res: Response): Pro
   return sendSuccess(res, { order }, 200, 'Payment status updated');
 }
 
-export async function getPaidRevenueHistory(_req: Request, res: Response): Promise<Response> {
-  return sendSuccess(res, { history: await adminDashboardService.getPaidRevenueHistory() });
+export async function getPaidRevenueHistory(req: Request, res: Response): Promise<Response> {
+  const month = req.query.month != null ? Number(req.query.month) : undefined;
+  const year = req.query.year != null ? Number(req.query.year) : undefined;
+  const period = typeof req.query.period === 'string' ? req.query.period : undefined;
+  const days = req.query.days != null ? Number(req.query.days) : undefined;
+  const history = await adminDashboardService.getPaidRevenueHistory({ month, year, period, days });
+  return sendSuccess(res, { history });
 }
 
 export async function getEmailLogs(req: Request, res: Response): Promise<Response> {

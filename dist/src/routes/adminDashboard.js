@@ -50,6 +50,8 @@ router.get('/summary', (0, asyncHandler_1.asyncHandler)(adminDashboardController
 router.get('/sales', (0, asyncHandler_1.asyncHandler)(adminDashboardController.getSalesSummary));
 /** Orders grouped by status. */
 router.get('/orders-by-status', (0, asyncHandler_1.asyncHandler)(adminDashboardController.getOrdersByStatus));
+/** Paid revenue history for charts. */
+router.get('/revenue-history', (0, asyncHandler_1.asyncHandler)(adminDashboardController.getPaidRevenueHistory));
 /** Recent orders (query: limit, offset; default limit 10). */
 router.get('/recent-orders', (0, validate_1.validate)(adminDashboardValidators_1.recentOrdersQueryValidator), (0, asyncHandler_1.asyncHandler)(adminDashboardController.getRecentOrders));
 /** Outbound email audit log (query: limit, offset, template). */
@@ -74,6 +76,7 @@ router.get('/orders/:orderId', (0, validate_1.validate)(dashboardValidators_1.or
 /** Download order invoice (admin). */
 router.get('/orders/:orderId/invoice', (0, validate_1.validate)(dashboardValidators_1.orderIdParamValidator), (0, asyncHandler_1.asyncHandler)(adminDashboardController.downloadOrderInvoice));
 router.patch('/orders/:orderId/status', (0, validate_1.validate)(adminDashboardValidators_1.updateOrderStatusValidator), (0, asyncHandler_1.asyncHandler)(adminDashboardController.updateOrderStatus));
+router.patch('/orders/:orderId/payment-status', (0, validate_1.validate)(adminDashboardValidators_1.updateOrderPaymentStatusValidator), (0, asyncHandler_1.asyncHandler)(adminDashboardController.updateOrderPaymentStatus));
 router.delete('/orders/:id', auth_1.auth, admin_1.admin, (0, validate_1.validate)(adminDashboardValidators_1.deleteOrderValidator), (0, asyncHandler_1.asyncHandler)(adminDashboardController.remove));
 exports.default = router;
 //# sourceMappingURL=adminDashboard.js.map
