@@ -15,6 +15,8 @@ export interface DashboardOrderDetail {
     status: OrderStatus;
     subtotal: number;
     discount: number;
+    coupon_code?: string | null;
+    coupon_name?: string | null;
     tax: number;
     total: number;
     currency: string;
@@ -38,6 +40,7 @@ export interface DashboardOrderDetail {
 export interface DashboardOrderDetailItem {
     id: number;
     product_id: number;
+    sku?: string | null;
     product_name: string;
     product_type: string;
     /** Primary product image path (same shape as storefront), or null if none. */

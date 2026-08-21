@@ -21,6 +21,7 @@ import {
   replaceCatalogAttributesValidator,
   replaceCatalogVariationsValidator,
   generateCatalogVariationsValidator,
+  setTrendingProductsValidator,
 } from '../validators/productValidators';
 import { uploadProductImage, uploadProductImages, uploadProductFile, uploadProductSizeChartImage } from '../middlewares/upload';
 
@@ -29,6 +30,15 @@ const router = Router();
 // ---- Public ----
 router.get('/', validate(listProductsValidator), asyncHandler(productController.list));
 router.get('/s/:slug', validate(productSlugParamValidator), asyncHandler(productController.getBySlug));
+
+// ---- Admin: Trending Products ----
+router.put(
+  '/admin/trending',
+  auth,
+  admin,
+  validate(setTrendingProductsValidator),
+  asyncHandler(productController.setTrendingProducts)
+);
 
 // ---- Admin: CRUD ----
 router.post('/', auth, admin, validate(createProductValidator), asyncHandler(productController.create));

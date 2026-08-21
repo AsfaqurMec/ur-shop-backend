@@ -39,6 +39,8 @@ function toProductRow(doc: any): ProductRow {
     default_variation_id: doc.default_variation_id ?? null,
     is_active: Number(doc.is_active ?? 1),
     is_featured: Number(doc.is_featured ?? 0),
+    is_trending: Number(doc.is_trending ?? 0),
+    trending_order: doc.trending_order != null ? Number(doc.trending_order) : undefined,
     created_at: date(doc.created_at),
     updated_at: date(doc.updated_at),
     deleted_at: doc.deleted_at ? date(doc.deleted_at) : null,
@@ -94,11 +96,14 @@ export async function createProduct(data: {
   manual_fulfillment_required: number;
   price: number;
   compare_at_price: number | null;
+  sku?: string | null;
+  quantity?: number | null;
   is_active: number;
   is_featured: number;
+  is_trending?: number;
 }): Promise<number> {
   const id = await nextId('products');
-  await ProductModel.create({ id, ...data, deleted_at: null });
+  await ProductModel.create({ id, is_trending: 0, ...data, deleted_at: null });
   return id;
 }
 
@@ -121,9 +126,18 @@ export async function updateProduct(
     default_variation_id?: number | null;
     is_active?: number;
     is_featured?: number;
+    is_trending?: number;
   }
 ): Promise<void> {
   await ProductModel.updateOne({ id, deleted_at: null }, { $set: data });
+}
+
+export async function adjustProductQuantity(productId: number, delta: number): Promise<void> {
+  if (delta === 0) return;
+  const prod = await ProductModel.findOne({ id: productId, deleted_at: null }).lean();
+  if (!prod || prod.quantity == null) return;
+  const next = Math.max(0, Number(prod.quantity) + delta);
+  await ProductModel.updateOne({ id: productId }, { $set: { quantity: next } });
 }
 
 export async function softDeleteProduct(id: number): Promise<boolean> {
@@ -155,6 +169,7 @@ export interface ProductListFilters {
   on_sale?: boolean;
   search?: string;
   featured?: boolean;
+  trending?: boolean;
   is_active?: boolean;
   sort?: 'newest' | 'price_asc' | 'price_desc' | 'name_asc' | 'name_desc';
 }
@@ -164,6 +179,7 @@ function productQuery(filters: ProductListFilters): Record<string, unknown> {
   if (filters.category_id != null) query.category_id = filters.category_id;
   if (filters.product_type) query.product_type = filters.product_type;
   if (filters.featured === true) query.is_featured = 1;
+  if (filters.trending === true) query.is_trending = 1;
   if (filters.is_active !== undefined) query.is_active = filters.is_active ? 1 : 0;
   if (filters.min_price != null || filters.max_price != null) {
     query.price = {
@@ -174,7 +190,7 @@ function productQuery(filters: ProductListFilters): Record<string, unknown> {
   if (filters.on_sale === true) query.$expr = { $gt: ['$compare_at_price', '$price'] };
   if (filters.search?.trim()) {
     const rx = new RegExp(filters.search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-    query.$or = [{ name: rx }, { slug: rx }];
+    query.$or = [{ name: rx }, { slug: rx }, { sku: rx }];
   }
   return query;
 }
@@ -184,12 +200,17 @@ export async function findProducts(
   limit: number,
   offset: number
 ): Promise<ProductRow[]> {
-  const sort: Record<string, 1 | -1> =
+  let sort: Record<string, 1 | -1> =
     filters.sort === 'price_asc' ? { price: 1, created_at: -1 } :
     filters.sort === 'price_desc' ? { price: -1, created_at: -1 } :
     filters.sort === 'name_asc' ? { name: 1, created_at: -1 } :
     filters.sort === 'name_desc' ? { name: -1, created_at: -1 } :
     { is_featured: -1, created_at: -1 };
+
+  if (filters.trending === true) {
+    sort = { trending_order: 1, ...sort };
+  }
+
   const rows = await ProductModel.find(productQuery(filters))
     .sort(sort)
     .skip(offset)

@@ -45,6 +45,8 @@ const router = (0, express_1.Router)();
 // ---- Public ----
 router.get('/', (0, validate_1.validate)(productValidators_1.listProductsValidator), (0, asyncHandler_1.asyncHandler)(productController.list));
 router.get('/s/:slug', (0, validate_1.validate)(productValidators_1.productSlugParamValidator), (0, asyncHandler_1.asyncHandler)(productController.getBySlug));
+// ---- Admin: Trending Products ----
+router.put('/admin/trending', auth_1.auth, admin_1.admin, (0, validate_1.validate)(productValidators_1.setTrendingProductsValidator), (0, asyncHandler_1.asyncHandler)(productController.setTrendingProducts));
 // ---- Admin: CRUD ----
 router.post('/', auth_1.auth, admin_1.admin, (0, validate_1.validate)(productValidators_1.createProductValidator), (0, asyncHandler_1.asyncHandler)(productController.create));
 router.put('/:id/purchase-variables', auth_1.auth, admin_1.admin, (0, validate_1.validate)(productValidators_1.replacePurchaseVariablesValidator), (0, asyncHandler_1.asyncHandler)(productController.replacePurchaseVariables));

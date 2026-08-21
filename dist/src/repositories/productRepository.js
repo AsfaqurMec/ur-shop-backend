@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createProduct = createProduct;
 exports.updateProduct = updateProduct;
+exports.adjustProductQuantity = adjustProductQuantity;
 exports.softDeleteProduct = softDeleteProduct;
 exports.findProductById = findProductById;
 exports.findProductBySlug = findProductBySlug;
@@ -58,6 +59,8 @@ function toProductRow(doc) {
         default_variation_id: doc.default_variation_id ?? null,
         is_active: Number(doc.is_active ?? 1),
         is_featured: Number(doc.is_featured ?? 0),
+        is_trending: Number(doc.is_trending ?? 0),
+        trending_order: doc.trending_order != null ? Number(doc.trending_order) : undefined,
         created_at: date(doc.created_at),
         updated_at: date(doc.updated_at),
         deleted_at: doc.deleted_at ? date(doc.deleted_at) : null,
@@ -99,11 +102,20 @@ function toLicenseRow(doc) {
 }
 async function createProduct(data) {
     const id = await (0, counter_1.nextId)('products');
-    await models_1.ProductModel.create({ id, ...data, deleted_at: null });
+    await models_1.ProductModel.create({ id, is_trending: 0, ...data, deleted_at: null });
     return id;
 }
 async function updateProduct(id, data) {
     await models_1.ProductModel.updateOne({ id, deleted_at: null }, { $set: data });
+}
+async function adjustProductQuantity(productId, delta) {
+    if (delta === 0)
+        return;
+    const prod = await models_1.ProductModel.findOne({ id: productId, deleted_at: null }).lean();
+    if (!prod || prod.quantity == null)
+        return;
+    const next = Math.max(0, Number(prod.quantity) + delta);
+    await models_1.ProductModel.updateOne({ id: productId }, { $set: { quantity: next } });
 }
 async function softDeleteProduct(id) {
     const result = await models_1.ProductModel.updateOne({ id, deleted_at: null }, { $set: { deleted_at: new Date() } });
@@ -131,6 +143,8 @@ function productQuery(filters) {
         query.product_type = filters.product_type;
     if (filters.featured === true)
         query.is_featured = 1;
+    if (filters.trending === true)
+        query.is_trending = 1;
     if (filters.is_active !== undefined)
         query.is_active = filters.is_active ? 1 : 0;
     if (filters.min_price != null || filters.max_price != null) {
@@ -143,16 +157,19 @@ function productQuery(filters) {
         query.$expr = { $gt: ['$compare_at_price', '$price'] };
     if (filters.search?.trim()) {
         const rx = new RegExp(filters.search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-        query.$or = [{ name: rx }, { slug: rx }];
+        query.$or = [{ name: rx }, { slug: rx }, { sku: rx }];
     }
     return query;
 }
 async function findProducts(filters, limit, offset) {
-    const sort = filters.sort === 'price_asc' ? { price: 1, created_at: -1 } :
+    let sort = filters.sort === 'price_asc' ? { price: 1, created_at: -1 } :
         filters.sort === 'price_desc' ? { price: -1, created_at: -1 } :
             filters.sort === 'name_asc' ? { name: 1, created_at: -1 } :
                 filters.sort === 'name_desc' ? { name: -1, created_at: -1 } :
                     { is_featured: -1, created_at: -1 };
+    if (filters.trending === true) {
+        sort = { trending_order: 1, ...sort };
+    }
     const rows = await models_1.ProductModel.find(productQuery(filters))
         .sort(sort)
         .skip(offset)

@@ -122,6 +122,12 @@ export async function getCustomersWithOrders(
   return adminDashboardRepo.getCustomersWithOrders(limit ?? DEFAULT_RECENT_LIMIT, offset ?? 0);
 }
 
+export async function getCustomerDetails(userId: number) {
+  const data = await adminDashboardRepo.getCustomerDetailsAndOrders(userId);
+  if (!data) throw new AppError(404, 'Customer not found');
+  return data;
+}
+
 export async function updateCustomer(
   userId: number,
   data: { email: string; name: string; mobile?: string | null; address?: string | null }
@@ -145,12 +151,8 @@ export async function updateCustomer(
 }
 
 export async function deleteCustomer(userId: number): Promise<void> {
-  //console.log(userId);
-  
   const user = await authRepo.findUserById(userId);
   if (!user) throw new AppError(404, 'Customer not found');
-  // const hasOrders = await adminDashboardRepo.userHasOrders(userId);
-  // if (!hasOrders) throw new AppError(404, 'Customer not found');
   const ok = await authRepo.softDeleteUser(userId);
   if (!ok) throw new AppError(404, 'Customer not found');
   await authRepo.deleteSessionsByUserId(userId);
@@ -158,5 +160,5 @@ export async function deleteCustomer(userId: number): Promise<void> {
 
 export async function deleteOrder(id: number): Promise<void> {
   const existed = await adminDashboardRepo.softDelete(id);
-  if (!existed) throw new AppError(404, 'Category not found');
+  if (!existed) throw new AppError(404, 'Order not found');
 }

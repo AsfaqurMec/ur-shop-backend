@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.generateCatalogVariationsValidator = exports.replaceCatalogVariationsValidator = exports.replaceCatalogAttributesValidator = exports.replacePurchaseVariablesValidator = exports.updateLicenseKeyValidator = exports.licenseKeyIdParamValidator = exports.listLicenseKeysValidator = exports.addLicensesValidator = exports.fileIdParamValidator = exports.addFileBodyValidator = exports.imageIdParamValidator = exports.addImageValidator = exports.listProductsValidator = exports.productSlugParamValidator = exports.productIdParamValidator = exports.updateProductValidator = exports.createProductValidator = void 0;
+exports.generateCatalogVariationsValidator = exports.replaceCatalogVariationsValidator = exports.replaceCatalogAttributesValidator = exports.replacePurchaseVariablesValidator = exports.updateLicenseKeyValidator = exports.licenseKeyIdParamValidator = exports.listLicenseKeysValidator = exports.addLicensesValidator = exports.fileIdParamValidator = exports.addFileBodyValidator = exports.imageIdParamValidator = exports.addImageValidator = exports.listProductsValidator = exports.setTrendingProductsValidator = exports.productSlugParamValidator = exports.productIdParamValidator = exports.updateProductValidator = exports.createProductValidator = void 0;
 const express_validator_1 = require("express-validator");
 const product_1 = require("../types/product");
 const NAME_MAX = 255;
@@ -23,6 +23,7 @@ exports.createProductValidator = [
     (0, express_validator_1.body)('compare_at_price').optional().isFloat({ min: 0 }).toFloat(),
     (0, express_validator_1.body)('is_active').optional().isBoolean().toBoolean(),
     (0, express_validator_1.body)('is_featured').optional().isBoolean().toBoolean(),
+    (0, express_validator_1.body)('is_trending').optional().isBoolean().toBoolean(),
 ];
 exports.updateProductValidator = [
     (0, express_validator_1.param)('id').isInt({ min: 1 }).withMessage('Valid product id is required').toInt(),
@@ -46,12 +47,17 @@ exports.updateProductValidator = [
         .withMessage('default_variation_id must be null or a positive integer'),
     (0, express_validator_1.body)('is_active').optional().isBoolean().toBoolean(),
     (0, express_validator_1.body)('is_featured').optional().isBoolean().toBoolean(),
+    (0, express_validator_1.body)('is_trending').optional().isBoolean().toBoolean(),
 ];
 exports.productIdParamValidator = [
     (0, express_validator_1.param)('id').isInt({ min: 1 }).withMessage('Valid product id is required').toInt(),
 ];
 exports.productSlugParamValidator = [
     (0, express_validator_1.param)('slug').trim().notEmpty().withMessage('Slug is required'),
+];
+exports.setTrendingProductsValidator = [
+    (0, express_validator_1.body)('product_ids').isArray().withMessage('product_ids must be an array'),
+    (0, express_validator_1.body)('product_ids.*').isInt({ min: 1 }).withMessage('Each product id must be a positive integer'),
 ];
 exports.listProductsValidator = [
     (0, express_validator_1.query)('page').optional().isInt({ min: 1 }).toInt(),
@@ -63,6 +69,7 @@ exports.listProductsValidator = [
     (0, express_validator_1.query)('on_sale').optional().isIn(['0', '1', 'true', 'false']),
     (0, express_validator_1.query)('search').optional().trim().isLength({ max: 100 }),
     (0, express_validator_1.query)('featured').optional().isIn(['0', '1', 'true', 'false']),
+    (0, express_validator_1.query)('trending').optional().isIn(['0', '1', 'true', 'false']),
     (0, express_validator_1.query)('is_active').optional().isIn(['0', '1', 'true', 'false']),
     (0, express_validator_1.query)('sort').optional().isIn(['newest', 'price_asc', 'price_desc', 'name_asc', 'name_desc']),
 ];

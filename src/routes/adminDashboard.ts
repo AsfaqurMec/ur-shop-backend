@@ -63,6 +63,12 @@ router.get(
   asyncHandler(adminDashboardController.getCustomersWithOrders)
 );
 
+router.get(
+  '/customers/:userId',
+  validate(customerUserIdParamValidator),
+  asyncHandler(adminDashboardController.getCustomerDetails)
+);
+
 router.patch(
   '/customers/:userId',
   validate(updateCustomerValidator),
@@ -114,6 +120,13 @@ router.get(
   '/orders/:orderId',
   validate(orderIdParamValidator),
   asyncHandler(adminDashboardController.getOrderDetails)
+);
+
+/** Download order invoice (admin). */
+router.get(
+  '/orders/:orderId/invoice',
+  validate(orderIdParamValidator),
+  asyncHandler(adminDashboardController.downloadOrderInvoice)
 );
 
 router.patch(

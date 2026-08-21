@@ -19,6 +19,8 @@ export interface ProductRow {
   default_variation_id: number | null;
   is_active: number;
   is_featured: number;
+  is_trending: number;
+  trending_order?: number;
   created_at: Date;
   updated_at: Date;
   deleted_at: Date | null;
@@ -80,7 +82,7 @@ export interface ProductCatalogAttributePublic {
   visible_on_page: boolean;
   used_for_variations: boolean;
   sort_order: number;
-  values: Array<{ value_key: string; label: string; sort_order: number }>;
+  values: Array<{ value_key: string; label: string; color_code?: string | null; sort_order: number }>;
 }
 
 export interface ProductCatalogVariationPublic {
@@ -112,6 +114,9 @@ export interface ProductPublic {
   default_variation_id?: number | null;
   is_active: boolean;
   is_featured: boolean;
+  is_trending: boolean;
+  trending_order?: number;
+  category_name?: string | null;
   created_at: string;
   updated_at: string;
   thumbnail?: string | null;
@@ -152,6 +157,7 @@ export interface ProductListQuery {
   on_sale?: boolean;
   search?: string;
   featured?: boolean;
+  trending?: boolean;
   is_active?: boolean;
   sort?: 'newest' | 'price_asc' | 'price_desc' | 'name_asc' | 'name_desc';
 }

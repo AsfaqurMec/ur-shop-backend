@@ -64,11 +64,16 @@ function parseAttributesFromBody(raw: unknown): AttributeReplaceInput[] {
     const values = valuesRaw.map((v: Record<string, unknown>, j: number) => {
       const value_key = String(v.value_key ?? '').trim();
       const label = String(v.label ?? '').trim();
+      const color_code =
+        v.color_code != null && typeof v.color_code === 'string' && v.color_code.trim()
+          ? v.color_code.trim()
+          : null;
       if (!VALUE_KEY_RE.test(value_key)) throw new AppError(400, `Invalid value_key at ${attr_key}[${j}]`);
       if (!label) throw new AppError(400, `Value label required at ${attr_key}[${j}]`);
       return {
         value_key,
         label,
+        color_code,
         sort_order: typeof v.sort_order === 'number' ? v.sort_order : j,
       };
     });

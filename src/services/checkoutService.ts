@@ -69,9 +69,22 @@ async function buildOrderItemsFromCart(items: CartItemWithProduct[]): Promise<or
     );
     const unitPrice = resolved.unit_price;
     const totalPrice = Math.round(unitPrice * item.quantity * 100) / 100;
+
+    let itemSku: string | null = null;
+    const effectiveVarId = resolved.effective_variation_id ?? item.variation_id;
+    if (effectiveVarId != null) {
+      const v = await variationRepo.findVariationById(effectiveVarId);
+      if (v?.sku) itemSku = v.sku;
+    }
+    if (!itemSku) {
+      const p = await productRepo.findProductById(item.product_id);
+      if (p?.sku) itemSku = p.sku;
+    }
+
     out.push({
       product_id: item.product_id,
-      product_variation_id: resolved.effective_variation_id ?? item.variation_id,
+      product_variation_id: effectiveVarId,
+      sku: itemSku,
       product_name: item.product_name,
       product_type: item.product_type as OrderItemProductType,
       quantity: item.quantity,
@@ -86,7 +99,7 @@ async function buildOrderItemsFromCart(items: CartItemWithProduct[]): Promise<or
 }
 
 function toOrderPublic(
-  order: { id: number; order_number: string; status: string; subtotal: number; discount: number; tax: number; total: number; currency: string; created_at: Date },
+  order: { id: number; order_number: string; status: string; subtotal: number; discount: number; coupon_code?: string | null; coupon_name?: string | null; tax: number; total: number; currency: string; created_at: Date },
   orderItems: OrderItemPublic[],
   payment: { id: number; gateway: string; status: string; amount: number } | null
 ): OrderPublic {
@@ -96,6 +109,8 @@ function toOrderPublic(
     status: order.status as OrderPublic['status'],
     subtotal: Number(order.subtotal),
     discount: Number(order.discount),
+    coupon_code: order.coupon_code || order.coupon_name || null,
+    coupon_name: order.coupon_name || order.coupon_code || null,
     tax: Number(order.tax),
     total: Number(order.total),
     currency: order.currency,
@@ -105,13 +120,15 @@ function toOrderPublic(
   };
 }
 
-/** Undo reserved variation quantity when a pending order is deleted (e.g. bKash session failed). */
+/** Undo reserved variation / product quantity when a pending order is deleted (e.g. bKash session failed). */
 async function restoreVariationQuantityForOrder(orderId: number): Promise<void> {
   const items = await orderRepo.findOrderItems(orderId);
   if (items.length === 0) return;
   for (const i of items) {
     if (i.product_variation_id && i.product_type !== 'license_key') {
       await variationRepo.adjustVariationQuantity(null, i.product_variation_id, i.quantity);
+    } else if (!i.product_variation_id && i.product_type !== 'license_key') {
+      await productRepo.adjustProductQuantity(i.product_id, i.quantity);
     }
   }
 }
@@ -195,6 +212,7 @@ export async function createOrder(
 
   let discountAmount = 0;
   let couponId: number | null = null;
+  let couponCodeName: string | null = null;
   if (couponCode?.trim()) {
     const eligibleItems = orderItemsInput.map((i, idx) => ({
       product_id: i.product_id,
@@ -211,6 +229,7 @@ export async function createOrder(
     if (!result.valid) throw new AppError(400, result.message || 'Invalid coupon');
     discountAmount = result.discount_amount ?? 0;
     couponId = result.coupon?.id ?? null;
+    couponCodeName = result.coupon?.code || couponCode.trim();
   }
 
   const discount = Math.round(discountAmount * 100) / 100;
@@ -228,6 +247,8 @@ export async function createOrder(
     payment_status: 'unpaid',
     subtotal: subtotalRounded,
     discount,
+    coupon_code: couponCodeName,
+    coupon_name: couponCodeName,
     tax,
     total,
     currency: CURRENCY,
@@ -244,6 +265,8 @@ export async function createOrder(
     for (const line of orderItemsInput) {
       if (line.product_variation_id != null && line.product_type !== 'license_key') {
         await variationRepo.adjustVariationQuantity(null, line.product_variation_id, -line.quantity);
+      } else if (line.product_variation_id == null && line.product_type !== 'license_key') {
+        await productRepo.adjustProductQuantity(line.product_id, -line.quantity);
       }
     }
     paymentId = await orderRepo.createPayment(null, {

@@ -47,6 +47,7 @@ exports.getLowStockLicenseProducts = getLowStockLicenseProducts;
 exports.getPendingFulfillmentCount = getPendingFulfillmentCount;
 exports.getPendingTicketsCount = getPendingTicketsCount;
 exports.getCustomersWithOrders = getCustomersWithOrders;
+exports.getCustomerDetails = getCustomerDetails;
 exports.updateCustomer = updateCustomer;
 exports.deleteCustomer = deleteCustomer;
 exports.deleteOrder = deleteOrder;
@@ -125,6 +126,12 @@ async function getPendingTicketsCount() {
 async function getCustomersWithOrders(limit, offset) {
     return adminDashboardRepo.getCustomersWithOrders(limit ?? DEFAULT_RECENT_LIMIT, offset ?? 0);
 }
+async function getCustomerDetails(userId) {
+    const data = await adminDashboardRepo.getCustomerDetailsAndOrders(userId);
+    if (!data)
+        throw new errorHandler_1.AppError(404, 'Customer not found');
+    return data;
+}
 async function updateCustomer(userId, data) {
     const user = await authRepo.findUserById(userId);
     if (!user)
@@ -147,12 +154,9 @@ async function updateCustomer(userId, data) {
     return row;
 }
 async function deleteCustomer(userId) {
-    //console.log(userId);
     const user = await authRepo.findUserById(userId);
     if (!user)
         throw new errorHandler_1.AppError(404, 'Customer not found');
-    // const hasOrders = await adminDashboardRepo.userHasOrders(userId);
-    // if (!hasOrders) throw new AppError(404, 'Customer not found');
     const ok = await authRepo.softDeleteUser(userId);
     if (!ok)
         throw new errorHandler_1.AppError(404, 'Customer not found');
@@ -161,6 +165,6 @@ async function deleteCustomer(userId) {
 async function deleteOrder(id) {
     const existed = await adminDashboardRepo.softDelete(id);
     if (!existed)
-        throw new errorHandler_1.AppError(404, 'Category not found');
+        throw new errorHandler_1.AppError(404, 'Order not found');
 }
 //# sourceMappingURL=adminDashboardService.js.map

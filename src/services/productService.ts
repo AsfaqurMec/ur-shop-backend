@@ -152,6 +152,7 @@ async function attachCatalog(
     values: a.values.map((v) => ({
       value_key: v.value_key,
       label: v.label,
+      color_code: v.color_code ?? null,
       sort_order: v.sort_order,
     })),
   }));
@@ -178,13 +179,13 @@ async function attachCatalog(
 function applyStorefrontDefaultVariationPricing(product: ProductPublic): ProductPublic {
   if (!product.default_variation_id || !product.catalog_variations?.length) return product;
   const v = product.catalog_variations.find(
-    (x) => x.id === product.default_variation_id && x.enabled
+    (row) => row.id === product.default_variation_id && row.enabled
   );
   if (!v) return product;
   return {
     ...product,
-    price: v.price,
-    compare_at_price: v.compare_at_price,
+    price: Number(v.price),
+    compare_at_price: v.compare_at_price != null ? Number(v.compare_at_price) : null,
   };
 }
 
@@ -215,6 +216,8 @@ function toPublic(
     default_variation_id: row.default_variation_id ?? null,
     is_active: Boolean(row.is_active),
     is_featured: Boolean(row.is_featured),
+    is_trending: Boolean(row.is_trending),
+    trending_order: row.trending_order,
     created_at: row.created_at.toISOString(),
     updated_at: row.updated_at.toISOString(),
     ...(options?.thumbnail !== undefined && { thumbnail: options.thumbnail }),
@@ -235,24 +238,40 @@ export async function create(data: {
   manual_fulfillment_required?: boolean;
   price: number;
   compare_at_price?: number | null;
+  sku?: string | null;
+  quantity?: number | null;
   is_active?: boolean;
   is_featured?: boolean;
+  is_trending?: boolean;
 }): Promise<ProductPublic> {
   if (!PRODUCT_TYPES.includes(data.product_type)) {
     throw new AppError(400, 'Invalid product_type');
   }
+  let catName = '';
   if (data.category_id != null) {
     const cat = await categoryRepo.findById(data.category_id);
     if (!cat) throw new AppError(400, 'Category not found');
+    catName = cat.name;
   }
   const baseSlug = data.slug?.trim() ? slugify(data.slug) : slugify(data.name);
   const slug = await uniqueSlug(baseSlug, (s) => productRepo.productSlugExists(s));
   const defaultManualFulfillmentRequired =
     data.product_type === 'subscription_manual' || data.product_type === 'digital_service';
+
+  let sku = data.sku?.trim() || null;
+  if (!sku && data.category_id != null && catName) {
+    const { ProductModel } = await import('../database/models');
+    const catProductCount = await ProductModel.countDocuments({ category_id: data.category_id, deleted_at: null });
+    const prefix = catName.trim().slice(0, 2).toLowerCase();
+    sku = `${prefix}-${String(catProductCount + 1).padStart(2, '0')}`;
+  }
+
   const id = await productRepo.createProduct({
     category_id: data.category_id ?? null,
     name: data.name.trim(),
     slug,
+    sku,
+    quantity: data.quantity != null ? Math.max(0, Math.floor(data.quantity)) : null,
     description: data.description?.trim() || null,
     full_description: data.full_description?.trim() || null,
     size_chart_image: null,
@@ -268,6 +287,7 @@ export async function create(data: {
     compare_at_price: data.compare_at_price ?? null,
     is_active: data.is_active !== false ? 1 : 0,
     is_featured: data.is_featured ? 1 : 0,
+    is_trending: data.is_trending ? 1 : 0,
   });
   const row = await productRepo.findProductById(id);
   if (!row) throw new AppError(500, 'Failed to create product');
@@ -293,6 +313,7 @@ export async function update(
     default_variation_id?: number | null;
     is_active?: boolean;
     is_featured?: boolean;
+    is_trending?: boolean;
   }
 ): Promise<ProductPublic> {
   const existing = await productRepo.findProductById(id);
@@ -339,6 +360,7 @@ export async function update(
   if (data.default_variation_id !== undefined) updates.default_variation_id = data.default_variation_id;
   if (data.is_active !== undefined) updates.is_active = data.is_active ? 1 : 0;
   if (data.is_featured !== undefined) updates.is_featured = data.is_featured ? 1 : 0;
+  if (data.is_trending !== undefined) updates.is_trending = data.is_trending ? 1 : 0;
   if (data.slug !== undefined) {
     updates.slug = data.slug.trim() ? slugify(data.slug) : slugify(existing.name);
     updates.slug = await uniqueSlug(updates.slug, (s) => productRepo.productSlugExists(s, id));
@@ -374,6 +396,18 @@ export async function remove(id: number): Promise<void> {
   if (!existed) throw new AppError(404, 'Product not found');
 }
 
+export async function setTrendingProducts(productIds: number[]): Promise<void> {
+  const ids = (productIds || []).map(Number).filter((n) => Number.isFinite(n) && n > 0);
+  const { ProductModel } = await import('../database/models');
+  await ProductModel.updateMany({ deleted_at: null }, { $set: { is_trending: 0, trending_order: 0 } });
+  for (let i = 0; i < ids.length; i++) {
+    await ProductModel.updateOne(
+      { id: ids[i], deleted_at: null },
+      { $set: { is_trending: 1, trending_order: i + 1 } }
+    );
+  }
+}
+
 export async function list(query: ProductListQuery): Promise<ProductListResult> {
   const page = Math.max(1, query.page);
   const limit = Math.min(100, Math.max(1, query.limit));
@@ -386,6 +420,7 @@ export async function list(query: ProductListQuery): Promise<ProductListResult> 
     ...(query.on_sale === true && { on_sale: true }),
     ...(query.search && { search: query.search }),
     ...(query.featured === true && { featured: true }),
+    ...(query.trending === true && { trending: true }),
     is_active: query.is_active !== undefined ? query.is_active : true,
     ...(query.sort && { sort: query.sort }),
   };
@@ -394,9 +429,12 @@ export async function list(query: ProductListQuery): Promise<ProductListResult> 
     productRepo.countProducts(filters),
   ]);
   const totalPages = Math.ceil(total / limit) || 1;
-  const imagesByProduct = await Promise.all(
-    products.map((p) => productRepo.findProductImagesByProductId(p.id))
-  );
+  const [imagesByProduct, allCategories, variationsByProduct] = await Promise.all([
+    Promise.all(products.map((p) => productRepo.findProductImagesByProductId(p.id))),
+    categoryRepo.findAll(),
+    Promise.all(products.map((p) => variationRepo.findVariationsByProductId(p.id))),
+  ]);
+  const catMap = new Map(allCategories.map((c) => [c.id, c.name]));
   const publicList: ProductPublic[] = products.map((p, i) => {
     const images = imagesByProduct[i];
     const primary = primaryProductImageRow(images);
@@ -417,9 +455,26 @@ export async function list(query: ProductListQuery): Promise<ProductListResult> 
     productRepo.getNeedsPdpConfigMap(publicList.map((p) => p.id)),
     productRepo.findDefaultVariationStorefrontPricing(publicList.map((p) => p.id)),
   ]);
-  const withFlags = publicList.map((p) => {
+  const withFlags = publicList.map((p, idx) => {
     const o = defaultPriceMap.get(p.id);
-    const base = { ...p, needs_pdp_config: needsMap.get(p.id) ?? false };
+    const vars = variationsByProduct[idx] || [];
+    const catalog_variations: ProductCatalogVariationPublic[] = vars.map((v) => ({
+      id: v.id,
+      sku: v.sku,
+      quantity: v.quantity,
+      price: Number(v.price),
+      compare_at_price: v.compare_at_price != null ? Number(v.compare_at_price) : null,
+      enabled: v.enabled === 1,
+      sort_order: v.sort_order,
+      combination: v.combination,
+    }));
+    const category_name = p.category_id ? catMap.get(p.category_id) || null : null;
+    const base: ProductPublic = {
+      ...p,
+      category_name,
+      catalog_variations,
+      needs_pdp_config: needsMap.get(p.id) ?? false,
+    };
     if (!o) return base;
     return { ...base, price: o.price, compare_at_price: o.compare_at_price };
   });

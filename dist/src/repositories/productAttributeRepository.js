@@ -23,6 +23,7 @@ function toValueRow(doc) {
         attribute_id: Number(doc.attribute_id),
         value_key: String(doc.value_key),
         label: String(doc.label),
+        color_code: doc.color_code ? String(doc.color_code) : null,
         sort_order: Number(doc.sort_order ?? 0),
     };
 }
@@ -71,6 +72,7 @@ async function replaceAttributesForProduct(_conn, productId, inputs) {
                 attribute_id: attrId,
                 value_key: value.value_key,
                 label: value.label,
+                color_code: value.color_code ?? null,
                 sort_order: value.sort_order,
             });
         }

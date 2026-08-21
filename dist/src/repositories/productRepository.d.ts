@@ -11,8 +11,11 @@ export declare function createProduct(data: {
     manual_fulfillment_required: number;
     price: number;
     compare_at_price: number | null;
+    sku?: string | null;
+    quantity?: number | null;
     is_active: number;
     is_featured: number;
+    is_trending?: number;
 }): Promise<number>;
 export declare function updateProduct(id: number, data: {
     category_id?: number | null;
@@ -31,7 +34,9 @@ export declare function updateProduct(id: number, data: {
     default_variation_id?: number | null;
     is_active?: number;
     is_featured?: number;
+    is_trending?: number;
 }): Promise<void>;
+export declare function adjustProductQuantity(productId: number, delta: number): Promise<void>;
 export declare function softDeleteProduct(id: number): Promise<boolean>;
 export declare function findProductById(id: number): Promise<ProductRow | null>;
 export declare function findProductBySlug(slug: string): Promise<ProductRow | null>;
@@ -44,6 +49,7 @@ export interface ProductListFilters {
     on_sale?: boolean;
     search?: string;
     featured?: boolean;
+    trending?: boolean;
     is_active?: boolean;
     sort?: 'newest' | 'price_asc' | 'price_desc' | 'name_asc' | 'name_desc';
 }

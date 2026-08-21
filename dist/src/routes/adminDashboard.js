@@ -56,6 +56,7 @@ router.get('/recent-orders', (0, validate_1.validate)(adminDashboardValidators_1
 router.get('/email-logs', (0, validate_1.validate)(adminDashboardValidators_1.emailLogsQueryValidator), (0, asyncHandler_1.asyncHandler)(adminDashboardController.getEmailLogs));
 /** Customers who have placed orders (email, name, order count; query: limit, offset). */
 router.get('/customers', (0, validate_1.validate)(adminDashboardValidators_1.customersListQueryValidator), (0, asyncHandler_1.asyncHandler)(adminDashboardController.getCustomersWithOrders));
+router.get('/customers/:userId', (0, validate_1.validate)(adminDashboardValidators_1.customerUserIdParamValidator), (0, asyncHandler_1.asyncHandler)(adminDashboardController.getCustomerDetails));
 router.patch('/customers/:userId', (0, validate_1.validate)(adminDashboardValidators_1.updateCustomerValidator), (0, asyncHandler_1.asyncHandler)(adminDashboardController.updateCustomer));
 router.delete('/customers/:userId', (0, validate_1.validate)(adminDashboardValidators_1.customerUserIdParamValidator), (0, asyncHandler_1.asyncHandler)(adminDashboardController.deleteCustomer));
 /** Recent payments (query: limit, default 10, max 200). */
@@ -70,6 +71,8 @@ router.get('/pending-fulfillment-count', (0, asyncHandler_1.asyncHandler)(adminD
 router.get('/pending-tickets-count', (0, asyncHandler_1.asyncHandler)(adminDashboardController.getPendingTicketsCount));
 /** Order details by id (admin). */
 router.get('/orders/:orderId', (0, validate_1.validate)(dashboardValidators_1.orderIdParamValidator), (0, asyncHandler_1.asyncHandler)(adminDashboardController.getOrderDetails));
+/** Download order invoice (admin). */
+router.get('/orders/:orderId/invoice', (0, validate_1.validate)(dashboardValidators_1.orderIdParamValidator), (0, asyncHandler_1.asyncHandler)(adminDashboardController.downloadOrderInvoice));
 router.patch('/orders/:orderId/status', (0, validate_1.validate)(adminDashboardValidators_1.updateOrderStatusValidator), (0, asyncHandler_1.asyncHandler)(adminDashboardController.updateOrderStatus));
 router.delete('/orders/:id', auth_1.auth, admin_1.admin, (0, validate_1.validate)(adminDashboardValidators_1.deleteOrderValidator), (0, asyncHandler_1.asyncHandler)(adminDashboardController.remove));
 exports.default = router;

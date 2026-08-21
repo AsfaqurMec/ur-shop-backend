@@ -14,6 +14,7 @@ exports.getLowStockLicenseProducts = getLowStockLicenseProducts;
 exports.getPendingFulfillmentCount = getPendingFulfillmentCount;
 exports.getPendingTicketsCount = getPendingTicketsCount;
 exports.getCustomersWithOrders = getCustomersWithOrders;
+exports.getCustomerDetailsAndOrders = getCustomerDetailsAndOrders;
 exports.userHasOrders = userHasOrders;
 exports.getCustomerAggregateById = getCustomerAggregateById;
 exports.softDelete = softDelete;
@@ -230,6 +231,76 @@ async function getCustomersWithOrders(limit, offset) {
 //   }).sort((a, b) => new Date(b.last_order_at).getTime() - new Date(a.last_order_at).getTime());
 //   return { customers: rows.slice(offset, offset + limit), total: rows.length };
 // }
+async function getCustomerDetailsAndOrders(userId) {
+    const user = await models_1.UserModel.findOne({ id: userId, deleted_at: null }).lean();
+    if (!user)
+        return null;
+    const orders = await models_1.OrderModel.find({ user_id: userId }).sort({ created_at: -1 }).lean();
+    const orderIds = orders.map((o) => Number(o.id));
+    const [items, payments] = await Promise.all([
+        models_1.OrderItemModel.find({ order_id: { $in: orderIds } }).lean(),
+        models_1.PaymentModel.find({ order_id: { $in: orderIds } }).lean(),
+    ]);
+    const itemsByOrder = new Map();
+    for (const it of items) {
+        const list = itemsByOrder.get(Number(it.order_id)) || [];
+        list.push(it);
+        itemsByOrder.set(Number(it.order_id), list);
+    }
+    const paymentByOrder = new Map();
+    for (const pm of payments) {
+        paymentByOrder.set(Number(pm.order_id), pm);
+    }
+    const detailedOrders = orders.map((o) => {
+        const oItems = itemsByOrder.get(Number(o.id)) || [];
+        const pm = paymentByOrder.get(Number(o.id));
+        return {
+            id: Number(o.id),
+            order_number: String(o.order_number),
+            status: String(o.status),
+            payment_status: pm ? String(pm.status) : String(o.payment_status || 'unpaid'),
+            gateway: pm ? String(pm.gateway) : String(o.payment_method || '—'),
+            subtotal: Number(o.subtotal ?? 0),
+            discount: Number(o.discount ?? 0),
+            coupon_code: o.coupon_code || o.coupon_name || null,
+            total: Number(o.total ?? 0),
+            currency: String(o.currency ?? 'BDT'),
+            created_at: iso(o.created_at),
+            items_count: oItems.reduce((sum, item) => sum + Number(item.quantity || 1), 0),
+            items: oItems.map((item) => ({
+                id: Number(item.id),
+                product_id: Number(item.product_id),
+                product_name: String(item.product_name),
+                sku: item.sku ?? null,
+                quantity: Number(item.quantity ?? 1),
+                unit_price: Number(item.unit_price ?? 0),
+                total_price: Number(item.total_price ?? 0),
+                purchase_selections_summary: item.purchase_selections_summary ?? null,
+            })),
+        };
+    });
+    const totalSpent = detailedOrders
+        .filter((o) => o.payment_status === 'paid' || o.status === 'complete' || o.status === 'delivered')
+        .reduce((sum, o) => sum + o.total, 0);
+    return {
+        customer: {
+            user_id: Number(user.id),
+            email: String(user.email),
+            name: String(user.name ?? ''),
+            mobile: user.mobile != null && String(user.mobile).trim()
+                ? String(user.mobile).trim()
+                : null,
+            address: user.address != null && String(user.address).trim()
+                ? String(user.address).trim()
+                : null,
+            created_at: iso(user.created_at),
+            order_count: orders.length,
+            total_spent: totalSpent,
+            last_order_at: orders.length > 0 ? iso(orders[0].created_at) : null,
+        },
+        orders: detailedOrders,
+    };
+}
 async function userHasOrders(userId) {
     return Boolean(await models_1.OrderModel.exists({ user_id: userId }));
 }

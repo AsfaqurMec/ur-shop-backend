@@ -80,9 +80,22 @@ async function buildOrderItemsFromCart(items) {
         const resolved = await purchaseSelectionService.resolveLinePricing(item.product_id, Number(item.base_price), item.selections, item.variation_id);
         const unitPrice = resolved.unit_price;
         const totalPrice = Math.round(unitPrice * item.quantity * 100) / 100;
+        let itemSku = null;
+        const effectiveVarId = resolved.effective_variation_id ?? item.variation_id;
+        if (effectiveVarId != null) {
+            const v = await variationRepo.findVariationById(effectiveVarId);
+            if (v?.sku)
+                itemSku = v.sku;
+        }
+        if (!itemSku) {
+            const p = await productRepo.findProductById(item.product_id);
+            if (p?.sku)
+                itemSku = p.sku;
+        }
         out.push({
             product_id: item.product_id,
-            product_variation_id: resolved.effective_variation_id ?? item.variation_id,
+            product_variation_id: effectiveVarId,
+            sku: itemSku,
             product_name: item.product_name,
             product_type: item.product_type,
             quantity: item.quantity,
@@ -101,6 +114,8 @@ function toOrderPublic(order, orderItems, payment) {
         status: order.status,
         subtotal: Number(order.subtotal),
         discount: Number(order.discount),
+        coupon_code: order.coupon_code || order.coupon_name || null,
+        coupon_name: order.coupon_name || order.coupon_code || null,
         tax: Number(order.tax),
         total: Number(order.total),
         currency: order.currency,
@@ -109,7 +124,7 @@ function toOrderPublic(order, orderItems, payment) {
         created_at: order.created_at.toISOString(),
     };
 }
-/** Undo reserved variation quantity when a pending order is deleted (e.g. bKash session failed). */
+/** Undo reserved variation / product quantity when a pending order is deleted (e.g. bKash session failed). */
 async function restoreVariationQuantityForOrder(orderId) {
     const items = await orderRepo.findOrderItems(orderId);
     if (items.length === 0)
@@ -117,6 +132,9 @@ async function restoreVariationQuantityForOrder(orderId) {
     for (const i of items) {
         if (i.product_variation_id && i.product_type !== 'license_key') {
             await variationRepo.adjustVariationQuantity(null, i.product_variation_id, i.quantity);
+        }
+        else if (!i.product_variation_id && i.product_type !== 'license_key') {
+            await productRepo.adjustProductQuantity(i.product_id, i.quantity);
         }
     }
 }
@@ -183,6 +201,7 @@ async function createOrder(userId, couponCode, paymentInput = { method: 'manual_
     const subtotalRounded = Math.round(subtotal * 100) / 100;
     let discountAmount = 0;
     let couponId = null;
+    let couponCodeName = null;
     if (couponCode?.trim()) {
         const eligibleItems = orderItemsInput.map((i, idx) => ({
             product_id: i.product_id,
@@ -195,6 +214,7 @@ async function createOrder(userId, couponCode, paymentInput = { method: 'manual_
             throw new errorHandler_1.AppError(400, result.message || 'Invalid coupon');
         discountAmount = result.discount_amount ?? 0;
         couponId = result.coupon?.id ?? null;
+        couponCodeName = result.coupon?.code || couponCode.trim();
     }
     const discount = Math.round(discountAmount * 100) / 100;
     const tax = 0;
@@ -209,6 +229,8 @@ async function createOrder(userId, couponCode, paymentInput = { method: 'manual_
         payment_status: 'unpaid',
         subtotal: subtotalRounded,
         discount,
+        coupon_code: couponCodeName,
+        coupon_name: couponCodeName,
         tax,
         total,
         currency: CURRENCY,
@@ -225,6 +247,9 @@ async function createOrder(userId, couponCode, paymentInput = { method: 'manual_
         for (const line of orderItemsInput) {
             if (line.product_variation_id != null && line.product_type !== 'license_key') {
                 await variationRepo.adjustVariationQuantity(null, line.product_variation_id, -line.quantity);
+            }
+            else if (line.product_variation_id == null && line.product_type !== 'license_key') {
+                await productRepo.adjustProductQuantity(line.product_id, -line.quantity);
             }
         }
         paymentId = await orderRepo.createPayment(null, {

@@ -2,6 +2,7 @@ export declare const createProductValidator: import("express-validator").Validat
 export declare const updateProductValidator: import("express-validator").ValidationChain[];
 export declare const productIdParamValidator: import("express-validator").ValidationChain[];
 export declare const productSlugParamValidator: import("express-validator").ValidationChain[];
+export declare const setTrendingProductsValidator: import("express-validator").ValidationChain[];
 export declare const listProductsValidator: import("express-validator").ValidationChain[];
 export declare const addImageValidator: import("express-validator").ValidationChain[];
 export declare const imageIdParamValidator: import("express-validator").ValidationChain[];

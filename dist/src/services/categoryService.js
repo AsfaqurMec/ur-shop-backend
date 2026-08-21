@@ -42,7 +42,7 @@ exports.getBySlug = getBySlug;
 const errorHandler_1 = require("../middlewares/errorHandler");
 const categoryRepo = __importStar(require("../repositories/categoryRepository"));
 const slugHelpers_1 = require("../utils/slugHelpers");
-function toPublic(row) {
+function toPublic(row, productCount = 0) {
     return {
         id: row.id,
         parent_id: row.parent_id,
@@ -52,6 +52,7 @@ function toPublic(row) {
         image: row.image,
         banner_image: row.banner_image,
         sort_order: row.sort_order,
+        product_count: productCount,
         created_at: row.created_at.toISOString(),
         updated_at: row.updated_at.toISOString(),
     };
@@ -136,8 +137,13 @@ async function remove(id) {
         throw new errorHandler_1.AppError(404, 'Category not found');
 }
 async function list(nested) {
-    const rows = await categoryRepo.findAll();
-    const flat = rows.map(toPublic);
+    const { ProductModel } = await Promise.resolve().then(() => __importStar(require('../database/models')));
+    const [rows, counts] = await Promise.all([
+        categoryRepo.findAll(),
+        ProductModel.aggregate([{ $match: { deleted_at: null } }, { $group: { _id: '$category_id', count: { $sum: 1 } } }]),
+    ]);
+    const countMap = new Map(counts.map((c) => [Number(c._id), Number(c.count)]));
+    const flat = rows.map((r) => toPublic(r, countMap.get(r.id) ?? 0));
     if (nested)
         return buildTree(flat, null);
     return flat;
@@ -146,13 +152,16 @@ async function listPaginated(page, limit) {
     const safeLimit = Math.min(Math.max(1, limit), 200);
     const safePage = Math.max(1, page);
     const offset = (safePage - 1) * safeLimit;
-    const [total, rows] = await Promise.all([
+    const { ProductModel } = await Promise.resolve().then(() => __importStar(require('../database/models')));
+    const [total, rows, counts] = await Promise.all([
         categoryRepo.countActive(),
         categoryRepo.findPage(safeLimit, offset),
+        ProductModel.aggregate([{ $match: { deleted_at: null } }, { $group: { _id: '$category_id', count: { $sum: 1 } } }]),
     ]);
+    const countMap = new Map(counts.map((c) => [Number(c._id), Number(c.count)]));
     const totalPages = Math.max(1, Math.ceil(total / safeLimit) || 1);
     return {
-        categories: rows.map(toPublic),
+        categories: rows.map((r) => toPublic(r, countMap.get(r.id) ?? 0)),
         total,
         page: safePage,
         limit: safeLimit,

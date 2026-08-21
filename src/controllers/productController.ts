@@ -19,8 +19,11 @@ export async function create(req: Request, res: Response): Promise<Response> {
     manual_fulfillment_required: body.manual_fulfillment_required,
     price: body.price,
     compare_at_price: body.compare_at_price,
+    sku: body.sku,
+    quantity: body.quantity,
     is_active: body.is_active,
     is_featured: body.is_featured,
+    is_trending: body.is_trending,
   });
   return sendSuccess(res, { product }, 201);
 }
@@ -44,6 +47,7 @@ export async function update(req: Request, res: Response): Promise<Response> {
     default_variation_id: body.default_variation_id,
     is_active: body.is_active,
     is_featured: body.is_featured,
+    is_trending: body.is_trending,
   });
   return sendSuccess(res, { product });
 }
@@ -52,6 +56,12 @@ export async function remove(req: Request, res: Response): Promise<Response> {
   const id = Number(req.params.id);
   await productService.remove(id);
   return sendSuccess(res, { message: 'Product deleted' });
+}
+
+export async function setTrendingProducts(req: Request, res: Response): Promise<Response> {
+  const productIds = Array.isArray(req.body.product_ids) ? req.body.product_ids : [];
+  await productService.setTrendingProducts(productIds);
+  return sendSuccess(res, { message: 'Trending products updated' });
 }
 
 export async function list(req: Request, res: Response): Promise<Response> {
@@ -64,6 +74,7 @@ export async function list(req: Request, res: Response): Promise<Response> {
   const on_sale = req.query.on_sale === '1' || req.query.on_sale === 'true';
   const search = typeof req.query.search === 'string' ? req.query.search : undefined;
   const featured = req.query.featured === '1' || req.query.featured === 'true';
+  const trending = req.query.trending === '1' || req.query.trending === 'true';
   const is_active = req.query.is_active === undefined
     ? undefined
     : req.query.is_active === '1' || req.query.is_active === 'true';
@@ -78,6 +89,7 @@ export async function list(req: Request, res: Response): Promise<Response> {
     on_sale: on_sale || undefined,
     search,
     featured: featured || undefined,
+    trending: trending || undefined,
     is_active,
     sort: sort as any,
   });

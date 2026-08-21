@@ -3,18 +3,21 @@ import * as categoryRepo from '../repositories/categoryRepository';
 import { slugify, uniqueSlug } from '../utils/slugHelpers';
 import type { CategoryPublic, CategoryNested } from '../types/category';
 
-function toPublic(row: {
-  id: number;
-  parent_id: number | null;
-  name: string;
-  slug: string;
-  description: string | null;
-  image: string | null;
-  banner_image: string | null;
-  sort_order: number;
-  created_at: Date;
-  updated_at: Date;
-}): CategoryPublic {
+function toPublic(
+  row: {
+    id: number;
+    parent_id: number | null;
+    name: string;
+    slug: string;
+    description: string | null;
+    image: string | null;
+    banner_image: string | null;
+    sort_order: number;
+    created_at: Date;
+    updated_at: Date;
+  },
+  productCount = 0
+): CategoryPublic {
   return {
     id: row.id,
     parent_id: row.parent_id,
@@ -24,6 +27,7 @@ function toPublic(row: {
     image: row.image,
     banner_image: row.banner_image,
     sort_order: row.sort_order,
+    product_count: productCount,
     created_at: row.created_at.toISOString(),
     updated_at: row.updated_at.toISOString(),
   };
@@ -118,8 +122,13 @@ export async function remove(id: number): Promise<void> {
 }
 
 export async function list(nested: boolean): Promise<CategoryPublic[] | CategoryNested[]> {
-  const rows = await categoryRepo.findAll();
-  const flat = rows.map(toPublic);
+  const { ProductModel } = await import('../database/models');
+  const [rows, counts] = await Promise.all([
+    categoryRepo.findAll(),
+    ProductModel.aggregate([{ $match: { deleted_at: null } }, { $group: { _id: '$category_id', count: { $sum: 1 } } }]),
+  ]);
+  const countMap = new Map(counts.map((c: any) => [Number(c._id), Number(c.count)]));
+  const flat = rows.map((r) => toPublic(r, countMap.get(r.id) ?? 0));
   if (nested) return buildTree(flat, null);
   return flat;
 }
@@ -134,13 +143,16 @@ export async function listPaginated(page: number, limit: number): Promise<{
   const safeLimit = Math.min(Math.max(1, limit), 200);
   const safePage = Math.max(1, page);
   const offset = (safePage - 1) * safeLimit;
-  const [total, rows] = await Promise.all([
+  const { ProductModel } = await import('../database/models');
+  const [total, rows, counts] = await Promise.all([
     categoryRepo.countActive(),
     categoryRepo.findPage(safeLimit, offset),
+    ProductModel.aggregate([{ $match: { deleted_at: null } }, { $group: { _id: '$category_id', count: { $sum: 1 } } }]),
   ]);
+  const countMap = new Map(counts.map((c: any) => [Number(c._id), Number(c.count)]));
   const totalPages = Math.max(1, Math.ceil(total / safeLimit) || 1);
   return {
-    categories: rows.map(toPublic),
+    categories: rows.map((r) => toPublic(r, countMap.get(r.id) ?? 0)),
     total,
     page: safePage,
     limit: safeLimit,

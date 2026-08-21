@@ -63,6 +63,8 @@ function orderRow(doc: any): OrderRow {
     status: doc.status as OrderStatus,
     subtotal: Number(doc.subtotal ?? 0),
     discount: Number(doc.discount ?? 0),
+    coupon_code: doc.coupon_code || doc.coupon_name || null,
+    coupon_name: doc.coupon_name || doc.coupon_code || null,
     tax: Number(doc.tax ?? 0),
     total: Number(doc.total ?? 0),
     currency: String(doc.currency ?? 'BDT'),
@@ -99,6 +101,7 @@ function orderItemRow(doc: any): OrderItemRow {
     order_id: Number(doc.order_id),
     product_id: Number(doc.product_id),
     product_variation_id: doc.product_variation_id ?? null,
+    sku: doc.sku ?? null,
     product_name: String(doc.product_name),
     product_type: doc.product_type as OrderItemProductType,
     quantity: Number(doc.quantity ?? 1),
@@ -135,6 +138,8 @@ export async function createOrder(
     payment_status?: 'paid' | 'unpaid';
     subtotal: number;
     discount: number;
+    coupon_code?: string | null;
+    coupon_name?: string | null;
     tax: number;
     total: number;
     currency: string;
@@ -156,6 +161,7 @@ export async function createOrder(
 export interface OrderItemInput {
   product_id: number;
   product_variation_id?: number | null;
+  sku?: string | null;
   product_name: string;
   product_type: OrderItemProductType;
   quantity: number;
@@ -172,6 +178,7 @@ export async function createOrderItems(_conn: unknown, orderId: number, items: O
       order_id: orderId,
       product_id: item.product_id,
       product_variation_id: item.product_variation_id ?? null,
+      sku: item.sku ?? null,
       product_name: item.product_name,
       product_type: item.product_type,
       quantity: item.quantity,

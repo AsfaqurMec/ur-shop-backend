@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
-import { sendSuccess } from '../utils/apiResponse';
+import { sendSuccess, sendError } from '../utils/apiResponse';
 import * as adminDashboardService from '../services/adminDashboardService';
 import * as dashboardService from '../services/dashboardService';
+import * as invoiceService from '../services/invoiceService';
 
 export async function getDashboardSummary(req: Request, res: Response): Promise<Response> {
   const summary = await adminDashboardService.getDashboardSummary();
@@ -84,10 +85,25 @@ export async function getOrderDetails(req: Request, res: Response): Promise<Resp
   return sendSuccess(res, order);
 }
 
+export async function downloadOrderInvoice(req: Request, res: Response): Promise<void> {
+  const orderId = Number(req.params.orderId);
+  const invoice = await invoiceService.createInvoicePdf(null, orderId, true);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${invoice.filename.replace(/[^a-zA-Z0-9._-]/g, '_')}"`);
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.status(200).send(invoice.buffer);
+}
+
 export async function getCustomersWithOrders(req: Request, res: Response): Promise<Response> {
   const limit = req.query.limit != null ? Number(req.query.limit) : undefined;
   const offset = req.query.offset != null ? Number(req.query.offset) : undefined;
   const result = await adminDashboardService.getCustomersWithOrders(limit, offset);
+  return sendSuccess(res, result);
+}
+
+export async function getCustomerDetails(req: Request, res: Response): Promise<Response> {
+  const userId = Number(req.params.userId);
+  const result = await adminDashboardService.getCustomerDetails(userId);
   return sendSuccess(res, result);
 }
 
@@ -105,8 +121,6 @@ export async function updateCustomer(req: Request, res: Response): Promise<Respo
 
 export async function deleteCustomer(req: Request, res: Response): Promise<Response> {
   const userId = Number(req.params.userId);
- // console.log(req.params.userId);
-  
   await adminDashboardService.deleteCustomer(userId);
   return sendSuccess(res, {}, 200, 'Customer removed');
 }
@@ -114,5 +128,5 @@ export async function deleteCustomer(req: Request, res: Response): Promise<Respo
 export async function remove(req: Request, res: Response): Promise<Response> {
   const id = Number(req.params.id);
   await adminDashboardService.deleteOrder(id);
-  return sendSuccess(res, { message: 'Category deleted' });
+  return sendSuccess(res, { message: 'Order deleted' });
 }

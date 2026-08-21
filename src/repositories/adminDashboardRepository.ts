@@ -258,6 +258,81 @@ export async function getCustomersWithOrders(
 //   return { customers: rows.slice(offset, offset + limit), total: rows.length };
 // }
 
+export async function getCustomerDetailsAndOrders(userId: number) {
+  const user = await UserModel.findOne({ id: userId, deleted_at: null }).lean();
+  if (!user) return null;
+  const orders = await OrderModel.find({ user_id: userId }).sort({ created_at: -1 }).lean();
+  const orderIds = (orders as any[]).map((o) => Number(o.id));
+  const [items, payments] = await Promise.all([
+    OrderItemModel.find({ order_id: { $in: orderIds } }).lean(),
+    PaymentModel.find({ order_id: { $in: orderIds } }).lean(),
+  ]);
+
+  const itemsByOrder = new Map<number, any[]>();
+  for (const it of items as any[]) {
+    const list = itemsByOrder.get(Number(it.order_id)) || [];
+    list.push(it);
+    itemsByOrder.set(Number(it.order_id), list);
+  }
+
+  const paymentByOrder = new Map<number, any>();
+  for (const pm of payments as any[]) {
+    paymentByOrder.set(Number(pm.order_id), pm);
+  }
+
+  const detailedOrders = (orders as any[]).map((o) => {
+    const oItems = itemsByOrder.get(Number(o.id)) || [];
+    const pm = paymentByOrder.get(Number(o.id));
+    return {
+      id: Number(o.id),
+      order_number: String(o.order_number),
+      status: String(o.status),
+      payment_status: pm ? String(pm.status) : String(o.payment_status || 'unpaid'),
+      gateway: pm ? String(pm.gateway) : String(o.payment_method || '—'),
+      subtotal: Number(o.subtotal ?? 0),
+      discount: Number(o.discount ?? 0),
+      coupon_code: o.coupon_code || o.coupon_name || null,
+      total: Number(o.total ?? 0),
+      currency: String(o.currency ?? 'BDT'),
+      created_at: iso(o.created_at),
+      items_count: oItems.reduce((sum, item) => sum + Number(item.quantity || 1), 0),
+      items: oItems.map((item) => ({
+        id: Number(item.id),
+        product_id: Number(item.product_id),
+        product_name: String(item.product_name),
+        sku: item.sku ?? null,
+        quantity: Number(item.quantity ?? 1),
+        unit_price: Number(item.unit_price ?? 0),
+        total_price: Number(item.total_price ?? 0),
+        purchase_selections_summary: item.purchase_selections_summary ?? null,
+      })),
+    };
+  });
+
+  const totalSpent = detailedOrders
+    .filter((o) => o.payment_status === 'paid' || o.status === 'complete' || o.status === 'delivered')
+    .reduce((sum, o) => sum + o.total, 0);
+
+  return {
+    customer: {
+      user_id: Number(user.id),
+      email: String(user.email),
+      name: String(user.name ?? ''),
+      mobile: (user as any).mobile != null && String((user as any).mobile).trim()
+        ? String((user as any).mobile).trim()
+        : null,
+      address: (user as any).address != null && String((user as any).address).trim()
+        ? String((user as any).address).trim()
+        : null,
+      created_at: iso(user.created_at),
+      order_count: orders.length,
+      total_spent: totalSpent,
+      last_order_at: orders.length > 0 ? iso((orders[0] as any).created_at) : null,
+    },
+    orders: detailedOrders,
+  };
+}
+
 export async function userHasOrders(userId: number): Promise<boolean> {
   return Boolean(await OrderModel.exists({ user_id: userId }));
 }

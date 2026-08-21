@@ -37,6 +37,43 @@ export declare function getCustomersWithOrders(limit?: number, offset?: number):
     customers: AdminCustomerListItem[];
     total: number;
 }>;
+export declare function getCustomerDetails(userId: number): Promise<{
+    customer: {
+        user_id: number;
+        email: string;
+        name: string;
+        mobile: string | null;
+        address: string | null;
+        created_at: string;
+        order_count: number;
+        total_spent: number;
+        last_order_at: string | null;
+    };
+    orders: {
+        id: number;
+        order_number: string;
+        status: string;
+        payment_status: string;
+        gateway: string;
+        subtotal: number;
+        discount: number;
+        coupon_code: any;
+        total: number;
+        currency: string;
+        created_at: string;
+        items_count: any;
+        items: {
+            id: number;
+            product_id: number;
+            product_name: string;
+            sku: any;
+            quantity: number;
+            unit_price: number;
+            total_price: number;
+            purchase_selections_summary: any;
+        }[];
+    }[];
+}>;
 export declare function updateCustomer(userId: number, data: {
     email: string;
     name: string;

@@ -36,6 +36,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.create = create;
 exports.update = update;
 exports.remove = remove;
+exports.setTrendingProducts = setTrendingProducts;
 exports.list = list;
 exports.getBySlug = getBySlug;
 exports.getById = getById;
@@ -73,8 +74,11 @@ async function create(req, res) {
         manual_fulfillment_required: body.manual_fulfillment_required,
         price: body.price,
         compare_at_price: body.compare_at_price,
+        sku: body.sku,
+        quantity: body.quantity,
         is_active: body.is_active,
         is_featured: body.is_featured,
+        is_trending: body.is_trending,
     });
     return (0, apiResponse_1.sendSuccess)(res, { product }, 201);
 }
@@ -97,6 +101,7 @@ async function update(req, res) {
         default_variation_id: body.default_variation_id,
         is_active: body.is_active,
         is_featured: body.is_featured,
+        is_trending: body.is_trending,
     });
     return (0, apiResponse_1.sendSuccess)(res, { product });
 }
@@ -104,6 +109,11 @@ async function remove(req, res) {
     const id = Number(req.params.id);
     await productService.remove(id);
     return (0, apiResponse_1.sendSuccess)(res, { message: 'Product deleted' });
+}
+async function setTrendingProducts(req, res) {
+    const productIds = Array.isArray(req.body.product_ids) ? req.body.product_ids : [];
+    await productService.setTrendingProducts(productIds);
+    return (0, apiResponse_1.sendSuccess)(res, { message: 'Trending products updated' });
 }
 async function list(req, res) {
     const page = Number(req.query.page) || 1;
@@ -115,6 +125,7 @@ async function list(req, res) {
     const on_sale = req.query.on_sale === '1' || req.query.on_sale === 'true';
     const search = typeof req.query.search === 'string' ? req.query.search : undefined;
     const featured = req.query.featured === '1' || req.query.featured === 'true';
+    const trending = req.query.trending === '1' || req.query.trending === 'true';
     const is_active = req.query.is_active === undefined
         ? undefined
         : req.query.is_active === '1' || req.query.is_active === 'true';
@@ -129,6 +140,7 @@ async function list(req, res) {
         on_sale: on_sale || undefined,
         search,
         featured: featured || undefined,
+        trending: trending || undefined,
         is_active,
         sort: sort,
     });

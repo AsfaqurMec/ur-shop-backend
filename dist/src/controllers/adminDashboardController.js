@@ -47,13 +47,16 @@ exports.getLowStockLicenseProducts = getLowStockLicenseProducts;
 exports.getPendingFulfillmentCount = getPendingFulfillmentCount;
 exports.getPendingTicketsCount = getPendingTicketsCount;
 exports.getOrderDetails = getOrderDetails;
+exports.downloadOrderInvoice = downloadOrderInvoice;
 exports.getCustomersWithOrders = getCustomersWithOrders;
+exports.getCustomerDetails = getCustomerDetails;
 exports.updateCustomer = updateCustomer;
 exports.deleteCustomer = deleteCustomer;
 exports.remove = remove;
 const apiResponse_1 = require("../utils/apiResponse");
 const adminDashboardService = __importStar(require("../services/adminDashboardService"));
 const dashboardService = __importStar(require("../services/dashboardService"));
+const invoiceService = __importStar(require("../services/invoiceService"));
 async function getDashboardSummary(req, res) {
     const summary = await adminDashboardService.getDashboardSummary();
     return (0, apiResponse_1.sendSuccess)(res, { summary });
@@ -121,10 +124,23 @@ async function getOrderDetails(req, res) {
     const order = await dashboardService.getOrderDetailsAdmin(orderId);
     return (0, apiResponse_1.sendSuccess)(res, order);
 }
+async function downloadOrderInvoice(req, res) {
+    const orderId = Number(req.params.orderId);
+    const invoice = await invoiceService.createInvoicePdf(null, orderId, true);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${invoice.filename.replace(/[^a-zA-Z0-9._-]/g, '_')}"`);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.status(200).send(invoice.buffer);
+}
 async function getCustomersWithOrders(req, res) {
     const limit = req.query.limit != null ? Number(req.query.limit) : undefined;
     const offset = req.query.offset != null ? Number(req.query.offset) : undefined;
     const result = await adminDashboardService.getCustomersWithOrders(limit, offset);
+    return (0, apiResponse_1.sendSuccess)(res, result);
+}
+async function getCustomerDetails(req, res) {
+    const userId = Number(req.params.userId);
+    const result = await adminDashboardService.getCustomerDetails(userId);
     return (0, apiResponse_1.sendSuccess)(res, result);
 }
 async function updateCustomer(req, res) {
@@ -135,13 +151,12 @@ async function updateCustomer(req, res) {
 }
 async function deleteCustomer(req, res) {
     const userId = Number(req.params.userId);
-    // console.log(req.params.userId);
     await adminDashboardService.deleteCustomer(userId);
     return (0, apiResponse_1.sendSuccess)(res, {}, 200, 'Customer removed');
 }
 async function remove(req, res) {
     const id = Number(req.params.id);
     await adminDashboardService.deleteOrder(id);
-    return (0, apiResponse_1.sendSuccess)(res, { message: 'Category deleted' });
+    return (0, apiResponse_1.sendSuccess)(res, { message: 'Order deleted' });
 }
 //# sourceMappingURL=adminDashboardController.js.map

@@ -14,6 +14,7 @@ export interface ProductAttributeValueRow {
     attribute_id: number;
     value_key: string;
     label: string;
+    color_code?: string | null;
     sort_order: number;
 }
 export interface AttributeWithValues extends ProductAttributeRow {
@@ -29,6 +30,7 @@ export interface AttributeReplaceInput {
     values: Array<{
         value_key: string;
         label: string;
+        color_code?: string | null;
         sort_order: number;
     }>;
 }

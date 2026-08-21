@@ -29,16 +29,16 @@ async function loadCompanyLogo(url: string): Promise<Buffer | null> {
   }
 }
 
-/** Creates a customer-owned, printable invoice. Amounts are taken only from the stored order. */
-export async function createInvoicePdf(userId: number, orderId: number): Promise<{ filename: string; buffer: Buffer }> {
+/** Creates a customer-owned or admin printable invoice. Amounts are taken only from the stored order. */
+export async function createInvoicePdf(userId: number | null, orderId: number, isAdmin = false): Promise<{ filename: string; buffer: Buffer }> {
   const order = await orderRepo.findOrderById(orderId);
   if (!order) throw new AppError(404, 'Order not found');
-  if (order.user_id !== userId) throw new AppError(403, 'Forbidden');
+  if (!isAdmin && userId != null && order.user_id !== userId) throw new AppError(403, 'Forbidden');
 
   const [items, payment, customer, settings] = await Promise.all([
     orderRepo.findOrderItems(orderId),
     orderRepo.findPaymentByOrderId(orderId),
-    authRepo.findUserById(userId),
+    authRepo.findUserById(order.user_id),
     storeSettingsService.getStoreSettings(),
   ]);
 
@@ -100,26 +100,30 @@ export async function createInvoicePdf(userId: number, orderId: number): Promise
   drawTableHeader();
   doc.font('Helvetica').fontSize(9).fillColor('#111827');
   for (const item of items) {
-    const itemHeight = Math.max(34, doc.heightOfString(item.product_name, { width: 270 }) + 16);
+    const variationParts = item.purchase_selections_summary?.map((s) => `${s.label}: ${s.value}`).join(', ') || '';
+    const skuText = item.sku ? `SKU: ${item.sku}` : '';
+    const metaText = [skuText, variationParts].filter(Boolean).join(' | ');
+    const hasMeta = Boolean(metaText);
+    const itemHeight = hasMeta ? 46 : Math.max(34, doc.heightOfString(item.product_name, { width: 270 }) + 16);
+
     if (y + itemHeight > 660) {
       doc.addPage();
       y = MARGIN;
       drawTableHeader();
     }
     doc.moveTo(MARGIN, y + itemHeight).lineTo(PAGE_WIDTH - MARGIN, y + itemHeight).strokeColor('#E5E7EB').stroke();
-    doc.fillColor('#111827').font('Helvetica-Bold').text(item.product_name, MARGIN + 10, y + 9, { width: 270 });
-    doc.font('Helvetica').text(String(item.quantity), 330, y + 9, { width: 40, align: 'right' });
+    doc.fillColor('#111827').font('Helvetica-Bold').fontSize(9).text(item.product_name, MARGIN + 10, y + 7, { width: 270 });
+    if (hasMeta) {
+      doc.fillColor('#6B7280').font('Helvetica').fontSize(8).text(metaText, MARGIN + 10, y + 22, { width: 270 });
+    }
+    doc.fillColor('#111827').font('Helvetica').fontSize(9).text(String(item.quantity), 330, y + 9, { width: 40, align: 'right' });
     doc.text(money(Number(item.unit_price), order.currency), 380, y + 9, { width: 70, align: 'right' });
     doc.text(money(Number(item.total_price), order.currency), 460, y + 9, { width: 78, align: 'right' });
     y += itemHeight;
   }
 
-  // y = Math.max(y + 24, 610);
-  // if (y > 690) { doc.addPage(); y = MARGIN + 20; }
   y += 24;
 
-// Make sure there is enough room for the totals section.
-// If not, move the totals to the next page.
   if (y > PAGE_HEIGHT - 150) {
     doc.addPage();
     y = MARGIN + 20;
@@ -133,7 +137,10 @@ export async function createInvoicePdf(userId: number, orderId: number): Promise
     y += bold ? 24 : 18;
   };
   totalRow('Subtotal', money(order.subtotal, order.currency));
-  if (order.discount > 0) totalRow('Discount', `-${money(order.discount, order.currency)}`);
+  if (order.discount > 0) {
+    const couponLabel = order.coupon_code || order.coupon_name ? `Discount (${order.coupon_code || order.coupon_name})` : 'Discount';
+    totalRow(couponLabel, `-${money(order.discount, order.currency)}`);
+  }
   if (order.tax > 0) totalRow('Tax', money(order.tax, order.currency));
   if (order.shipping_fee > 0 || order.shipping_method_title) totalRow('Shipping', money(order.shipping_fee, order.currency));
   doc.moveTo(totalX, y - 3).lineTo(PAGE_WIDTH - MARGIN, y - 3).strokeColor('#9CA3AF').stroke();

@@ -13,8 +13,11 @@ export declare function create(data: {
     manual_fulfillment_required?: boolean;
     price: number;
     compare_at_price?: number | null;
+    sku?: string | null;
+    quantity?: number | null;
     is_active?: boolean;
     is_featured?: boolean;
+    is_trending?: boolean;
 }): Promise<ProductPublic>;
 export declare function update(id: number, data: {
     name?: string;
@@ -33,10 +36,12 @@ export declare function update(id: number, data: {
     default_variation_id?: number | null;
     is_active?: boolean;
     is_featured?: boolean;
+    is_trending?: boolean;
 }): Promise<ProductPublic>;
 /** Stores a single optional size-chart image path alongside the product. */
 export declare function setSizeChartImage(id: number, path: string | null): Promise<ProductPublic>;
 export declare function remove(id: number): Promise<void>;
+export declare function setTrendingProducts(productIds: number[]): Promise<void>;
 export declare function list(query: ProductListQuery): Promise<ProductListResult>;
 export declare function getBySlug(slug: string, forPublic?: boolean): Promise<ProductPublic>;
 export declare function getById(id: number): Promise<ProductPublic>;

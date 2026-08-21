@@ -22,6 +22,43 @@ export declare function getCustomersWithOrders(limit: number, offset: number): P
     customers: AdminCustomerListItem[];
     total: number;
 }>;
+export declare function getCustomerDetailsAndOrders(userId: number): Promise<{
+    customer: {
+        user_id: number;
+        email: string;
+        name: string;
+        mobile: string | null;
+        address: string | null;
+        created_at: string;
+        order_count: number;
+        total_spent: number;
+        last_order_at: string | null;
+    };
+    orders: {
+        id: number;
+        order_number: string;
+        status: string;
+        payment_status: string;
+        gateway: string;
+        subtotal: number;
+        discount: number;
+        coupon_code: any;
+        total: number;
+        currency: string;
+        created_at: string;
+        items_count: any;
+        items: {
+            id: number;
+            product_id: number;
+            product_name: string;
+            sku: any;
+            quantity: number;
+            unit_price: number;
+            total_price: number;
+            purchase_selections_summary: any;
+        }[];
+    }[];
+} | null>;
 export declare function userHasOrders(userId: number): Promise<boolean>;
 export declare function getCustomerAggregateById(userId: number): Promise<AdminCustomerListItem | null>;
 export declare function softDelete(id: number): Promise<boolean>;

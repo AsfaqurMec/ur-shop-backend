@@ -7,6 +7,8 @@ export interface OrderRow {
     status: OrderStatus;
     subtotal: number;
     discount: number;
+    coupon_code?: string | null;
+    coupon_name?: string | null;
     tax: number;
     total: number;
     currency: string;
@@ -26,6 +28,7 @@ export interface OrderItemRow {
     order_id: number;
     product_id: number;
     product_variation_id: number | null;
+    sku?: string | null;
     product_name: string;
     product_type: OrderItemProductType;
     quantity: number;
@@ -41,6 +44,7 @@ export interface OrderItemRow {
 export interface OrderItemPublic {
     id: number;
     product_id: number;
+    sku?: string | null;
     product_name: string;
     product_type: OrderItemProductType;
     quantity: number;
@@ -58,6 +62,8 @@ export interface OrderPublic {
     status: OrderStatus;
     subtotal: number;
     discount: number;
+    coupon_code?: string | null;
+    coupon_name?: string | null;
     tax: number;
     total: number;
     currency: string;

@@ -19,6 +19,7 @@ export interface ProductAttributeValueRow {
   attribute_id: number;
   value_key: string;
   label: string;
+  color_code?: string | null;
   sort_order: number;
 }
 
@@ -33,7 +34,7 @@ export interface AttributeReplaceInput {
   visible_on_page: boolean;
   used_for_variations: boolean;
   sort_order: number;
-  values: Array<{ value_key: string; label: string; sort_order: number }>;
+  values: Array<{ value_key: string; label: string; color_code?: string | null; sort_order: number }>;
 }
 
 function toAttrRow(doc: any): ProductAttributeRow {
@@ -55,6 +56,7 @@ function toValueRow(doc: any): ProductAttributeValueRow {
     attribute_id: Number(doc.attribute_id),
     value_key: String(doc.value_key),
     label: String(doc.label),
+    color_code: doc.color_code ? String(doc.color_code) : null,
     sort_order: Number(doc.sort_order ?? 0),
   };
 }
@@ -110,6 +112,7 @@ export async function replaceAttributesForProduct(
         attribute_id: attrId,
         value_key: value.value_key,
         label: value.label,
+        color_code: value.color_code ?? null,
         sort_order: value.sort_order,
       });
     }

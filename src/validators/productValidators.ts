@@ -22,6 +22,7 @@ export const createProductValidator = [
   body('compare_at_price').optional().isFloat({ min: 0 }).toFloat(),
   body('is_active').optional().isBoolean().toBoolean(),
   body('is_featured').optional().isBoolean().toBoolean(),
+  body('is_trending').optional().isBoolean().toBoolean(),
 ];
 
 export const updateProductValidator = [
@@ -46,6 +47,7 @@ export const updateProductValidator = [
     .withMessage('default_variation_id must be null or a positive integer'),
   body('is_active').optional().isBoolean().toBoolean(),
   body('is_featured').optional().isBoolean().toBoolean(),
+  body('is_trending').optional().isBoolean().toBoolean(),
 ];
 
 export const productIdParamValidator = [
@@ -54,6 +56,11 @@ export const productIdParamValidator = [
 
 export const productSlugParamValidator = [
   param('slug').trim().notEmpty().withMessage('Slug is required'),
+];
+
+export const setTrendingProductsValidator = [
+  body('product_ids').isArray().withMessage('product_ids must be an array'),
+  body('product_ids.*').isInt({ min: 1 }).withMessage('Each product id must be a positive integer'),
 ];
 
 export const listProductsValidator = [
@@ -66,6 +73,7 @@ export const listProductsValidator = [
   query('on_sale').optional().isIn(['0', '1', 'true', 'false']),
   query('search').optional().trim().isLength({ max: 100 }),
   query('featured').optional().isIn(['0', '1', 'true', 'false']),
+  query('trending').optional().isIn(['0', '1', 'true', 'false']),
   query('is_active').optional().isIn(['0', '1', 'true', 'false']),
   query('sort').optional().isIn(['newest', 'price_asc', 'price_desc', 'name_asc', 'name_desc']),
 ];

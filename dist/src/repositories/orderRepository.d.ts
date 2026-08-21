@@ -6,6 +6,8 @@ export declare function createOrder(_conn: unknown, data: {
     payment_status?: 'paid' | 'unpaid';
     subtotal: number;
     discount: number;
+    coupon_code?: string | null;
+    coupon_name?: string | null;
     tax: number;
     total: number;
     currency: string;
@@ -21,6 +23,7 @@ export declare function createOrder(_conn: unknown, data: {
 export interface OrderItemInput {
     product_id: number;
     product_variation_id?: number | null;
+    sku?: string | null;
     product_name: string;
     product_type: OrderItemProductType;
     quantity: number;

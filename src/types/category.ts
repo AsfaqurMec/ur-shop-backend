@@ -21,6 +21,7 @@ export interface CategoryPublic {
   image: string | null;
   banner_image: string | null;
   sort_order: number;
+  product_count?: number;
   created_at: string;
   updated_at: string;
 }

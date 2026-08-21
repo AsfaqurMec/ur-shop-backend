@@ -13,7 +13,9 @@ export declare function getLowStockLicenseProducts(req: Request, res: Response):
 export declare function getPendingFulfillmentCount(req: Request, res: Response): Promise<Response>;
 export declare function getPendingTicketsCount(req: Request, res: Response): Promise<Response>;
 export declare function getOrderDetails(req: Request, res: Response): Promise<Response>;
+export declare function downloadOrderInvoice(req: Request, res: Response): Promise<void>;
 export declare function getCustomersWithOrders(req: Request, res: Response): Promise<Response>;
+export declare function getCustomerDetails(req: Request, res: Response): Promise<Response>;
 export declare function updateCustomer(req: Request, res: Response): Promise<Response>;
 export declare function deleteCustomer(req: Request, res: Response): Promise<Response>;
 export declare function remove(req: Request, res: Response): Promise<Response>;
