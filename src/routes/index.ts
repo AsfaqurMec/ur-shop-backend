@@ -42,6 +42,8 @@ router.use('/admin/payment-options', adminPaymentOptionsRoutes);
 router.use('/admin/store-settings', adminStoreSettingsRoutes);
 router.use('/store-settings', storeSettingsRoutes);
 router.use('/banners', bannerRoutes);
+router.use('/promotions', adRoutes);
+router.use('/popups', adRoutes);
 router.use('/ads', adRoutes);
 router.use('/cron', cronRoutes);
 

@@ -45,6 +45,8 @@ router.use('/admin/payment-options', adminPaymentOptions_1.default);
 router.use('/admin/store-settings', adminStoreSettings_1.default);
 router.use('/store-settings', storeSettings_1.default);
 router.use('/banners', banners_1.default);
+router.use('/promotions', ads_1.default);
+router.use('/popups', ads_1.default);
 router.use('/ads', ads_1.default);
 router.use('/cron', cron_1.default);
 exports.default = router;
