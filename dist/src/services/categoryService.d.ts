@@ -27,4 +27,5 @@ export declare function listPaginated(page: number, limit: number): Promise<{
     totalPages: number;
 }>;
 export declare function getBySlug(slug: string): Promise<CategoryPublic>;
+export declare function reorderCategories(orderedIds: number[]): Promise<void>;
 //# sourceMappingURL=categoryService.d.ts.map

@@ -110,22 +110,36 @@ export async function insertGeneratedCombinations(
   _conn: unknown,
   productId: number,
   combos: Record<string, string>[],
-  defaultPrice: number
+  defaultPrice: number,
+  baseSku?: string | null
 ): Promise<number> {
   let added = 0;
-  const last = await ProductVariationModel.findOne({ product_id: productId })
-    .sort({ sort_order: -1 })
-    .lean();
+  const [last, product] = await Promise.all([
+    ProductVariationModel.findOne({ product_id: productId })
+      .sort({ sort_order: -1 })
+      .lean(),
+    baseSku !== undefined ? null : ProductModel.findOne({ id: productId }).lean(),
+  ]);
+  const effectiveBaseSku = baseSku !== undefined ? baseSku : (product?.sku || null);
   let order = Number(last?.sort_order ?? -1) + 1;
 
   for (const combo of combos) {
     const sig = combinationSignature(combo);
     const exists = await ProductVariationModel.exists({ product_id: productId, combination_signature: sig });
     if (exists) continue;
+
+    let autoSku: string | null = null;
+    if (effectiveBaseSku) {
+      const parts = Object.values(combo)
+        .map((v) => String(v).trim().toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 3))
+        .filter(Boolean);
+      autoSku = parts.length > 0 ? `${effectiveBaseSku}-${parts.join('-')}` : effectiveBaseSku;
+    }
+
     await ProductVariationModel.create({
       id: await nextId('product_variations'),
       product_id: productId,
-      sku: null,
+      sku: autoSku,
       quantity: null,
       price: defaultPrice,
       compare_at_price: null,

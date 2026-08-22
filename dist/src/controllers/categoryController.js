@@ -38,6 +38,7 @@ exports.update = update;
 exports.remove = remove;
 exports.list = list;
 exports.getBySlug = getBySlug;
+exports.reorder = reorder;
 const apiResponse_1 = require("../utils/apiResponse");
 const categoryService = __importStar(require("../services/categoryService"));
 const cloudinaryService = __importStar(require("../services/cloudinaryService"));
@@ -127,5 +128,13 @@ async function getBySlug(req, res) {
     const slug = req.params.slug;
     const category = await categoryService.getBySlug(slug);
     return (0, apiResponse_1.sendSuccess)(res, { category });
+}
+async function reorder(req, res) {
+    const { orderedIds } = req.body;
+    if (!Array.isArray(orderedIds)) {
+        return res.status(400).json({ error: 'orderedIds must be an array of category IDs' });
+    }
+    await categoryService.reorderCategories(orderedIds.map((id) => Number(id)));
+    return (0, apiResponse_1.sendSuccess)(res, { message: 'Categories reordered successfully' });
 }
 //# sourceMappingURL=categoryController.js.map

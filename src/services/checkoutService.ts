@@ -170,17 +170,6 @@ export async function createOrder(
     shippingMethodTitle = selectedMethod.title;
   }
 
-  const profileAddressParts = [
-    shippingAddress,
-    shippingAddressLine2,
-    shippingPostalCode,
-  ].filter(Boolean);
-
-  await authRepo.updateUserContact(userId, {
-    mobile: shippingMobile,
-    address: profileAddressParts.join('\n'),
-  });
-
   const optionRow = isCashOnDelivery ? null : await paymentOptionService.assertCheckoutGatewayAllowed(methodRaw);
 
   if (optionRow && paymentOptionService.isMfsReferenceRow(optionRow)) {

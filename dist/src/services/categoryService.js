@@ -39,6 +39,7 @@ exports.remove = remove;
 exports.list = list;
 exports.listPaginated = listPaginated;
 exports.getBySlug = getBySlug;
+exports.reorderCategories = reorderCategories;
 const errorHandler_1 = require("../middlewares/errorHandler");
 const categoryRepo = __importStar(require("../repositories/categoryRepository"));
 const slugHelpers_1 = require("../utils/slugHelpers");
@@ -173,5 +174,17 @@ async function getBySlug(slug) {
     if (!row)
         throw new errorHandler_1.AppError(404, 'Category not found');
     return toPublic(row);
+}
+async function reorderCategories(orderedIds) {
+    const { CategoryModel } = await Promise.resolve().then(() => __importStar(require('../database/models')));
+    const bulk = orderedIds.map((id, index) => ({
+        updateOne: {
+            filter: { id: Number(id), deleted_at: null },
+            update: { $set: { sort_order: index + 1 } },
+        },
+    }));
+    if (bulk.length > 0) {
+        await CategoryModel.bulkWrite(bulk);
+    }
 }
 //# sourceMappingURL=categoryService.js.map

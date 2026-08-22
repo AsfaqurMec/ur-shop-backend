@@ -204,8 +204,14 @@ export async function updateOrderStatus(orderId: number, status: import('../type
 }
 
 export async function updateOrderPaymentStatus(orderId: number, paymentStatus: 'paid' | 'unpaid'): Promise<boolean> {
-  const result = await OrderModel.updateOne({ id: orderId }, { $set: { payment_status: paymentStatus } });
-  return result.modifiedCount > 0;
+  const [orderRes] = await Promise.all([
+    OrderModel.updateOne({ id: orderId }, { $set: { payment_status: paymentStatus } }),
+    PaymentModel.updateMany(
+      { order_id: orderId },
+      { $set: { status: paymentStatus === 'paid' ? 'completed' : 'pending' } }
+    ),
+  ]);
+  return orderRes.matchedCount > 0;
 }
 
 export async function getPaidRevenueHistory(params?: {

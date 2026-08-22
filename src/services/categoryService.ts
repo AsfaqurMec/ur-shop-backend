@@ -165,3 +165,17 @@ export async function getBySlug(slug: string): Promise<CategoryPublic> {
   if (!row) throw new AppError(404, 'Category not found');
   return toPublic(row);
 }
+
+export async function reorderCategories(orderedIds: number[]): Promise<void> {
+  const { CategoryModel } = await import('../database/models');
+  const bulk = orderedIds.map((id, index) => ({
+    updateOne: {
+      filter: { id: Number(id), deleted_at: null },
+      update: { $set: { sort_order: index + 1 } },
+    },
+  }));
+  if (bulk.length > 0) {
+    await CategoryModel.bulkWrite(bulk);
+  }
+}
+

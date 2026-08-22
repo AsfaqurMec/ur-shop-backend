@@ -6,6 +6,7 @@ export interface OrderRow {
   user_id: number;
   order_number: string;
   status: OrderStatus;
+  payment_status?: 'paid' | 'unpaid';
   subtotal: number;
   discount: number;
   coupon_code?: string | null;

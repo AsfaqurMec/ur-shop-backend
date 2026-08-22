@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 export declare function isMongoConfigured(): boolean;
+export declare function ensureOptimizedIndexes(): Promise<void>;
 export declare function connectMongo(): Promise<typeof mongoose>;
 export declare function disconnectMongo(): Promise<void>;
 export default mongoose;

@@ -26,5 +26,5 @@ export declare function setVariationQuantityAbsolute(variationId: number, quanti
 export declare function adjustVariationQuantity(_conn: unknown, variationId: number, delta: number): Promise<void>;
 export declare function deleteAllForProduct(_conn: unknown, productId: number): Promise<void>;
 export declare function replaceVariationsForProduct(conn: unknown, productId: number, inputs: VariationReplaceInput[]): Promise<void>;
-export declare function insertGeneratedCombinations(_conn: unknown, productId: number, combos: Record<string, string>[], defaultPrice: number): Promise<number>;
+export declare function insertGeneratedCombinations(_conn: unknown, productId: number, combos: Record<string, string>[], defaultPrice: number, baseSku?: string | null): Promise<number>;
 //# sourceMappingURL=productVariationRepository.d.ts.map

@@ -77,21 +77,32 @@ async function replaceVariationsForProduct(conn, productId, inputs) {
         });
     }
 }
-async function insertGeneratedCombinations(_conn, productId, combos, defaultPrice) {
+async function insertGeneratedCombinations(_conn, productId, combos, defaultPrice, baseSku) {
     let added = 0;
-    const last = await models_1.ProductVariationModel.findOne({ product_id: productId })
-        .sort({ sort_order: -1 })
-        .lean();
+    const [last, product] = await Promise.all([
+        models_1.ProductVariationModel.findOne({ product_id: productId })
+            .sort({ sort_order: -1 })
+            .lean(),
+        baseSku !== undefined ? null : models_1.ProductModel.findOne({ id: productId }).lean(),
+    ]);
+    const effectiveBaseSku = baseSku !== undefined ? baseSku : (product?.sku || null);
     let order = Number(last?.sort_order ?? -1) + 1;
     for (const combo of combos) {
         const sig = (0, combinationSignature_1.combinationSignature)(combo);
         const exists = await models_1.ProductVariationModel.exists({ product_id: productId, combination_signature: sig });
         if (exists)
             continue;
+        let autoSku = null;
+        if (effectiveBaseSku) {
+            const parts = Object.values(combo)
+                .map((v) => String(v).trim().toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 3))
+                .filter(Boolean);
+            autoSku = parts.length > 0 ? `${effectiveBaseSku}-${parts.join('-')}` : effectiveBaseSku;
+        }
         await models_1.ProductVariationModel.create({
             id: await (0, counter_1.nextId)('product_variations'),
             product_id: productId,
-            sku: null,
+            sku: autoSku,
             quantity: null,
             price: defaultPrice,
             compare_at_price: null,

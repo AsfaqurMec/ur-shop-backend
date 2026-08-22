@@ -450,11 +450,6 @@ async function guestCheckout(name, mobile, address, ip, userAgent) {
         if (!valid) {
             throw new errorHandler_1.AppError(409, 'An account with this email already exists. Please log in to continue.');
         }
-        await authRepo.updateUserContact(existing.id, {
-            name: trimmedName,
-            mobile: trimmedMobile,
-            address: trimmedAddress,
-        });
         return createUserSession(existing, ip, userAgent);
     }
     const passwordHash = await (0, passwordHelpers_1.hashPassword)(trimmedMobile.slice(0, 5));

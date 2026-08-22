@@ -163,8 +163,11 @@ async function updateOrderStatus(orderId, status) {
     return result.modifiedCount > 0;
 }
 async function updateOrderPaymentStatus(orderId, paymentStatus) {
-    const result = await models_1.OrderModel.updateOne({ id: orderId }, { $set: { payment_status: paymentStatus } });
-    return result.modifiedCount > 0;
+    const [orderRes] = await Promise.all([
+        models_1.OrderModel.updateOne({ id: orderId }, { $set: { payment_status: paymentStatus } }),
+        models_1.PaymentModel.updateMany({ order_id: orderId }, { $set: { status: paymentStatus === 'paid' ? 'completed' : 'pending' } }),
+    ]);
+    return orderRes.matchedCount > 0;
 }
 async function getPaidRevenueHistory(params) {
     const range = getDateRangeFilter(params) || {

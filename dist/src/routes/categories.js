@@ -47,6 +47,7 @@ router.get('/', (0, validate_1.validate)(categoryValidators_1.listCategoriesVali
 router.get('/:slug', (0, validate_1.validate)(categoryValidators_1.getBySlugValidator), (0, asyncHandler_1.asyncHandler)(categoryController.getBySlug));
 // Admin only
 router.post('/', auth_1.auth, admin_1.admin, (req, res, next) => (0, upload_1.uploadCategoryImages)(req, res, (err) => (err ? next(err) : next())), (0, validate_1.validate)(categoryValidators_1.createCategoryValidator), (0, asyncHandler_1.asyncHandler)(categoryController.create));
+router.put('/reorder', auth_1.auth, admin_1.admin, (0, asyncHandler_1.asyncHandler)(categoryController.reorder));
 router.put('/:id', auth_1.auth, admin_1.admin, (req, res, next) => (0, upload_1.uploadCategoryImages)(req, res, (err) => (err ? next(err) : next())), (0, validate_1.validate)(categoryValidators_1.updateCategoryValidator), (0, asyncHandler_1.asyncHandler)(categoryController.update));
 router.delete('/:id', auth_1.auth, admin_1.admin, (0, validate_1.validate)(categoryValidators_1.deleteCategoryValidator), (0, asyncHandler_1.asyncHandler)(categoryController.remove));
 exports.default = router;

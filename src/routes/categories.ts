@@ -28,6 +28,7 @@ router.post(
   validate(createCategoryValidator),
   asyncHandler(categoryController.create)
 );
+router.put('/reorder', auth, admin, asyncHandler(categoryController.reorder));
 router.put(
   '/:id',
   auth,

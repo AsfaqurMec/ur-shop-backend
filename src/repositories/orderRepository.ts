@@ -61,6 +61,7 @@ function orderRow(doc: any): OrderRow {
     user_id: Number(doc.user_id),
     order_number: String(doc.order_number),
     status: doc.status as OrderStatus,
+    payment_status: (doc.payment_status as any) || 'unpaid',
     subtotal: Number(doc.subtotal ?? 0),
     discount: Number(doc.discount ?? 0),
     coupon_code: doc.coupon_code || doc.coupon_name || null,

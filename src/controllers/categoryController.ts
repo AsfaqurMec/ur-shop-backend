@@ -97,3 +97,13 @@ export async function getBySlug(req: Request, res: Response): Promise<Response> 
   const category = await categoryService.getBySlug(slug);
   return sendSuccess(res, { category });
 }
+
+export async function reorder(req: Request, res: Response): Promise<Response> {
+  const { orderedIds } = req.body;
+  if (!Array.isArray(orderedIds)) {
+    return res.status(400).json({ error: 'orderedIds must be an array of category IDs' });
+  }
+  await categoryService.reorderCategories(orderedIds.map((id) => Number(id)));
+  return sendSuccess(res, { message: 'Categories reordered successfully' });
+}
+
