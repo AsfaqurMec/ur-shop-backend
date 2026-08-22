@@ -286,6 +286,14 @@ export async function deleteProductImage(id: number, productId: number): Promise
   return result.deletedCount > 0;
 }
 
+export async function reorderProductImages(productId: number, imageIds: number[]): Promise<void> {
+  await Promise.all(
+    imageIds.map((id, index) =>
+      ProductImageModel.updateOne({ id, product_id: productId }, { sort_order: index })
+    )
+  );
+}
+
 export async function deleteAllProductImagesByProductId(productId: number): Promise<void> {
   await ProductImageModel.deleteMany({ product_id: productId });
 }

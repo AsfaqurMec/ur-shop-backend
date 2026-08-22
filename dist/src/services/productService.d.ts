@@ -48,6 +48,8 @@ export declare function getById(id: number): Promise<ProductPublic>;
 export declare function replacePurchaseVariables(productId: number, variables: purchaseVariableRepo.AdminVariableInput[]): Promise<ProductPublic>;
 export declare function addImage(productId: number, filenameOrUrl: string, altText?: string | null, sortOrder?: number): Promise<ProductImagePublic>;
 export declare function removeImage(productId: number, imageId: number): Promise<void>;
+export declare function reorderImages(productId: number, imageIds: number[]): Promise<ProductImagePublic[]>;
+export declare function setPrimaryImage(productId: number, imageId: number): Promise<ProductImagePublic[]>;
 export declare function addFile(productId: number, filename: string, displayName: string, fileSize: number | null, downloadLimit?: number | null, sortOrder?: number): Promise<ProductFilePublic>;
 export declare function removeFile(productId: number, fileId: number): Promise<void>;
 export declare function addLicenseKeys(productId: number, keys: string[], productVariationId?: number | null): Promise<{

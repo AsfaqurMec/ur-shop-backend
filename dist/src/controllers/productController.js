@@ -47,6 +47,8 @@ exports.replacePurchaseVariables = replacePurchaseVariables;
 exports.addImage = addImage;
 exports.addImages = addImages;
 exports.removeImage = removeImage;
+exports.reorderImages = reorderImages;
+exports.setPrimaryImage = setPrimaryImage;
 exports.uploadSizeChartImage = uploadSizeChartImage;
 exports.removeSizeChartImage = removeSizeChartImage;
 exports.addFile = addFile;
@@ -233,6 +235,22 @@ async function removeImage(req, res) {
     const imageId = Number(req.params.imageId);
     await productService.removeImage(productId, imageId);
     return (0, apiResponse_1.sendSuccess)(res, { message: 'Image deleted' });
+}
+async function reorderImages(req, res) {
+    const productId = Number(req.params.id);
+    const { image_ids, orderedIds } = req.body;
+    const ids = Array.isArray(image_ids) ? image_ids : Array.isArray(orderedIds) ? orderedIds : [];
+    if (!ids.length) {
+        return (0, apiResponse_1.sendError)(res, 'image_ids must be a non-empty array of image IDs', 400);
+    }
+    const images = await productService.reorderImages(productId, ids.map(Number));
+    return (0, apiResponse_1.sendSuccess)(res, { images, message: 'Images reordered successfully' });
+}
+async function setPrimaryImage(req, res) {
+    const productId = Number(req.params.id);
+    const imageId = Number(req.params.imageId);
+    const images = await productService.setPrimaryImage(productId, imageId);
+    return (0, apiResponse_1.sendSuccess)(res, { images, message: 'Primary image updated' });
 }
 async function uploadSizeChartImage(req, res) {
     const productId = Number(req.params.id);

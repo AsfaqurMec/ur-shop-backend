@@ -15,6 +15,7 @@ exports.createProductImage = createProductImage;
 exports.findProductImagesByProductId = findProductImagesByProductId;
 exports.findPrimaryImagePathsByProductIds = findPrimaryImagePathsByProductIds;
 exports.deleteProductImage = deleteProductImage;
+exports.reorderProductImages = reorderProductImages;
 exports.deleteAllProductImagesByProductId = deleteAllProductImagesByProductId;
 exports.createProductFile = createProductFile;
 exports.findProductFilesByProductId = findProductFilesByProductId;
@@ -233,6 +234,9 @@ async function findPrimaryImagePathsByProductIds(productIds) {
 async function deleteProductImage(id, productId) {
     const result = await models_1.ProductImageModel.deleteOne({ id, product_id: productId });
     return result.deletedCount > 0;
+}
+async function reorderProductImages(productId, imageIds) {
+    await Promise.all(imageIds.map((id, index) => models_1.ProductImageModel.updateOne({ id, product_id: productId }, { sort_order: index })));
 }
 async function deleteAllProductImagesByProductId(productId) {
     await models_1.ProductImageModel.deleteMany({ product_id: productId });

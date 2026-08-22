@@ -205,6 +205,24 @@ export async function removeImage(req: Request, res: Response): Promise<Response
   return sendSuccess(res, { message: 'Image deleted' });
 }
 
+export async function reorderImages(req: Request, res: Response): Promise<Response> {
+  const productId = Number(req.params.id);
+  const { image_ids, orderedIds } = req.body;
+  const ids = Array.isArray(image_ids) ? image_ids : Array.isArray(orderedIds) ? orderedIds : [];
+  if (!ids.length) {
+    return sendError(res, 'image_ids must be a non-empty array of image IDs', 400);
+  }
+  const images = await productService.reorderImages(productId, ids.map(Number));
+  return sendSuccess(res, { images, message: 'Images reordered successfully' });
+}
+
+export async function setPrimaryImage(req: Request, res: Response): Promise<Response> {
+  const productId = Number(req.params.id);
+  const imageId = Number(req.params.imageId);
+  const images = await productService.setPrimaryImage(productId, imageId);
+  return sendSuccess(res, { images, message: 'Primary image updated' });
+}
+
 export async function uploadSizeChartImage(req: Request, res: Response): Promise<Response> {
   const productId = Number(req.params.id);
   const file = req.file;

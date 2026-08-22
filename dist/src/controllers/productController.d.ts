@@ -13,6 +13,8 @@ export declare function replacePurchaseVariables(req: Request, res: Response): P
 export declare function addImage(req: Request, res: Response): Promise<Response>;
 export declare function addImages(req: Request, res: Response): Promise<Response>;
 export declare function removeImage(req: Request, res: Response): Promise<Response>;
+export declare function reorderImages(req: Request, res: Response): Promise<Response>;
+export declare function setPrimaryImage(req: Request, res: Response): Promise<Response>;
 export declare function uploadSizeChartImage(req: Request, res: Response): Promise<Response>;
 export declare function removeSizeChartImage(req: Request, res: Response): Promise<Response>;
 export declare function addFile(req: Request, res: Response): Promise<Response>;

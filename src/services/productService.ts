@@ -642,6 +642,30 @@ export async function removeImage(productId: number, imageId: number): Promise<v
   if (!deleted) throw new AppError(404, 'Image not found');
 }
 
+export async function reorderImages(productId: number, imageIds: number[]): Promise<ProductImagePublic[]> {
+  const product = await productRepo.findProductById(productId);
+  if (!product) throw new AppError(404, 'Product not found');
+  await productRepo.reorderProductImages(productId, imageIds);
+  const imgs = await productRepo.findProductImagesByProductId(productId);
+  return imgs.map((img) => ({
+    id: img.id,
+    path: img.path,
+    alt_text: img.alt_text,
+    sort_order: img.sort_order,
+  }));
+}
+
+export async function setPrimaryImage(productId: number, imageId: number): Promise<ProductImagePublic[]> {
+  const product = await productRepo.findProductById(productId);
+  if (!product) throw new AppError(404, 'Product not found');
+  const imgs = await productRepo.findProductImagesByProductId(productId);
+  const target = imgs.find((i) => i.id === imageId);
+  if (!target) throw new AppError(404, 'Image not found');
+  const others = imgs.filter((i) => i.id !== imageId);
+  const reorderedIds = [target.id, ...others.map((i) => i.id)];
+  return reorderImages(productId, reorderedIds);
+}
+
 export async function addFile(
   productId: number,
   filename: string,

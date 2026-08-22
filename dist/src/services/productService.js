@@ -48,6 +48,8 @@ exports.getById = getById;
 exports.replacePurchaseVariables = replacePurchaseVariables;
 exports.addImage = addImage;
 exports.removeImage = removeImage;
+exports.reorderImages = reorderImages;
+exports.setPrimaryImage = setPrimaryImage;
 exports.addFile = addFile;
 exports.removeFile = removeFile;
 exports.addLicenseKeys = addLicenseKeys;
@@ -634,6 +636,31 @@ async function removeImage(productId, imageId) {
     const deleted = await productRepo.deleteProductImage(imageId, productId);
     if (!deleted)
         throw new errorHandler_1.AppError(404, 'Image not found');
+}
+async function reorderImages(productId, imageIds) {
+    const product = await productRepo.findProductById(productId);
+    if (!product)
+        throw new errorHandler_1.AppError(404, 'Product not found');
+    await productRepo.reorderProductImages(productId, imageIds);
+    const imgs = await productRepo.findProductImagesByProductId(productId);
+    return imgs.map((img) => ({
+        id: img.id,
+        path: img.path,
+        alt_text: img.alt_text,
+        sort_order: img.sort_order,
+    }));
+}
+async function setPrimaryImage(productId, imageId) {
+    const product = await productRepo.findProductById(productId);
+    if (!product)
+        throw new errorHandler_1.AppError(404, 'Product not found');
+    const imgs = await productRepo.findProductImagesByProductId(productId);
+    const target = imgs.find((i) => i.id === imageId);
+    if (!target)
+        throw new errorHandler_1.AppError(404, 'Image not found');
+    const others = imgs.filter((i) => i.id !== imageId);
+    const reorderedIds = [target.id, ...others.map((i) => i.id)];
+    return reorderImages(productId, reorderedIds);
 }
 async function addFile(productId, filename, displayName, fileSize, downloadLimit, sortOrder) {
     const product = await productRepo.findProductById(productId);

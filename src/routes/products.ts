@@ -92,6 +92,20 @@ router.post(
   validate(productIdParamValidator),
   asyncHandler(productController.addImages)
 );
+router.put(
+  '/:id/images/reorder',
+  auth,
+  admin,
+  validate(productIdParamValidator),
+  asyncHandler(productController.reorderImages)
+);
+router.put(
+  '/:id/images/:imageId/primary',
+  auth,
+  admin,
+  validate(imageIdParamValidator),
+  asyncHandler(productController.setPrimaryImage)
+);
 router.delete(
   '/:id/images/:imageId',
   auth,

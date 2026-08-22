@@ -69,6 +69,7 @@ export declare function createProductImage(data: {
 export declare function findProductImagesByProductId(productId: number): Promise<ProductImageRow[]>;
 export declare function findPrimaryImagePathsByProductIds(productIds: number[]): Promise<Map<number, string>>;
 export declare function deleteProductImage(id: number, productId: number): Promise<boolean>;
+export declare function reorderProductImages(productId: number, imageIds: number[]): Promise<void>;
 export declare function deleteAllProductImagesByProductId(productId: number): Promise<void>;
 export declare function createProductFile(data: {
     product_id: number;
