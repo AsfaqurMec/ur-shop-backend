@@ -8,13 +8,23 @@ exports.optionalAuth = optionalAuth;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const config_1 = require("../config");
 const apiResponse_1 = require("../utils/apiResponse");
+function extractToken(req) {
+    const cookieToken = req.cookies?.auth_token;
+    if (cookieToken && typeof cookieToken === 'string' && cookieToken.trim()) {
+        return cookieToken.trim();
+    }
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+        return authHeader.slice(7).trim();
+    }
+    return null;
+}
 /**
  * Auth middleware: verifies JWT and attaches user to req.
  * Use on routes that require authentication.
  */
 function auth(req, res, next) {
-    const authHeader = req.headers.authorization;
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    const token = extractToken(req);
     if (!token) {
         (0, apiResponse_1.sendError)(res, 'Unauthorized', 401, 'No token provided');
         return;
@@ -38,8 +48,7 @@ function auth(req, res, next) {
  * Optional auth: attaches user if valid token present, does not reject if missing.
  */
 function optionalAuth(req, _res, next) {
-    const authHeader = req.headers.authorization;
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    const token = extractToken(req);
     if (!token) {
         next();
         return;

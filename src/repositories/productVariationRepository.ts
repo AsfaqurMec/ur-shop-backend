@@ -140,7 +140,7 @@ export async function insertGeneratedCombinations(
       id: await nextId('product_variations'),
       product_id: productId,
       sku: autoSku,
-      quantity: null,
+      quantity: 0,
       price: defaultPrice,
       compare_at_price: null,
       enabled: 1,

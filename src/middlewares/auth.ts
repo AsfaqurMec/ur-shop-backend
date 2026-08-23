@@ -10,13 +10,24 @@ export interface JwtPayload {
   sessionId: number;
 }
 
+function extractToken(req: Request): string | null {
+  const cookieToken = req.cookies?.auth_token;
+  if (cookieToken && typeof cookieToken === 'string' && cookieToken.trim()) {
+    return cookieToken.trim();
+  }
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    return authHeader.slice(7).trim();
+  }
+  return null;
+}
+
 /**
  * Auth middleware: verifies JWT and attaches user to req.
  * Use on routes that require authentication.
  */
 export function auth(req: Request, res: Response, next: NextFunction): void {
-  const authHeader = req.headers.authorization;
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  const token = extractToken(req);
 
   if (!token) {
     sendError(res, 'Unauthorized', 401, 'No token provided');
@@ -42,8 +53,7 @@ export function auth(req: Request, res: Response, next: NextFunction): void {
  * Optional auth: attaches user if valid token present, does not reject if missing.
  */
 export function optionalAuth(req: Request, _res: Response, next: NextFunction): void {
-  const authHeader = req.headers.authorization;
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  const token = extractToken(req);
   if (!token) {
     next();
     return;

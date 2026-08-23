@@ -2,6 +2,14 @@ export declare const env: {
     readonly nodeEnv: string;
     readonly port: number;
     readonly apiPrefix: string;
+    readonly rateLimit: {
+        readonly authMax: number;
+        readonly authWindowMinutes: number;
+        readonly checkoutMax: number;
+        readonly checkoutWindowMinutes: number;
+        readonly apiMax: number;
+        readonly apiWindowMinutes: number;
+    };
     readonly db: {
         readonly uri: string;
         readonly database: string;
@@ -10,6 +18,7 @@ export declare const env: {
         readonly secret: string;
         readonly accessExpiresIn: string;
         readonly refreshExpiresIn: string;
+        readonly sessionExpiryDays: number;
     };
     readonly upload: {
         readonly dir: string;

@@ -49,6 +49,7 @@ exports.continueCheckout = continueCheckout;
 const config_1 = require("../config");
 const apiResponse_1 = require("../utils/apiResponse");
 const authService = __importStar(require("../services/authService"));
+const cookieHelpers_1 = require("../utils/cookieHelpers");
 function pickVerificationBaseUrl(req) {
     const fromBody = typeof req.body?.verificationBaseUrl === 'string' ? req.body.verificationBaseUrl.trim() : '';
     const fromQuery = typeof req.query?.verificationBaseUrl === 'string' ? req.query.verificationBaseUrl.trim() : '';
@@ -82,21 +83,31 @@ async function login(req, res) {
     const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() ?? req.socket?.remoteAddress ?? null;
     const userAgent = req.headers['user-agent'] ?? null;
     const result = await authService.login(identifier, password, ip, userAgent);
+    if (result.accessToken) {
+        (0, cookieHelpers_1.setAuthCookies)(res, result.accessToken, result.refreshToken);
+    }
     return (0, apiResponse_1.sendSuccess)(res, result);
 }
 async function logout(req, res) {
     const sessionId = req.user?.sessionId;
     const role = req.user?.role ?? 'user';
     if (sessionId) {
-        await authService.logout(sessionId, role);
+        try {
+            await authService.logout(sessionId, role);
+        }
+        catch { }
     }
+    (0, cookieHelpers_1.clearAuthCookies)(res);
     return (0, apiResponse_1.sendSuccess)(res, { message: 'Logged out successfully' });
 }
 async function refresh(req, res) {
-    const { refreshToken } = req.body;
+    const refreshToken = req.body?.refreshToken || req.cookies?.refresh_token;
     const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() ?? req.socket?.remoteAddress ?? null;
     const userAgent = req.headers['user-agent'] ?? null;
     const result = await authService.refresh(refreshToken, ip, userAgent);
+    if (result.accessToken) {
+        (0, cookieHelpers_1.setAuthCookies)(res, result.accessToken, result.refreshToken);
+    }
     return (0, apiResponse_1.sendSuccess)(res, result);
 }
 async function verifyEmail(req, res) {
@@ -138,6 +149,9 @@ async function guestCheckout(req, res) {
     const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() ?? req.socket?.remoteAddress ?? null;
     const userAgent = req.headers['user-agent'] ?? null;
     const result = await authService.guestCheckout(name, mobile, address, ip, userAgent);
+    if (result.accessToken) {
+        (0, cookieHelpers_1.setAuthCookies)(res, result.accessToken, result.refreshToken);
+    }
     return (0, apiResponse_1.sendSuccess)(res, result, 201, 'Guest account ready');
 }
 async function changePassword(req, res) {
@@ -146,6 +160,7 @@ async function changePassword(req, res) {
     await authService.changePassword(req.user.id, req.user.role, req.body.current_password, req.body.new_password);
     if (req.user.sessionId)
         await authService.logout(req.user.sessionId, req.user.role);
+    (0, cookieHelpers_1.clearAuthCookies)(res);
     return (0, apiResponse_1.sendSuccess)(res, { message: 'Password changed. Please sign in again.' });
 }
 async function guestAccountStatus(req, res) {
@@ -157,6 +172,9 @@ async function continueCheckout(req, res) {
     const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() ?? req.socket?.remoteAddress ?? null;
     const userAgent = req.headers['user-agent'] ?? null;
     const result = await authService.continueCheckout(mobile, ip, userAgent);
+    if (result.accessToken) {
+        (0, cookieHelpers_1.setAuthCookies)(res, result.accessToken, result.refreshToken);
+    }
     return (0, apiResponse_1.sendSuccess)(res, result, 200, 'Signed in to continue checkout');
 }
 //# sourceMappingURL=authController.js.map

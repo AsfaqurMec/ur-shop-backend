@@ -103,7 +103,7 @@ async function insertGeneratedCombinations(_conn, productId, combos, defaultPric
             id: await (0, counter_1.nextId)('product_variations'),
             product_id: productId,
             sku: autoSku,
-            quantity: null,
+            quantity: 0,
             price: defaultPrice,
             compare_at_price: null,
             enabled: 1,

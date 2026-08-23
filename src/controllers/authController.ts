@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { env } from '../config';
 import { sendSuccess, sendError } from '../utils/apiResponse';
 import * as authService from '../services/authService';
+import { setAuthCookies, clearAuthCookies } from '../utils/cookieHelpers';
 
 function pickVerificationBaseUrl(req: Request): string | undefined {
   const fromBody = typeof req.body?.verificationBaseUrl === 'string' ? req.body.verificationBaseUrl.trim() : '';
@@ -39,6 +40,9 @@ export async function login(req: Request, res: Response): Promise<Response> {
   const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? req.socket?.remoteAddress ?? null;
   const userAgent = req.headers['user-agent'] ?? null;
   const result = await authService.login(identifier, password, ip, userAgent);
+  if (result.accessToken) {
+    setAuthCookies(res, result.accessToken, result.refreshToken);
+  }
   return sendSuccess(res, result);
 }
 
@@ -46,16 +50,22 @@ export async function logout(req: Request, res: Response): Promise<Response> {
   const sessionId = req.user?.sessionId;
   const role = req.user?.role ?? 'user';
   if (sessionId) {
-    await authService.logout(sessionId, role);
+    try {
+      await authService.logout(sessionId, role);
+    } catch {}
   }
+  clearAuthCookies(res);
   return sendSuccess(res, { message: 'Logged out successfully' });
 }
 
 export async function refresh(req: Request, res: Response): Promise<Response> {
-  const { refreshToken } = req.body;
+  const refreshToken = req.body?.refreshToken || req.cookies?.refresh_token;
   const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? req.socket?.remoteAddress ?? null;
   const userAgent = req.headers['user-agent'] ?? null;
   const result = await authService.refresh(refreshToken, ip, userAgent);
+  if (result.accessToken) {
+    setAuthCookies(res, result.accessToken, result.refreshToken);
+  }
   return sendSuccess(res, result);
 }
 
@@ -109,6 +119,9 @@ export async function guestCheckout(req: Request, res: Response): Promise<Respon
   const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? req.socket?.remoteAddress ?? null;
   const userAgent = req.headers['user-agent'] ?? null;
   const result = await authService.guestCheckout(name, mobile, address, ip, userAgent);
+  if (result.accessToken) {
+    setAuthCookies(res, result.accessToken, result.refreshToken);
+  }
   return sendSuccess(res, result, 201, 'Guest account ready');
 }
 
@@ -116,6 +129,7 @@ export async function changePassword(req: Request, res: Response): Promise<Respo
   if (!req.user) return sendError(res, 'Unauthorized', 401);
   await authService.changePassword(req.user.id, req.user.role, req.body.current_password, req.body.new_password);
   if (req.user.sessionId) await authService.logout(req.user.sessionId, req.user.role);
+  clearAuthCookies(res);
   return sendSuccess(res, { message: 'Password changed. Please sign in again.' });
 }
 
@@ -129,5 +143,8 @@ export async function continueCheckout(req: Request, res: Response): Promise<Res
   const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? req.socket?.remoteAddress ?? null;
   const userAgent = req.headers['user-agent'] ?? null;
   const result = await authService.continueCheckout(mobile, ip, userAgent);
+  if (result.accessToken) {
+    setAuthCookies(res, result.accessToken, result.refreshToken);
+  }
   return sendSuccess(res, result, 200, 'Signed in to continue checkout');
 }

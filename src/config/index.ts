@@ -55,10 +55,30 @@ const getEnvNumber = (key: string, defaultValue: number): number => {
   return n;
 };
 
+const getFirstEnvNumber = (keys: string[], defaultValue: number): number => {
+  for (const k of keys) {
+    const raw = process.env[k];
+    if (raw !== undefined && raw !== '') {
+      const n = parseInt(raw, 10);
+      if (!Number.isNaN(n)) return n;
+    }
+  }
+  return defaultValue;
+};
+
 export const env = {
   nodeEnv: getEnv('NODE_ENV', 'development'),
   port: getEnvNumber('PORT', 5000),
   apiPrefix: getEnv('API_PREFIX', '/api'),
+
+  rateLimit: {
+    authMax: getFirstEnvNumber(['AUTH_RATE_LIMIT_MAX', 'AUTH_LIMIT_AMOUNT', 'AUTH_LIMIT', 'AUTH_RATE_LIMIT'], 20),
+    authWindowMinutes: getFirstEnvNumber(['AUTH_RATE_LIMIT_WINDOW_MINUTES', 'AUTH_WINDOW_MINUTES', 'AUTH_LIMIT_WINDOW'], 15),
+    checkoutMax: getFirstEnvNumber(['CHECKOUT_RATE_LIMIT_MAX', 'CHECKOUT_LIMIT_AMOUNT', 'CHECKOUT_LIMIT', 'CHECKOUT_RATE_LIMIT'], 30),
+    checkoutWindowMinutes: getFirstEnvNumber(['CHECKOUT_RATE_LIMIT_WINDOW_MINUTES', 'CHECKOUT_WINDOW_MINUTES', 'CHECKOUT_LIMIT_WINDOW'], 10),
+    apiMax: getFirstEnvNumber(['API_RATE_LIMIT_MAX', 'API_LIMIT_AMOUNT', 'API_LIMIT', 'API_RATE_LIMIT'], 600),
+    apiWindowMinutes: getFirstEnvNumber(['API_RATE_LIMIT_WINDOW_MINUTES', 'API_WINDOW_MINUTES', 'API_LIMIT_WINDOW'], 15),
+  },
 
   db: {
     uri: (process.env.MONGODB_URL || process.env.MONGO_URL || '').trim(),
@@ -67,8 +87,9 @@ export const env = {
 
   jwt: {
     secret: getEnv('JWT_SECRET', 'change-me-in-production'),
-    accessExpiresIn: getEnv('JWT_ACCESS_EXPIRES_IN', '15m'),
-    refreshExpiresIn: getEnv('JWT_REFRESH_EXPIRES_IN', '7d'),
+    accessExpiresIn: getEnv('JWT_ACCESS_EXPIRES_IN', '15d'),
+    refreshExpiresIn: getEnv('JWT_REFRESH_EXPIRES_IN', '15d'),
+    sessionExpiryDays: getEnvNumber('SESSION_EXPIRY_DAYS', 15),
   },
 
   upload: {
