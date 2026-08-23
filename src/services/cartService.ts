@@ -34,14 +34,18 @@ async function resolveMaxCartQuantity(
     const n = await productRepo.countAvailableLicensesNoVariation(productId);
     return Math.max(0, n);
   }
+  if (DIGITAL_SINGLE_QUANTITY_TYPES.includes(productType)) {
+    return 1;
+  }
   if (variationId != null && variationId >= 1) {
     const row = await variationRepo.findVariationById(variationId);
     if (row && row.product_id === productId) {
       if (row.quantity != null) return Math.max(0, Number(row.quantity));
     }
   }
-  if (productQuantity != null) return Math.max(0, Number(productQuantity));
-  if (DIGITAL_SINGLE_QUANTITY_TYPES.includes(productType)) return 1;
+  if (productQuantity != null && Number(productQuantity) > 0) {
+    return Math.max(0, Number(productQuantity));
+  }
   return 99;
 }
 

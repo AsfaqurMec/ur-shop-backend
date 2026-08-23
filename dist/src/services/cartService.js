@@ -65,6 +65,9 @@ async function resolveMaxCartQuantity(productId, productType, variationId, produ
         const n = await productRepo.countAvailableLicensesNoVariation(productId);
         return Math.max(0, n);
     }
+    if (DIGITAL_SINGLE_QUANTITY_TYPES.includes(productType)) {
+        return 1;
+    }
     if (variationId != null && variationId >= 1) {
         const row = await variationRepo.findVariationById(variationId);
         if (row && row.product_id === productId) {
@@ -72,10 +75,9 @@ async function resolveMaxCartQuantity(productId, productType, variationId, produ
                 return Math.max(0, Number(row.quantity));
         }
     }
-    if (productQuantity != null)
+    if (productQuantity != null && Number(productQuantity) > 0) {
         return Math.max(0, Number(productQuantity));
-    if (DIGITAL_SINGLE_QUANTITY_TYPES.includes(productType))
-        return 1;
+    }
     return 99;
 }
 async function validateProductForCart(product, quantity, opts) {
