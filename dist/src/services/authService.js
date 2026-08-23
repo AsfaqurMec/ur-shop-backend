@@ -58,6 +58,7 @@ const passwordHelpers_1 = require("../utils/passwordHelpers");
 const tokenHelpers_1 = require("../utils/tokenHelpers");
 const emailService = __importStar(require("./emailService"));
 const config_1 = require("../config");
+const bengali_1 = require("../utils/bengali");
 const VERIFICATION_EXPIRY_HOURS = 24;
 const PASSWORD_RESET_EXPIRY_HOURS = 1;
 function toSafeUser(row) {
@@ -92,9 +93,9 @@ function randomToken() {
     return crypto_1.default.randomBytes(32).toString('hex');
 }
 async function register(identifier, password, name, verificationBaseUrl) {
-    const normalizedIdentifier = identifier.trim().toLowerCase();
+    const normalizedIdentifier = (0, bengali_1.normalizeBengaliNumerals)(identifier.trim()).toLowerCase();
     const isEmail = normalizedIdentifier.includes('@');
-    const mobile = isEmail ? null : normalizedIdentifier;
+    const mobile = isEmail ? null : ((0, bengali_1.normalizeBdMobile)(normalizedIdentifier) || normalizedIdentifier);
     const email = isEmail ? normalizedIdentifier : `${mobile}@guest.local`;
     const existing = isEmail ? await authRepo.findUserByEmail(email) : await authRepo.findUserByMobile(mobile);
     if (existing) {
@@ -132,10 +133,12 @@ async function register(identifier, password, name, verificationBaseUrl) {
     };
 }
 async function login(identifier, password, ip, userAgent) {
-    const normalizedIdentifier = identifier.trim();
-    const user = normalizedIdentifier.includes('@')
-        ? await authRepo.findUserByEmail(normalizedIdentifier)
-        : await authRepo.findUserByMobile(normalizedIdentifier);
+    const normalizedIdentifier = (0, bengali_1.normalizeBengaliNumerals)(identifier.trim());
+    const isEmail = normalizedIdentifier.includes('@');
+    const normalizedMobile = isEmail ? null : ((0, bengali_1.normalizeBdMobile)(normalizedIdentifier) || normalizedIdentifier);
+    const user = isEmail
+        ? await authRepo.findUserByEmail(normalizedIdentifier.toLowerCase())
+        : await authRepo.findUserByMobile(normalizedMobile);
     if (user) {
         const valid = await (0, passwordHelpers_1.comparePassword)(password, user.password_hash);
         if (!valid) {
@@ -436,7 +439,8 @@ async function createUserSession(user, ip, userAgent) {
 }
 /** Register or sign in a guest shopper (password = email) and return auth tokens. */
 async function guestCheckout(name, mobile, address, ip, userAgent) {
-    const trimmedMobile = mobile.trim();
+    const rawMobile = (0, bengali_1.normalizeBengaliNumerals)(mobile.trim());
+    const trimmedMobile = (0, bengali_1.normalizeBdMobile)(rawMobile) || rawMobile;
     const generatedEmail = `${trimmedMobile}@guest.local`;
     const trimmedName = name.trim() || trimmedMobile;
     const trimmedAddress = address.trim();
@@ -476,11 +480,14 @@ async function changePassword(userId, role, currentPassword, newPassword) {
     await authRepo.updateUserPassword(userId, await (0, passwordHelpers_1.hashPassword)(newPassword));
 }
 async function hasAccountForMobile(mobile) {
-    return Boolean(await authRepo.findUserByMobile(mobile.trim()));
+    const rawMobile = (0, bengali_1.normalizeBengaliNumerals)(mobile.trim());
+    const trimmedMobile = (0, bengali_1.normalizeBdMobile)(rawMobile) || rawMobile;
+    return Boolean(await authRepo.findUserByMobile(trimmedMobile));
 }
 /** Sign in an existing account by mobile for guest checkout continuation (no password required). */
 async function continueCheckout(mobile, ip, userAgent) {
-    const trimmedMobile = mobile.trim();
+    const rawMobile = (0, bengali_1.normalizeBengaliNumerals)(mobile.trim());
+    const trimmedMobile = (0, bengali_1.normalizeBdMobile)(rawMobile) || rawMobile;
     if (!trimmedMobile)
         throw new errorHandler_1.AppError(400, 'Mobile number is required');
     const existing = await authRepo.findUserByMobile(trimmedMobile);

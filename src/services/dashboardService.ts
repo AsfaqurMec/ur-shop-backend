@@ -112,6 +112,7 @@ export async function getOrderDetails(
     tax: Number(order.tax),
     total: Number(order.total),
     currency: order.currency,
+    shipping_name: order.shipping_name || null,
     shipping_mobile: order.shipping_mobile,
     shipping_address: order.shipping_address,
     shipping_city: order.shipping_city,
@@ -120,7 +121,7 @@ export async function getOrderDetails(
     shipping_method_id: order.shipping_method_id,
     shipping_method_title: order.shipping_method_title,
     shipping_fee: Number(order.shipping_fee ?? 0),
-    customer_name: null,
+    customer_name: order.shipping_name || null,
     customer_email: null,
     customer_mobile: null,
     customer_address: null,
@@ -164,6 +165,8 @@ export async function getOrderDetailsAdmin(orderId: number): Promise<DashboardOr
     };
   }
 
+  const resolvedCustomerName = order.shipping_name || customer?.name?.trim() || null;
+
   return {
     id: order.id,
     order_number: order.order_number,
@@ -176,6 +179,7 @@ export async function getOrderDetailsAdmin(orderId: number): Promise<DashboardOr
     tax: Number(order.tax),
     total: Number(order.total),
     currency: order.currency,
+    shipping_name: order.shipping_name || null,
     shipping_mobile: order.shipping_mobile,
     shipping_address: order.shipping_address,
     shipping_city: order.shipping_city,
@@ -184,7 +188,7 @@ export async function getOrderDetailsAdmin(orderId: number): Promise<DashboardOr
     shipping_method_id: order.shipping_method_id,
     shipping_method_title: order.shipping_method_title,
     shipping_fee: Number(order.shipping_fee ?? 0),
-    customer_name: customer?.name?.trim() || null,
+    customer_name: resolvedCustomerName,
     customer_email: customer?.email ?? null,
     customer_mobile: customer?.mobile ?? null,
     customer_address: customer?.address ?? null,

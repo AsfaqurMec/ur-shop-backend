@@ -51,6 +51,7 @@ const paymentProofRepo = __importStar(require("../repositories/paymentProofRepos
 const paymentOptionService = __importStar(require("./paymentOptionService"));
 const storeSettingsService = __importStar(require("./storeSettingsService"));
 const orderItemDisplay_1 = require("../utils/orderItemDisplay");
+const bengali_1 = require("../utils/bengali");
 const CURRENCY = 'BDT';
 async function validateCartItemsForCheckout(userId) {
     let cart = await cartRepo.findCartByUserId(userId);
@@ -119,6 +120,7 @@ function toOrderPublic(order, orderItems, payment) {
         tax: Number(order.tax),
         total: Number(order.total),
         currency: order.currency,
+        shipping_name: order.shipping_name || null,
         items: orderItems,
         ...(payment && { payment }),
         created_at: order.created_at.toISOString(),
@@ -143,7 +145,8 @@ async function createOrder(userId, couponCode, paymentInput = { method: 'manual_
     const senderNumber = paymentInput.senderNumber?.trim() ?? '';
     const transactionId = paymentInput.transactionId?.trim() ?? '';
     const paymentTypeClient = paymentInput.paymentType?.trim() || null;
-    const shippingMobile = paymentInput.mobile?.trim() ?? '';
+    const rawMobile = paymentInput.mobile?.trim() ?? '';
+    const shippingMobile = (0, bengali_1.normalizeBdMobile)(rawMobile) || rawMobile;
     const shippingAddress = paymentInput.address?.trim() ?? '';
     const shippingPostalCode = paymentInput.postalCode?.trim() || null;
     const shippingAddressLine2 = paymentInput.addressLine2?.trim() || null;
@@ -153,6 +156,9 @@ async function createOrder(userId, couponCode, paymentInput = { method: 'manual_
         throw new errorHandler_1.AppError(400, 'Mobile number is required');
     if (!shippingAddress)
         throw new errorHandler_1.AppError(400, 'Address is required');
+    const user = await authRepo.findUserById(userId);
+    const rawName = paymentInput.name?.trim() || paymentInput.shippingName?.trim() || '';
+    const shippingName = rawName || user?.name?.trim() || null;
     const storeSettings = await storeSettingsService.getStoreSettings();
     const configuredShippingMethods = storeSettings.shippingMethods;
     let shippingFee = 0;
@@ -225,6 +231,7 @@ async function createOrder(userId, couponCode, paymentInput = { method: 'manual_
         tax,
         total,
         currency: CURRENCY,
+        shipping_name: shippingName,
         shipping_mobile: shippingMobile,
         shipping_address: shippingAddress,
         shipping_postal_code: shippingPostalCode,
@@ -389,9 +396,10 @@ async function notifyAfterOrderPlaced(userId, order) {
             : isBkashMerchant
                 ? 'Complete payment on bKash when redirected. If you do not pay within the time limit, the order will be cancelled automatically.'
                 : undefined;
+    const resolvedCustomerName = order.shipping_name || user.name?.trim() || undefined;
     const customerResult = await emailService.sendOrderPlacedEmail(user.email, {
         orderNumber: order.order_number,
-        customerName: user.name?.trim() || undefined,
+        customerName: resolvedCustomerName,
         total: fmt(order.total),
         currency: order.currency,
         subtotal: fmt(order.subtotal),
@@ -414,7 +422,7 @@ async function notifyAfterOrderPlaced(userId, order) {
     const adminPayload = {
         orderNumber: order.order_number,
         customerEmail: user.email,
-        customerName: user.name?.trim() || user.email,
+        customerName: resolvedCustomerName || user.email,
         total: fmt(order.total),
         currency: order.currency,
         subtotal: fmt(order.subtotal),

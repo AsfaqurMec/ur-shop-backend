@@ -129,6 +129,9 @@ async function getOrdersByStatus(params) {
     };
 }
 function recentOrder(row, customerName) {
+    const resolvedName = row.shipping_name != null && String(row.shipping_name).trim()
+        ? String(row.shipping_name).trim()
+        : customerName?.trim() || null;
     return {
         id: Number(row.id),
         order_number: String(row.order_number),
@@ -137,10 +140,13 @@ function recentOrder(row, customerName) {
         total: Number(row.total ?? 0),
         currency: String(row.currency ?? 'BDT'),
         user_id: Number(row.user_id),
+        shipping_name: row.shipping_name != null && String(row.shipping_name).trim()
+            ? String(row.shipping_name).trim()
+            : null,
         shipping_mobile: row.shipping_mobile != null && String(row.shipping_mobile).trim()
             ? String(row.shipping_mobile).trim()
             : null,
-        customer_name: customerName?.trim() || null,
+        customer_name: resolvedName,
         created_at: iso(row.created_at),
     };
 }

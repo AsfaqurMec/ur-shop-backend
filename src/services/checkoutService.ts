@@ -17,6 +17,7 @@ import * as storeSettingsService from './storeSettingsService';
 import type { OrderPublic, OrderItemPublic, OrderItemProductType } from '../types/order';
 import type { CartItemWithProduct } from '../repositories/cartRepository';
 import { orderItemEmailParts } from '../utils/orderItemDisplay';
+import { normalizeBdMobile } from '../utils/bengali';
 
 const CURRENCY = 'BDT';
 
@@ -30,6 +31,8 @@ export interface CreateOrderPaymentDetails {
   /** Client hint: e.g. `manual` vs `merchant` (stored on payment for admin reference). */
   paymentType?: string | null;
   /** Customer contact for delivery. */
+  name?: string | null;
+  shippingName?: string | null;
   mobile?: string;
   address?: string;
   postalCode?: string | null;
@@ -99,7 +102,7 @@ async function buildOrderItemsFromCart(items: CartItemWithProduct[]): Promise<or
 }
 
 function toOrderPublic(
-  order: { id: number; order_number: string; status: string; subtotal: number; discount: number; coupon_code?: string | null; coupon_name?: string | null; tax: number; total: number; currency: string; created_at: Date },
+  order: { id: number; order_number: string; status: string; subtotal: number; discount: number; coupon_code?: string | null; coupon_name?: string | null; tax: number; total: number; currency: string; shipping_name?: string | null; created_at: Date },
   orderItems: OrderItemPublic[],
   payment: { id: number; gateway: string; status: string; amount: number } | null
 ): OrderPublic {
@@ -114,6 +117,7 @@ function toOrderPublic(
     tax: Number(order.tax),
     total: Number(order.total),
     currency: order.currency,
+    shipping_name: order.shipping_name || null,
     items: orderItems,
     ...(payment && { payment }),
     created_at: order.created_at.toISOString(),
@@ -142,7 +146,8 @@ export async function createOrder(
   const senderNumber = paymentInput.senderNumber?.trim() ?? '';
   const transactionId = paymentInput.transactionId?.trim() ?? '';
   const paymentTypeClient = paymentInput.paymentType?.trim() || null;
-  const shippingMobile = paymentInput.mobile?.trim() ?? '';
+  const rawMobile = paymentInput.mobile?.trim() ?? '';
+  const shippingMobile = normalizeBdMobile(rawMobile) || rawMobile;
   const shippingAddress = paymentInput.address?.trim() ?? '';
   const shippingPostalCode = paymentInput.postalCode?.trim() || null;
   const shippingAddressLine2 = paymentInput.addressLine2?.trim() || null;
@@ -151,6 +156,10 @@ export async function createOrder(
 
   if (!shippingMobile) throw new AppError(400, 'Mobile number is required');
   if (!shippingAddress) throw new AppError(400, 'Address is required');
+
+  const user = await authRepo.findUserById(userId);
+  const rawName = paymentInput.name?.trim() || paymentInput.shippingName?.trim() || '';
+  const shippingName = rawName || user?.name?.trim() || null;
 
   const storeSettings = await storeSettingsService.getStoreSettings();
   const configuredShippingMethods = storeSettings.shippingMethods;
@@ -241,6 +250,7 @@ export async function createOrder(
     tax,
     total,
     currency: CURRENCY,
+    shipping_name: shippingName,
     shipping_mobile: shippingMobile,
     shipping_address: shippingAddress,
     shipping_postal_code: shippingPostalCode,
@@ -411,9 +421,11 @@ async function notifyAfterOrderPlaced(userId: number, order: OrderPublic): Promi
         ? 'Complete payment on bKash when redirected. If you do not pay within the time limit, the order will be cancelled automatically.'
         : undefined;
 
+  const resolvedCustomerName = order.shipping_name || user.name?.trim() || undefined;
+
   const customerResult = await emailService.sendOrderPlacedEmail(user.email, {
     orderNumber: order.order_number,
-    customerName: user.name?.trim() || undefined,
+    customerName: resolvedCustomerName,
     total: fmt(order.total),
     currency: order.currency,
     subtotal: fmt(order.subtotal),
@@ -438,7 +450,7 @@ async function notifyAfterOrderPlaced(userId: number, order: OrderPublic): Promi
   const adminPayload = {
     orderNumber: order.order_number,
     customerEmail: user.email,
-    customerName: user.name?.trim() || user.email,
+    customerName: resolvedCustomerName || user.email,
     total: fmt(order.total),
     currency: order.currency,
     subtotal: fmt(order.subtotal),

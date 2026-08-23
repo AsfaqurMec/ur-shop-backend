@@ -4,7 +4,7 @@
   "description": "Backend API for digital products ecommerce platform",
   "main": "dist/server.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node scripts/copy-assets.js",
     "start": "node dist/server.js",
     "dev": "ts-node-dev --respawn --transpile-only server.ts",
     "typecheck": "tsc --noEmit",

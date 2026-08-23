@@ -11,6 +11,7 @@ export declare function createOrder(_conn: unknown, data: {
     tax: number;
     total: number;
     currency: string;
+    shipping_name?: string | null;
     shipping_mobile?: string | null;
     shipping_address?: string | null;
     shipping_city?: string | null;

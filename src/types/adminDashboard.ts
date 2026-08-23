@@ -30,6 +30,7 @@ export interface AdminRecentOrder {
   total: number;
   currency: string;
   user_id: number;
+  shipping_name?: string | null;
   shipping_mobile: string | null;
   customer_name: string | null;
   created_at: string;

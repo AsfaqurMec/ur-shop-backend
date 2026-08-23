@@ -13,6 +13,7 @@ export interface OrderRow {
     tax: number;
     total: number;
     currency: string;
+    shipping_name?: string | null;
     shipping_mobile: string | null;
     shipping_address: string | null;
     shipping_city: string | null;
@@ -68,6 +69,7 @@ export interface OrderPublic {
     tax: number;
     total: number;
     currency: string;
+    shipping_name?: string | null;
     items: OrderItemPublic[];
     payment?: {
         id: number;

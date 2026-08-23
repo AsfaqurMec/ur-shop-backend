@@ -48,6 +48,11 @@ async function createOrder(req, res) {
     const transactionIdRaw = txPrimary || txLegacy || null;
     const senderNumber = typeof req.body.sender_number === 'string' ? req.body.sender_number : null;
     const paymentType = typeof req.body.payment_type === 'string' ? req.body.payment_type : null;
+    const name = typeof req.body.name === 'string'
+        ? req.body.name.trim()
+        : typeof req.body.shipping_name === 'string'
+            ? req.body.shipping_name.trim()
+            : '';
     const mobile = typeof req.body.mobile === 'string' ? req.body.mobile.trim() : '';
     const address = typeof req.body.address === 'string' ? req.body.address.trim() : '';
     const postalCode = typeof req.body.postal_code === 'string' ? req.body.postal_code.trim() || null : null;
@@ -58,6 +63,7 @@ async function createOrder(req, res) {
         transactionId: transactionIdRaw,
         senderNumber,
         paymentType,
+        name,
         mobile,
         address,
         postalCode,

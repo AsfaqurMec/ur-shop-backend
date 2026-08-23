@@ -69,6 +69,9 @@ function orderRow(doc: any): OrderRow {
     tax: Number(doc.tax ?? 0),
     total: Number(doc.total ?? 0),
     currency: String(doc.currency ?? 'BDT'),
+    shipping_name: doc.shipping_name != null && String(doc.shipping_name).trim()
+      ? String(doc.shipping_name).trim()
+      : null,
     shipping_mobile: doc.shipping_mobile != null && String(doc.shipping_mobile).trim()
       ? String(doc.shipping_mobile).trim()
       : null,
@@ -144,6 +147,7 @@ export async function createOrder(
     tax: number;
     total: number;
     currency: string;
+    shipping_name?: string | null;
     shipping_mobile?: string | null;
     shipping_address?: string | null;
     shipping_city?: string | null;

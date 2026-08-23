@@ -13,6 +13,7 @@ import {
 } from '../utils/tokenHelpers';
 import * as emailService from './emailService';
 import { env } from '../config';
+import { normalizeBengaliNumerals, normalizeBdMobile } from '../utils/bengali';
 import type { SafeUser } from '../types/auth';
 
 const VERIFICATION_EXPIRY_HOURS = 24;
@@ -74,9 +75,9 @@ export async function register(
   name: string,
   verificationBaseUrl?: string
 ): Promise<{ user: SafeUser; message: string }> {
-  const normalizedIdentifier = identifier.trim().toLowerCase();
+  const normalizedIdentifier = normalizeBengaliNumerals(identifier.trim()).toLowerCase();
   const isEmail = normalizedIdentifier.includes('@');
-  const mobile = isEmail ? null : normalizedIdentifier;
+  const mobile = isEmail ? null : (normalizeBdMobile(normalizedIdentifier) || normalizedIdentifier);
   const email = isEmail ? normalizedIdentifier : `${mobile}@guest.local`;
   const existing = isEmail ? await authRepo.findUserByEmail(email) : await authRepo.findUserByMobile(mobile!);
   if (existing) {
@@ -127,10 +128,12 @@ export async function login(
   refreshToken: string;
   expiresAt: string;
 }> {
-  const normalizedIdentifier = identifier.trim();
-  const user = normalizedIdentifier.includes('@')
-    ? await authRepo.findUserByEmail(normalizedIdentifier)
-    : await authRepo.findUserByMobile(normalizedIdentifier);
+  const normalizedIdentifier = normalizeBengaliNumerals(identifier.trim());
+  const isEmail = normalizedIdentifier.includes('@');
+  const normalizedMobile = isEmail ? null : (normalizeBdMobile(normalizedIdentifier) || normalizedIdentifier);
+  const user = isEmail
+    ? await authRepo.findUserByEmail(normalizedIdentifier.toLowerCase())
+    : await authRepo.findUserByMobile(normalizedMobile!);
   if (user) {
     const valid = await comparePassword(password, user.password_hash);
     if (!valid) {
@@ -526,7 +529,8 @@ export async function guestCheckout(
   refreshToken: string;
   expiresAt: string;
 }> {
-  const trimmedMobile = mobile.trim();
+  const rawMobile = normalizeBengaliNumerals(mobile.trim());
+  const trimmedMobile = normalizeBdMobile(rawMobile) || rawMobile;
   const generatedEmail = `${trimmedMobile}@guest.local`;
   const trimmedName = name.trim() || trimmedMobile;
   const trimmedAddress = address.trim();
@@ -563,7 +567,9 @@ export async function changePassword(userId: number, role: string, currentPasswo
 }
 
 export async function hasAccountForMobile(mobile: string): Promise<boolean> {
-  return Boolean(await authRepo.findUserByMobile(mobile.trim()));
+  const rawMobile = normalizeBengaliNumerals(mobile.trim());
+  const trimmedMobile = normalizeBdMobile(rawMobile) || rawMobile;
+  return Boolean(await authRepo.findUserByMobile(trimmedMobile));
 }
 
 /** Sign in an existing account by mobile for guest checkout continuation (no password required). */
@@ -577,7 +583,8 @@ export async function continueCheckout(
   refreshToken: string;
   expiresAt: string;
 }> {
-  const trimmedMobile = mobile.trim();
+  const rawMobile = normalizeBengaliNumerals(mobile.trim());
+  const trimmedMobile = normalizeBdMobile(rawMobile) || rawMobile;
   if (!trimmedMobile) throw new AppError(400, 'Mobile number is required');
 
   const existing = await authRepo.findUserByMobile(trimmedMobile);

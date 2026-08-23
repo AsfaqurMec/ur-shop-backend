@@ -90,6 +90,9 @@ function orderRow(doc) {
         tax: Number(doc.tax ?? 0),
         total: Number(doc.total ?? 0),
         currency: String(doc.currency ?? 'BDT'),
+        shipping_name: doc.shipping_name != null && String(doc.shipping_name).trim()
+            ? String(doc.shipping_name).trim()
+            : null,
         shipping_mobile: doc.shipping_mobile != null && String(doc.shipping_mobile).trim()
             ? String(doc.shipping_mobile).trim()
             : null,

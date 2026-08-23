@@ -9,6 +9,8 @@ export interface CreateOrderPaymentDetails {
     /** Client hint: e.g. `manual` vs `merchant` (stored on payment for admin reference). */
     paymentType?: string | null;
     /** Customer contact for delivery. */
+    name?: string | null;
+    shippingName?: string | null;
     mobile?: string;
     address?: string;
     postalCode?: string | null;
