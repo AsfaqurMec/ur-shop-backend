@@ -20,9 +20,11 @@ import storeSettingsRoutes from './storeSettings';
 import cronRoutes from './cron';
 import bannerRoutes from './banners';
 import adRoutes from './ads';
+import storefrontRoutes from './storefront';
 
 const router = Router();
 
+router.use('/storefront', storefrontRoutes);
 router.use('/health', healthRoutes);
 router.use('/auth', authRoutes);
 router.use('/categories', categoryRoutes);

@@ -145,9 +145,7 @@ export async function countAllAdmin(categoryId: number | undefined): Promise<num
 export async function findAllPublic(
   options: { limit?: number; offset?: number } = {}
 ): Promise<ReviewPublicJoinRow[]> {
-  const products = await ProductModel.find({ deleted_at: null }).select({ id: 1 }).lean();
-  const productIds = products.map((product: any) => Number(product.id));
-  const reviews = await ReviewModel.find({ product_id: { $in: productIds }, deleted_at: null })
+  const reviews = await ReviewModel.find({ deleted_at: null })
     .sort({ created_at: -1 })
     .skip(options.offset ?? 0)
     .limit(Math.min(options.limit ?? 50, 100))
@@ -156,11 +154,7 @@ export async function findAllPublic(
 }
 
 export async function countAllPublic(): Promise<number> {
-  const products = await ProductModel.find({ deleted_at: null }).select({ id: 1 }).lean();
-  return ReviewModel.countDocuments({
-    product_id: { $in: products.map((product: any) => Number(product.id)) },
-    deleted_at: null,
-  });
+  return ReviewModel.countDocuments({ deleted_at: null });
 }
 
 export async function findByProductIdAdmin(

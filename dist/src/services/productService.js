@@ -425,14 +425,35 @@ async function list(query) {
         productRepo.countProducts(filters),
     ]);
     const totalPages = Math.ceil(total / limit) || 1;
-    const [imagesByProduct, allCategories, variationsByProduct] = await Promise.all([
-        Promise.all(products.map((p) => productRepo.findProductImagesByProductId(p.id))),
+    const productIds = products.map((p) => p.id);
+    const [allImages, allCategories, allVariations] = await Promise.all([
+        productRepo.findProductImagesByProductIds(productIds),
         categoryRepo.findAll(),
-        Promise.all(products.map((p) => variationRepo.findVariationsByProductId(p.id))),
+        variationRepo.findVariationsByProductIds(productIds),
     ]);
+    const imagesByProductMap = new Map();
+    for (const img of allImages) {
+        const list = imagesByProductMap.get(img.product_id);
+        if (!list) {
+            imagesByProductMap.set(img.product_id, [img]);
+        }
+        else {
+            list.push(img);
+        }
+    }
+    const variationsByProductMap = new Map();
+    for (const v of allVariations) {
+        const list = variationsByProductMap.get(v.product_id);
+        if (!list) {
+            variationsByProductMap.set(v.product_id, [v]);
+        }
+        else {
+            list.push(v);
+        }
+    }
     const catMap = new Map(allCategories.map((c) => [c.id, c.name]));
-    const publicList = products.map((p, i) => {
-        const images = imagesByProduct[i];
+    const publicList = products.map((p) => {
+        const images = imagesByProductMap.get(p.id) || [];
         const primary = primaryProductImageRow(images);
         const thumbnail = primaryProductImagePath(images);
         const imagesPublic = primary
@@ -451,9 +472,9 @@ async function list(query) {
         productRepo.getNeedsPdpConfigMap(publicList.map((p) => p.id)),
         productRepo.findDefaultVariationStorefrontPricing(publicList.map((p) => p.id)),
     ]);
-    const withFlags = publicList.map((p, idx) => {
+    const withFlags = publicList.map((p) => {
         const o = defaultPriceMap.get(p.id);
-        const vars = variationsByProduct[idx] || [];
+        const vars = variationsByProductMap.get(p.id) || [];
         const catalog_variations = vars.map((v) => ({
             id: v.id,
             sku: v.sku,

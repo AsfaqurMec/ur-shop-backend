@@ -2,6 +2,7 @@ import path from 'path';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import { env, getUploadAbsoluteBase } from './src/config';
 import { errorHandler } from './src/middlewares';
@@ -9,6 +10,9 @@ import { sanitizeNoSql, apiLimiter } from './src/middlewares/security';
 import routes from './src/routes';
 
 const app = express();
+
+// Enable Gzip/Brotli compression for all JSON/text responses
+app.use(compression());
 
 // Trust reverse proxy (Render / Nginx / Cloudflare / Next.js)
 app.set('trust proxy', 1);

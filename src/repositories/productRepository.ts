@@ -272,6 +272,14 @@ export async function findProductImagesByProductId(productId: number): Promise<P
   return rows.map(toImageRow);
 }
 
+export async function findProductImagesByProductIds(productIds: number[]): Promise<ProductImageRow[]> {
+  if (productIds.length === 0) return [];
+  const rows = await ProductImageModel.find({ product_id: { $in: productIds }, deleted_at: null })
+    .sort({ sort_order: 1, id: 1 })
+    .lean();
+  return rows.map(toImageRow);
+}
+
 export async function findPrimaryImagePathsByProductIds(productIds: number[]): Promise<Map<number, string>> {
   const map = new Map<number, string>();
   for (const id of productIds) {

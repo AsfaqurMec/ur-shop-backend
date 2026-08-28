@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.findVariationsByProductId = findVariationsByProductId;
+exports.findVariationsByProductIds = findVariationsByProductIds;
 exports.findVariationById = findVariationById;
 exports.countEnabledVariations = countEnabledVariations;
 exports.setVariationQuantityAbsolute = setVariationQuantityAbsolute;
@@ -28,6 +29,14 @@ function rowToVariation(r) {
 }
 async function findVariationsByProductId(productId) {
     const rows = await models_1.ProductVariationModel.find({ product_id: productId })
+        .sort({ sort_order: 1, id: 1 })
+        .lean();
+    return rows.map(rowToVariation);
+}
+async function findVariationsByProductIds(productIds) {
+    if (productIds.length === 0)
+        return [];
+    const rows = await models_1.ProductVariationModel.find({ product_id: { $in: productIds } })
         .sort({ sort_order: 1, id: 1 })
         .lean();
     return rows.map(rowToVariation);

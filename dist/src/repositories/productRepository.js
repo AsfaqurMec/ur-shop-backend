@@ -13,6 +13,7 @@ exports.findDefaultVariationStorefrontPricing = findDefaultVariationStorefrontPr
 exports.countProducts = countProducts;
 exports.createProductImage = createProductImage;
 exports.findProductImagesByProductId = findProductImagesByProductId;
+exports.findProductImagesByProductIds = findProductImagesByProductIds;
 exports.findPrimaryImagePathsByProductIds = findPrimaryImagePathsByProductIds;
 exports.deleteProductImage = deleteProductImage;
 exports.reorderProductImages = reorderProductImages;
@@ -218,6 +219,14 @@ async function createProductImage(data) {
 }
 async function findProductImagesByProductId(productId) {
     const rows = await models_1.ProductImageModel.find({ product_id: productId, deleted_at: null })
+        .sort({ sort_order: 1, id: 1 })
+        .lean();
+    return rows.map(toImageRow);
+}
+async function findProductImagesByProductIds(productIds) {
+    if (productIds.length === 0)
+        return [];
+    const rows = await models_1.ProductImageModel.find({ product_id: { $in: productIds }, deleted_at: null })
         .sort({ sort_order: 1, id: 1 })
         .lean();
     return rows.map(toImageRow);

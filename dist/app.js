@@ -7,12 +7,15 @@ const path_1 = __importDefault(require("path"));
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const helmet_1 = __importDefault(require("helmet"));
+const compression_1 = __importDefault(require("compression"));
 const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const config_1 = require("./src/config");
 const middlewares_1 = require("./src/middlewares");
 const security_1 = require("./src/middlewares/security");
 const routes_1 = __importDefault(require("./src/routes"));
 const app = (0, express_1.default)();
+// Enable Gzip/Brotli compression for all JSON/text responses
+app.use((0, compression_1.default)());
 // Trust reverse proxy (Render / Nginx / Cloudflare / Next.js)
 app.set('trust proxy', 1);
 // Enterprise HTTP security headers

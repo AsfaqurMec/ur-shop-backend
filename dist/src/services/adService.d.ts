@@ -1,3 +1,4 @@
+export declare function invalidateAdCache(): void;
 export declare function create(image_path: string, is_active?: boolean): Promise<{
     id: number;
     image_path: string;

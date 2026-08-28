@@ -1,5 +1,6 @@
 import type { BannerButton, BannerPublic } from '../types/banner';
 export declare function normalizeButtons(input: unknown): BannerButton[];
+export declare function invalidateBannerCache(): void;
 export declare function create(data: {
     background_image: string;
     title?: string | null;

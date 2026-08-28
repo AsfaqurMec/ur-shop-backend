@@ -42,6 +42,15 @@ function toPublic(row: BannerRow): BannerPublic {
   };
 }
 
+let cachedPublicBanners: BannerPublic[] | null = null;
+let bannerCacheTimestamp = 0;
+const BANNER_CACHE_TTL_MS = 60 * 1000;
+
+export function invalidateBannerCache(): void {
+  cachedPublicBanners = null;
+  bannerCacheTimestamp = 0;
+}
+
 export async function create(data: {
   background_image: string;
   title?: string | null;
@@ -59,6 +68,7 @@ export async function create(data: {
     sort_order: data.sort_order ?? 0,
     is_active: data.is_active ?? true,
   });
+  invalidateBannerCache();
   const row = await bannerRepo.findById(id);
   if (!row) throw new AppError(500, 'Failed to create banner');
   return toPublic(row);
@@ -90,6 +100,7 @@ export async function update(
   if (data.is_active !== undefined) updates.is_active = data.is_active;
 
   if (Object.keys(updates).length > 0) await bannerRepo.update(id, updates);
+  invalidateBannerCache();
   const row = await bannerRepo.findById(id);
   if (!row) throw new AppError(404, 'Banner not found');
   return toPublic(row);
@@ -98,6 +109,7 @@ export async function update(
 export async function remove(id: number): Promise<void> {
   const existed = await bannerRepo.softDelete(id);
   if (!existed) throw new AppError(404, 'Banner not found');
+  invalidateBannerCache();
 }
 
 export async function listAdmin(): Promise<BannerPublic[]> {
@@ -106,6 +118,13 @@ export async function listAdmin(): Promise<BannerPublic[]> {
 }
 
 export async function listPublic(): Promise<BannerPublic[]> {
+  const now = Date.now();
+  if (cachedPublicBanners && bannerCacheTimestamp > 0 && now - bannerCacheTimestamp < BANNER_CACHE_TTL_MS) {
+    return cachedPublicBanners;
+  }
   const rows = await bannerRepo.findActive();
-  return rows.map(toPublic);
+  const list = rows.map(toPublic);
+  cachedPublicBanners = list;
+  bannerCacheTimestamp = now;
+  return list;
 }

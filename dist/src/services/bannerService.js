@@ -34,6 +34,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.normalizeButtons = normalizeButtons;
+exports.invalidateBannerCache = invalidateBannerCache;
 exports.create = create;
 exports.update = update;
 exports.remove = remove;
@@ -81,6 +82,13 @@ function toPublic(row) {
         updated_at: row.updated_at.toISOString(),
     };
 }
+let cachedPublicBanners = null;
+let bannerCacheTimestamp = 0;
+const BANNER_CACHE_TTL_MS = 60 * 1000;
+function invalidateBannerCache() {
+    cachedPublicBanners = null;
+    bannerCacheTimestamp = 0;
+}
 async function create(data) {
     if (!data.background_image.trim())
         throw new errorHandler_1.AppError(400, 'Background image is required');
@@ -92,6 +100,7 @@ async function create(data) {
         sort_order: data.sort_order ?? 0,
         is_active: data.is_active ?? true,
     });
+    invalidateBannerCache();
     const row = await bannerRepo.findById(id);
     if (!row)
         throw new errorHandler_1.AppError(500, 'Failed to create banner');
@@ -119,6 +128,7 @@ async function update(id, data) {
         updates.is_active = data.is_active;
     if (Object.keys(updates).length > 0)
         await bannerRepo.update(id, updates);
+    invalidateBannerCache();
     const row = await bannerRepo.findById(id);
     if (!row)
         throw new errorHandler_1.AppError(404, 'Banner not found');
@@ -128,13 +138,21 @@ async function remove(id) {
     const existed = await bannerRepo.softDelete(id);
     if (!existed)
         throw new errorHandler_1.AppError(404, 'Banner not found');
+    invalidateBannerCache();
 }
 async function listAdmin() {
     const rows = await bannerRepo.findAll();
     return rows.map(toPublic);
 }
 async function listPublic() {
+    const now = Date.now();
+    if (cachedPublicBanners && bannerCacheTimestamp > 0 && now - bannerCacheTimestamp < BANNER_CACHE_TTL_MS) {
+        return cachedPublicBanners;
+    }
     const rows = await bannerRepo.findActive();
-    return rows.map(toPublic);
+    const list = rows.map(toPublic);
+    cachedPublicBanners = list;
+    bannerCacheTimestamp = now;
+    return list;
 }
 //# sourceMappingURL=bannerService.js.map

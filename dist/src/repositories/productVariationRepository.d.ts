@@ -20,6 +20,7 @@ export interface VariationReplaceInput {
     sort_order: number;
 }
 export declare function findVariationsByProductId(productId: number): Promise<ProductVariationRow[]>;
+export declare function findVariationsByProductIds(productIds: number[]): Promise<ProductVariationRow[]>;
 export declare function findVariationById(id: number): Promise<ProductVariationRow | null>;
 export declare function countEnabledVariations(productId: number): Promise<number>;
 export declare function setVariationQuantityAbsolute(variationId: number, quantity: number): Promise<void>;

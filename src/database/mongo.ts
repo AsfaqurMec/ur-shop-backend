@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { env } from '../config';
 import {
   ProductModel,
+  ProductImageModel,
   CategoryModel,
   BannerModel,
   ReviewModel,
@@ -20,21 +21,23 @@ export function isMongoConfigured(): boolean {
 export async function ensureOptimizedIndexes(): Promise<void> {
   try {
     await Promise.allSettled([
-      ProductModel.collection.createIndex({ deleted_at: 1, is_active: 1, is_featured: 1 }),
-      ProductModel.collection.createIndex({ deleted_at: 1, is_active: 1, is_trending: 1 }),
+      ProductModel.collection.createIndex({ deleted_at: 1, is_active: 1, is_featured: 1, created_at: -1 }),
+      ProductModel.collection.createIndex({ deleted_at: 1, is_active: 1, is_trending: 1, trending_order: 1 }),
       ProductModel.collection.createIndex({ deleted_at: 1, category_id: 1, is_active: 1 }),
       ProductModel.collection.createIndex({ slug: 1 }),
       ProductModel.collection.createIndex({ sku: 1 }),
+      ProductImageModel.collection.createIndex({ product_id: 1, deleted_at: 1, sort_order: 1 }),
       CategoryModel.collection.createIndex({ deleted_at: 1, sort_order: 1 }),
       CategoryModel.collection.createIndex({ slug: 1 }),
       BannerModel.collection.createIndex({ deleted_at: 1, is_active: 1, sort_order: 1 }),
       ReviewModel.collection.createIndex({ deleted_at: 1, is_approved: 1, product_id: 1 }),
+      ReviewModel.collection.createIndex({ deleted_at: 1, created_at: -1 }),
       AdModel.collection.createIndex({ deleted_at: 1, is_active: 1 }),
       OrderModel.collection.createIndex({ user_id: 1, created_at: -1 }),
       OrderModel.collection.createIndex({ status: 1 }),
       OrderModel.collection.createIndex({ payment_status: 1 }),
       UserModel.collection.createIndex({ email: 1 }),
-      ProductVariationModel.collection.createIndex({ product_id: 1 }),
+      ProductVariationModel.collection.createIndex({ product_id: 1, enabled: 1 }),
     ]);
   } catch (err) {
     console.warn('[mongo] ensureOptimizedIndexes non-blocking notice:', err);

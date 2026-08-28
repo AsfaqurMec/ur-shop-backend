@@ -1,4 +1,5 @@
 import type { CategoryPublic, CategoryNested } from '../types/category';
+export declare function invalidateCategoryCache(): void;
 export declare function create(data: {
     name: string;
     slug?: string;

@@ -104,9 +104,7 @@ async function countAllAdmin(categoryId) {
 }
 /** Latest non-hidden reviews across all existing products, for storefront testimonials. */
 async function findAllPublic(options = {}) {
-    const products = await models_1.ProductModel.find({ deleted_at: null }).select({ id: 1 }).lean();
-    const productIds = products.map((product) => Number(product.id));
-    const reviews = await models_1.ReviewModel.find({ product_id: { $in: productIds }, deleted_at: null })
+    const reviews = await models_1.ReviewModel.find({ deleted_at: null })
         .sort({ created_at: -1 })
         .skip(options.offset ?? 0)
         .limit(Math.min(options.limit ?? 50, 100))
@@ -114,11 +112,7 @@ async function findAllPublic(options = {}) {
     return enrichAdminRows(reviews);
 }
 async function countAllPublic() {
-    const products = await models_1.ProductModel.find({ deleted_at: null }).select({ id: 1 }).lean();
-    return models_1.ReviewModel.countDocuments({
-        product_id: { $in: products.map((product) => Number(product.id)) },
-        deleted_at: null,
-    });
+    return models_1.ReviewModel.countDocuments({ deleted_at: null });
 }
 async function findByProductIdAdmin(productId, options = {}) {
     const rows = await models_1.ReviewModel.find({ product_id: productId })

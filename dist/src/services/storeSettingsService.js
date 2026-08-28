@@ -145,6 +145,8 @@ function defaults() {
     };
 }
 let cachedSettings = defaults();
+let lastLoadedAt = 0;
+const SETTINGS_CACHE_TTL_MS = 60 * 1000; // 1 minute in-memory cache
 function cleanString(input, maxLen = 5000) {
     if (typeof input !== 'string')
         return '';
@@ -172,20 +174,24 @@ function normalizeSettings(input) {
         shippingMethods: normalizeShippingMethods(merged.shippingMethods),
     };
 }
-async function getStoreSettings() {
+async function getStoreSettings(forceRefresh = false) {
+    const now = Date.now();
+    if (!forceRefresh && lastLoadedAt > 0 && now - lastLoadedAt < SETTINGS_CACHE_TTL_MS) {
+        return cachedSettings;
+    }
     try {
         const raw = await repo.getStoreSettingsRaw();
         if (!raw) {
             cachedSettings = defaults();
+            lastLoadedAt = now;
             return cachedSettings;
         }
         const parsed = JSON.parse(raw);
         cachedSettings = normalizeSettings(parsed);
+        lastLoadedAt = now;
         return cachedSettings;
     }
     catch {
-        // DB/network/read failure: keep last known settings in memory so UI/email can still render.
-        // If cache is empty (fresh boot), fall back to env defaults.
         if (!cachedSettings || !cachedSettings.siteTitle) {
             cachedSettings = defaults();
         }
@@ -193,10 +199,11 @@ async function getStoreSettings() {
     }
 }
 async function updateStoreSettings(patch) {
-    const current = await getStoreSettings();
+    const current = await getStoreSettings(true);
     const next = normalizeSettings({ ...current, ...patch });
     await repo.upsertStoreSettingsRaw(JSON.stringify(next));
     cachedSettings = next;
+    lastLoadedAt = Date.now();
     return next;
 }
 async function getPublicStoreSettings() {

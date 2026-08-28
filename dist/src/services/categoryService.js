@@ -33,6 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.invalidateCategoryCache = invalidateCategoryCache;
 exports.create = create;
 exports.update = update;
 exports.remove = remove;
@@ -67,6 +68,15 @@ function buildTree(flat, parentId) {
     }))
         .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
 }
+let cachedFlatCategories = null;
+let cachedNestedCategories = null;
+let categoryCacheTimestamp = 0;
+const CATEGORY_CACHE_TTL_MS = 60 * 1000;
+function invalidateCategoryCache() {
+    cachedFlatCategories = null;
+    cachedNestedCategories = null;
+    categoryCacheTimestamp = 0;
+}
 async function create(data) {
     if (data.parent_id != null) {
         const parent = await categoryRepo.findById(data.parent_id);
@@ -87,6 +97,7 @@ async function create(data) {
         banner_image: data.banner_image ?? null,
         sort_order: sortOrder,
     });
+    invalidateCategoryCache();
     const row = await categoryRepo.findById(id);
     if (!row)
         throw new errorHandler_1.AppError(500, 'Failed to create category');
@@ -127,6 +138,7 @@ async function update(id, data) {
     if (Object.keys(updates).length > 0) {
         await categoryRepo.update(id, updates);
     }
+    invalidateCategoryCache();
     const row = await categoryRepo.findById(id);
     if (!row)
         throw new errorHandler_1.AppError(404, 'Category not found');
@@ -136,8 +148,16 @@ async function remove(id) {
     const existed = await categoryRepo.softDelete(id);
     if (!existed)
         throw new errorHandler_1.AppError(404, 'Category not found');
+    invalidateCategoryCache();
 }
 async function list(nested) {
+    const now = Date.now();
+    if (categoryCacheTimestamp > 0 && now - categoryCacheTimestamp < CATEGORY_CACHE_TTL_MS) {
+        if (nested && cachedNestedCategories)
+            return cachedNestedCategories;
+        if (!nested && cachedFlatCategories)
+            return cachedFlatCategories;
+    }
     const { ProductModel } = await Promise.resolve().then(() => __importStar(require('../database/models')));
     const [rows, counts] = await Promise.all([
         categoryRepo.findAll(),
@@ -145,8 +165,12 @@ async function list(nested) {
     ]);
     const countMap = new Map(counts.map((c) => [Number(c._id), Number(c.count)]));
     const flat = rows.map((r) => toPublic(r, countMap.get(r.id) ?? 0));
+    const nestedTree = buildTree(flat, null);
+    cachedFlatCategories = flat;
+    cachedNestedCategories = nestedTree;
+    categoryCacheTimestamp = now;
     if (nested)
-        return buildTree(flat, null);
+        return nestedTree;
     return flat;
 }
 async function listPaginated(page, limit) {
@@ -186,5 +210,6 @@ async function reorderCategories(orderedIds) {
     if (bulk.length > 0) {
         await CategoryModel.bulkWrite(bulk);
     }
+    invalidateCategoryCache();
 }
 //# sourceMappingURL=categoryService.js.map

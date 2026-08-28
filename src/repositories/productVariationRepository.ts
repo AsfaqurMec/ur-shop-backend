@@ -48,6 +48,14 @@ export async function findVariationsByProductId(productId: number): Promise<Prod
   return rows.map(rowToVariation);
 }
 
+export async function findVariationsByProductIds(productIds: number[]): Promise<ProductVariationRow[]> {
+  if (productIds.length === 0) return [];
+  const rows = await ProductVariationModel.find({ product_id: { $in: productIds } })
+    .sort({ sort_order: 1, id: 1 })
+    .lean();
+  return rows.map(rowToVariation);
+}
+
 export async function findVariationById(id: number): Promise<ProductVariationRow | null> {
   const row = await ProductVariationModel.findOne({ id }).lean();
   return row ? rowToVariation(row) : null;

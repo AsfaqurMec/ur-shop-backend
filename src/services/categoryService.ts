@@ -43,6 +43,17 @@ function buildTree(flat: CategoryPublic[], parentId: number | null): CategoryNes
     .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
 }
 
+let cachedFlatCategories: CategoryPublic[] | null = null;
+let cachedNestedCategories: CategoryNested[] | null = null;
+let categoryCacheTimestamp = 0;
+const CATEGORY_CACHE_TTL_MS = 60 * 1000;
+
+export function invalidateCategoryCache(): void {
+  cachedFlatCategories = null;
+  cachedNestedCategories = null;
+  categoryCacheTimestamp = 0;
+}
+
 export async function create(data: {
   name: string;
   slug?: string;
@@ -70,6 +81,7 @@ export async function create(data: {
     banner_image: data.banner_image ?? null,
     sort_order: sortOrder,
   });
+  invalidateCategoryCache();
   const row = await categoryRepo.findById(id);
   if (!row) throw new AppError(500, 'Failed to create category');
   return toPublic(row);
@@ -111,6 +123,7 @@ export async function update(
   if (Object.keys(updates).length > 0) {
     await categoryRepo.update(id, updates);
   }
+  invalidateCategoryCache();
   const row = await categoryRepo.findById(id);
   if (!row) throw new AppError(404, 'Category not found');
   return toPublic(row);
@@ -119,9 +132,16 @@ export async function update(
 export async function remove(id: number): Promise<void> {
   const existed = await categoryRepo.softDelete(id);
   if (!existed) throw new AppError(404, 'Category not found');
+  invalidateCategoryCache();
 }
 
 export async function list(nested: boolean): Promise<CategoryPublic[] | CategoryNested[]> {
+  const now = Date.now();
+  if (categoryCacheTimestamp > 0 && now - categoryCacheTimestamp < CATEGORY_CACHE_TTL_MS) {
+    if (nested && cachedNestedCategories) return cachedNestedCategories;
+    if (!nested && cachedFlatCategories) return cachedFlatCategories;
+  }
+
   const { ProductModel } = await import('../database/models');
   const [rows, counts] = await Promise.all([
     categoryRepo.findAll(),
@@ -129,7 +149,13 @@ export async function list(nested: boolean): Promise<CategoryPublic[] | Category
   ]);
   const countMap = new Map(counts.map((c: any) => [Number(c._id), Number(c.count)]));
   const flat = rows.map((r) => toPublic(r, countMap.get(r.id) ?? 0));
-  if (nested) return buildTree(flat, null);
+  const nestedTree = buildTree(flat, null);
+
+  cachedFlatCategories = flat;
+  cachedNestedCategories = nestedTree;
+  categoryCacheTimestamp = now;
+
+  if (nested) return nestedTree;
   return flat;
 }
 
@@ -177,5 +203,6 @@ export async function reorderCategories(orderedIds: number[]): Promise<void> {
   if (bulk.length > 0) {
     await CategoryModel.bulkWrite(bulk);
   }
+  invalidateCategoryCache();
 }
 
