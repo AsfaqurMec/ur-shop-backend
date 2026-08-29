@@ -9,6 +9,7 @@ exports.findCartItemsByCartId = findCartItemsByCartId;
 exports.findCartItemsWithProducts = findCartItemsWithProducts;
 exports.createCartItem = createCartItem;
 exports.updateCartItemQuantity = updateCartItemQuantity;
+exports.updateCartItem = updateCartItem;
 exports.deleteCartItem = deleteCartItem;
 exports.deleteCartItemsByCartId = deleteCartItemsByCartId;
 const models_1 = require("../database/models");
@@ -100,6 +101,17 @@ async function createCartItem(cartId, productId, variationId, quantity, selectio
 }
 async function updateCartItemQuantity(cartId, itemId, quantity) {
     const result = await models_1.CartItemModel.updateOne({ id: itemId, cart_id: cartId }, { $set: { quantity } });
+    return result.modifiedCount > 0;
+}
+async function updateCartItem(cartId, itemId, updates) {
+    const setObj = {};
+    if (updates.quantity !== undefined)
+        setObj.quantity = updates.quantity;
+    if (updates.variation_id !== undefined)
+        setObj.variation_id = updates.variation_id;
+    if (updates.selections !== undefined)
+        setObj.selections = updates.selections;
+    const result = await models_1.CartItemModel.updateOne({ id: itemId, cart_id: cartId }, { $set: setObj });
     return result.modifiedCount > 0;
 }
 async function deleteCartItem(cartId, itemId) {

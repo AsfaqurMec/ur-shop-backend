@@ -24,6 +24,11 @@ export interface CartItemWithProduct {
 export declare function findCartItemsWithProducts(cartId: number): Promise<CartItemWithProduct[]>;
 export declare function createCartItem(cartId: number, productId: number, variationId: number | null, quantity: number, selections: Record<string, string>): Promise<number>;
 export declare function updateCartItemQuantity(cartId: number, itemId: number, quantity: number): Promise<boolean>;
+export declare function updateCartItem(cartId: number, itemId: number, updates: {
+    quantity?: number;
+    variation_id?: number | null;
+    selections?: Record<string, string> | null;
+}): Promise<boolean>;
 export declare function deleteCartItem(cartId: number, itemId: number): Promise<boolean>;
 export declare function deleteCartItemsByCartId(cartId: number): Promise<void>;
 //# sourceMappingURL=cartRepository.d.ts.map
