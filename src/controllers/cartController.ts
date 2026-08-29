@@ -22,8 +22,14 @@ export async function updateItem(req: Request, res: Response): Promise<Response>
   if (!req.user) return sendError(res, 'Unauthorized', 401);
   const userId = req.user.id;
   const itemId = Number(req.params.itemId);
-  const { quantity } = req.body;
-  const cart = await cartService.updateItem(userId, itemId, quantity);
+  const { quantity, selections, variation_id } = req.body;
+  const vid =
+    variation_id !== undefined
+      ? variation_id != null && variation_id !== ''
+        ? Number(variation_id)
+        : null
+      : undefined;
+  const cart = await cartService.updateItem(userId, itemId, quantity, selections, vid);
   return sendSuccess(res, { cart }, 200, 'Cart updated');
 }
 

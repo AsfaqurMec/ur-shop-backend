@@ -7,8 +7,6 @@ import type { ProductType } from '../types/product';
 import type { ProductRow } from '../types/product';
 import * as purchaseSelectionService from './purchaseSelectionService';
 
-const DIGITAL_SINGLE_QUANTITY_TYPES: ProductType[] = ['downloadable', 'subscription_manual', 'digital_service'];
-
 async function getOrCreateCart(userId: number): Promise<{ cartId: number }> {
   let cart = await cartRepo.findCartByUserId(userId);
   if (!cart) {
@@ -33,9 +31,6 @@ async function resolveMaxCartQuantity(
     }
     const n = await productRepo.countAvailableLicensesNoVariation(productId);
     return Math.max(0, n);
-  }
-  if (DIGITAL_SINGLE_QUANTITY_TYPES.includes(productType)) {
-    return 1;
   }
   if (variationId != null && variationId >= 1) {
     const row = await variationRepo.findVariationById(variationId);
@@ -201,8 +196,13 @@ export async function addItem(
   return buildCartPublic(cartId, items);
 }
 
-export async function updateItem(userId: number, itemId: number, quantity: number): Promise<CartPublic> {
-  const qty = Math.max(1, Math.floor(quantity));
+export async function updateItem(
+  userId: number,
+  itemId: number,
+  quantity?: number,
+  rawSelections?: unknown,
+  variationId?: number | null
+): Promise<CartPublic> {
   const item = await cartRepo.findCartItemById(itemId);
   if (!item) throw new AppError(404, 'Cart item not found');
   const cart = await cartRepo.findCartByUserId(userId);
@@ -210,9 +210,60 @@ export async function updateItem(userId: number, itemId: number, quantity: numbe
   const product = await productRepo.findProductById(item.product_id);
   if (!product) throw new AppError(404, 'Product not found');
   if (!product.is_active) throw new AppError(400, 'Product is not available for purchase');
-  await validateProductForCart(product, qty, { variationId: item.variation_id });
-  const updated = await cartRepo.updateCartItemQuantity(cart.id, itemId, qty);
-  if (!updated) throw new AppError(404, 'Cart item not found');
+
+  const requestedVid =
+    variationId !== undefined
+      ? variationId != null && Number.isFinite(Number(variationId)) && Number(variationId) >= 1
+        ? Math.trunc(Number(variationId))
+        : null
+      : item.variation_id;
+
+  const targetSelections = rawSelections !== undefined ? rawSelections : item.selections;
+
+  const resolved = await purchaseSelectionService.resolveLinePricing(
+    product.id,
+    Number(product.price),
+    targetSelections,
+    requestedVid
+  );
+
+  const storageVid =
+    resolved.effective_variation_id != null ? resolved.effective_variation_id : requestedVid;
+
+  const targetQty = quantity !== undefined ? Math.max(1, Math.floor(quantity)) : item.quantity;
+  await validateProductForCart(product, targetQty, { variationId: storageVid });
+
+  const max = await resolveMaxCartQuantity(
+    product.id,
+    product.product_type as ProductType,
+    storageVid,
+    product.quantity
+  );
+
+  const finalQty = Math.min(targetQty, max);
+  const selJson = JSON.stringify(resolved.normalized_selections);
+
+  const existing = await cartRepo.findCartItemByCartProductVariationAndSelections(
+    cart.id,
+    product.id,
+    storageVid,
+    selJson
+  );
+
+  if (existing && existing.id !== itemId) {
+    const candidateQty = existing.quantity + finalQty;
+    const newQty = Math.min(candidateQty, max);
+    await validateProductForCart(product, newQty, { variationId: storageVid });
+    await cartRepo.updateCartItemQuantity(cart.id, existing.id, newQty);
+    await cartRepo.deleteCartItem(cart.id, itemId);
+  } else {
+    await cartRepo.updateCartItem(cart.id, itemId, {
+      quantity: finalQty,
+      variation_id: storageVid,
+      selections: resolved.normalized_selections,
+    });
+  }
+
   const items = await cartRepo.findCartItemsWithProducts(cart.id);
   return buildCartPublic(cart.id, items);
 }

@@ -128,6 +128,23 @@ export async function updateCartItemQuantity(cartId: number, itemId: number, qua
   return result.modifiedCount > 0;
 }
 
+export async function updateCartItem(
+  cartId: number,
+  itemId: number,
+  updates: {
+    quantity?: number;
+    variation_id?: number | null;
+    selections?: Record<string, string> | null;
+  }
+): Promise<boolean> {
+  const setObj: Record<string, unknown> = {};
+  if (updates.quantity !== undefined) setObj.quantity = updates.quantity;
+  if (updates.variation_id !== undefined) setObj.variation_id = updates.variation_id;
+  if (updates.selections !== undefined) setObj.selections = updates.selections;
+  const result = await CartItemModel.updateOne({ id: itemId, cart_id: cartId }, { $set: setObj });
+  return result.modifiedCount > 0;
+}
+
 export async function deleteCartItem(cartId: number, itemId: number): Promise<boolean> {
   const result = await CartItemModel.deleteOne({ id: itemId, cart_id: cartId });
   return result.deletedCount > 0;
