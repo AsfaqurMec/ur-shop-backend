@@ -58,7 +58,7 @@ function generateOrderNumber(): string {
 function orderRow(doc: any): OrderRow {
   return {
     id: Number(doc.id),
-    user_id: Number(doc.user_id),
+    user_id: doc.user_id != null ? Number(doc.user_id) : null,
     order_number: String(doc.order_number),
     status: doc.status as OrderStatus,
     payment_status: (doc.payment_status as any) || 'unpaid',
@@ -94,6 +94,7 @@ function orderRow(doc: any): OrderRow {
       ? String(doc.shipping_method_title).trim()
       : null,
     shipping_fee: Number(doc.shipping_fee ?? 0),
+    guest_token: doc.guest_token != null ? String(doc.guest_token) : null,
     created_at: date(doc.created_at),
     updated_at: date(doc.updated_at),
   };
@@ -136,7 +137,7 @@ function paymentRow(doc: any): PaymentRow {
 export async function createOrder(
   _conn: unknown,
   data: {
-    user_id: number;
+    user_id: number | null;
     order_number?: string;
     status: OrderStatus;
     payment_status?: 'paid' | 'unpaid';
@@ -156,11 +157,17 @@ export async function createOrder(
     shipping_method_id?: string | null;
     shipping_method_title?: string | null;
     shipping_fee?: number;
+    guest_token?: string | null;
   }
 ): Promise<number> {
   const id = await nextId('orders');
   await OrderModel.create({ id, ...data, order_number: data.order_number || generateOrderNumber() });
   return id;
+}
+
+export async function findOrderByGuestToken(orderId: number, guestToken: string): Promise<OrderRow | null> {
+  const row = await OrderModel.findOne({ id: orderId, guest_token: guestToken.trim(), deleted_at: null }).lean();
+  return row ? orderRow(row) : null;
 }
 
 export interface OrderItemInput {

@@ -32,20 +32,10 @@ export declare function updateUserProfile(userId: number, role: string, data: {
     mobile?: string | null;
     address?: string | null;
 }): Promise<SafeUser>;
-/** Register or sign in a guest shopper (password = email) and return auth tokens. */
-export declare function guestCheckout(name: string, mobile: string, address: string, ip: string | null, userAgent: string | null): Promise<{
-    user: SafeUser;
-    accessToken: string;
-    refreshToken: string;
-    expiresAt: string;
-}>;
+/** @deprecated Guest checkout no longer creates accounts. Place orders directly via POST /checkout/orders */
+export declare function guestCheckout(_name?: string, _mobile?: string, _address?: string, _ip?: string | null, _userAgent?: string | null): Promise<never>;
 export declare function changePassword(userId: number, role: string, currentPassword: string, newPassword: string): Promise<void>;
 export declare function hasAccountForMobile(mobile: string): Promise<boolean>;
-/** Sign in an existing account by mobile for guest checkout continuation (no password required). */
-export declare function continueCheckout(mobile: string, ip: string | null, userAgent: string | null): Promise<{
-    user: SafeUser;
-    accessToken: string;
-    refreshToken: string;
-    expiresAt: string;
-}>;
+/** @deprecated Removed due to authentication bypass risks. */
+export declare function continueCheckout(_mobile?: string, _ip?: string | null, _userAgent?: string | null): Promise<never>;
 //# sourceMappingURL=authService.d.ts.map

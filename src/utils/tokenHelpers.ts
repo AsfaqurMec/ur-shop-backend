@@ -10,6 +10,7 @@ export interface AccessTokenPayload {
   email: string;
   role: string;
   sessionId: number;
+  type: 'access';
 }
 
 export interface RefreshTokenPayload {
@@ -17,6 +18,7 @@ export interface RefreshTokenPayload {
   email: string;
   role: string;
   sessionId: number;
+  type: 'refresh';
 }
 
 export function hashToken(token: string): string {
@@ -24,29 +26,41 @@ export function hashToken(token: string): string {
 }
 
 export function generateAccessToken(
-  payload: Omit<AccessTokenPayload, 'role'>,
+  payload: Omit<AccessTokenPayload, 'role' | 'type'>,
   role: string = ROLE_USER
 ): string {
   return jwt.sign(
-    { ...payload, role },
-    env.jwt.secret,
+    { ...payload, role, type: 'access' },
+    env.jwt.accessSecret,
     { expiresIn: env.jwt.accessExpiresIn } as jwt.SignOptions
   );
 }
 
 export function generateRefreshToken(
-  payload: Omit<RefreshTokenPayload, 'role'>,
+  payload: Omit<RefreshTokenPayload, 'role' | 'type'>,
   role: string = ROLE_USER
 ): string {
   return jwt.sign(
-    { ...payload, role },
-    env.jwt.secret,
+    { ...payload, role, type: 'refresh' },
+    env.jwt.refreshSecret,
     { expiresIn: env.jwt.refreshExpiresIn } as jwt.SignOptions
   );
 }
 
+export function verifyAccessToken(token: string): AccessTokenPayload {
+  const decoded = jwt.verify(token, env.jwt.accessSecret) as AccessTokenPayload;
+  if (decoded.type !== 'access') {
+    throw new Error('Invalid token type: expected access token');
+  }
+  return decoded;
+}
+
 export function verifyRefreshToken(token: string): RefreshTokenPayload {
-  return jwt.verify(token, env.jwt.secret) as RefreshTokenPayload;
+  const decoded = jwt.verify(token, env.jwt.refreshSecret) as RefreshTokenPayload;
+  if (decoded.type !== 'refresh') {
+    throw new Error('Invalid token type: expected refresh token');
+  }
+  return decoded;
 }
 
 export function getRefreshTokenExpiry(): Date {

@@ -165,20 +165,26 @@ async function deleteSessionById(sessionId) {
 async function deleteSessionsByUserId(userId) {
     await models_1.UserSessionModel.deleteMany({ user_id: userId });
 }
+const tokenHelpers_1 = require("../utils/tokenHelpers");
 async function createEmailVerification(userId, email, token, expiresAt) {
     const id = await (0, counter_1.nextId)('email_verifications');
     await models_1.EmailVerificationModel.create({
         id,
         user_id: userId,
         email,
-        token,
+        token_hash: (0, tokenHelpers_1.hashToken)(token),
+        token, // preserved for backward-compatibility during transition
         expires_at: expiresAt,
         verified_at: null,
     });
     return id;
 }
 async function findEmailVerificationByToken(token) {
-    const row = await models_1.EmailVerificationModel.findOne({ token }).lean();
+    const tokenTrimmed = token.trim();
+    const hashed = (0, tokenHelpers_1.hashToken)(tokenTrimmed);
+    const row = await models_1.EmailVerificationModel.findOne({
+        $or: [{ token_hash: hashed }, { token: tokenTrimmed }],
+    }).lean();
     return row ? verificationRow(row) : null;
 }
 async function markEmailVerificationVerified(verificationId) {
@@ -189,14 +195,20 @@ async function createPasswordReset(userId, token, expiresAt) {
     await models_1.PasswordResetModel.create({
         id,
         user_id: userId,
-        token,
+        token_hash: (0, tokenHelpers_1.hashToken)(token),
+        token, // preserved for backward-compatibility during transition
         expires_at: expiresAt,
         used_at: null,
     });
     return id;
 }
 async function findPasswordResetByToken(token) {
-    const row = await models_1.PasswordResetModel.findOne({ token, used_at: null }).lean();
+    const tokenTrimmed = token.trim();
+    const hashed = (0, tokenHelpers_1.hashToken)(tokenTrimmed);
+    const row = await models_1.PasswordResetModel.findOne({
+        $or: [{ token_hash: hashed }, { token: tokenTrimmed }],
+        used_at: null,
+    }).lean();
     return row ? resetRow(row) : null;
 }
 async function markPasswordResetUsed(resetId) {

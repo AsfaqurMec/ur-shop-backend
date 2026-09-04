@@ -37,9 +37,12 @@ const express_1 = require("express");
 const checkoutController = __importStar(require("../controllers/checkoutController"));
 const validate_1 = require("../middlewares/validate");
 const auth_1 = require("../middlewares/auth");
+const security_1 = require("../middlewares/security");
 const asyncHandler_1 = require("../utils/asyncHandler");
 const checkoutValidators_1 = require("../validators/checkoutValidators");
+const dashboardValidators_1 = require("../validators/dashboardValidators");
 const router = (0, express_1.Router)();
-router.post('/orders', auth_1.auth, (0, validate_1.validate)(checkoutValidators_1.createOrderValidator), (0, asyncHandler_1.asyncHandler)(checkoutController.createOrder));
+router.post('/orders', security_1.checkoutLimiter, auth_1.optionalAuth, (0, validate_1.validate)(checkoutValidators_1.createOrderValidator), (0, asyncHandler_1.asyncHandler)(checkoutController.createOrder));
+router.get('/orders/:orderId/invoice', auth_1.optionalAuth, (0, validate_1.validate)(dashboardValidators_1.orderIdParamValidator), (0, asyncHandler_1.asyncHandler)(checkoutController.downloadOrderInvoice));
 exports.default = router;
 //# sourceMappingURL=checkout.js.map

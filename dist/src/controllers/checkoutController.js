@@ -34,12 +34,12 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createOrder = createOrder;
+exports.downloadOrderInvoice = downloadOrderInvoice;
 const apiResponse_1 = require("../utils/apiResponse");
 const checkoutService = __importStar(require("../services/checkoutService"));
+const invoiceService = __importStar(require("../services/invoiceService"));
 async function createOrder(req, res) {
-    if (!req.user)
-        return (0, apiResponse_1.sendError)(res, 'Unauthorized', 401);
-    const userId = req.user.id;
+    const userId = req.user?.id ?? null;
     const couponCode = req.body.coupon_code ?? null;
     const rawMethod = req.body.payment_method;
     const method = typeof rawMethod === 'string' && rawMethod.trim().length > 0 ? rawMethod.trim() : 'manual_bkash';
@@ -58,6 +58,7 @@ async function createOrder(req, res) {
     const postalCode = typeof req.body.postal_code === 'string' ? req.body.postal_code.trim() || null : null;
     const addressLine2 = typeof req.body.address_line2 === 'string' ? req.body.address_line2.trim() || null : null;
     const shippingMethodId = typeof req.body.shipping_method_id === 'string' ? req.body.shipping_method_id.trim() || null : null;
+    const items = Array.isArray(req.body.items) ? req.body.items : undefined;
     const order = await checkoutService.createOrder(userId, couponCode, {
         method,
         transactionId: transactionIdRaw,
@@ -69,7 +70,17 @@ async function createOrder(req, res) {
         postalCode,
         addressLine2,
         shippingMethodId,
+        items,
     });
     return (0, apiResponse_1.sendSuccess)(res, { order }, 201, 'Order created successfully');
+}
+async function downloadOrderInvoice(req, res) {
+    const orderId = Number(req.params.orderId);
+    const token = typeof req.query.token === 'string' ? req.query.token.trim() : null;
+    const userId = req.user?.id ?? null;
+    const isAdmin = req.user?.role === 'admin';
+    const invoice = await invoiceService.createInvoicePdf(userId, orderId, isAdmin, token);
+    res.setHeader('Content-Disposition', `attachment; filename="${invoice.filename.replace(/[^a-zA-Z0-9._-]/g, '_')}"`);
+    res.status(200).send(invoice.buffer);
 }
 //# sourceMappingURL=checkoutController.js.map

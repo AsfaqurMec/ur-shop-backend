@@ -16,5 +16,6 @@ exports.createOrderValidator = [
     (0, express_validator_1.body)('postal_code').optional({ values: 'null' }).trim().isLength({ max: 32 }),
     (0, express_validator_1.body)('address_line2').optional({ values: 'null' }).trim().isLength({ max: 255 }),
     (0, express_validator_1.body)('shipping_method_id').optional({ values: 'null' }).trim().isLength({ max: 64 }),
+    (0, express_validator_1.body)('items').optional().isArray(),
 ];
 //# sourceMappingURL=checkoutValidators.js.map

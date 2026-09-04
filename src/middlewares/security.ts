@@ -27,16 +27,32 @@ export function sanitizeNoSql(req: Request, _res: Response, next: NextFunction):
 
 /**
  * Rate limiter for auth endpoints (login, register, password reset).
- * Takes limit amount and window duration from environment variables.
+ * In development, allows a generous limit so testing is not blocked.
  */
 export const authLimiter = rateLimit({
   windowMs: env.rateLimit.authWindowMinutes * 60 * 1000,
-  max: env.rateLimit.authMax,
+  max: env.nodeEnv === 'development' ? Math.max(env.rateLimit.authMax, 200) : env.rateLimit.authMax,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
     success: false,
     error: `Too many authentication attempts. Please try again in ${env.rateLimit.authWindowMinutes} minutes.`,
+  },
+  skip: () => env.nodeEnv === 'test',
+});
+
+/**
+ * Dedicated rate limiter for token refresh.
+ * Separate from authLimiter so background refreshes never starve login/register attempts.
+ */
+export const refreshLimiter = rateLimit({
+  windowMs: env.rateLimit.authWindowMinutes * 60 * 1000,
+  max: env.nodeEnv === 'development' ? 500 : Math.max(env.rateLimit.authMax * 5, 100),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: 'Too many token refresh attempts. Please try again later.',
   },
   skip: () => env.nodeEnv === 'test',
 });

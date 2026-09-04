@@ -18,7 +18,7 @@ import {
   continueCheckoutValidator,
 } from '../validators/authValidators';
 
-import { authLimiter } from '../middlewares/security';
+import { authLimiter, refreshLimiter } from '../middlewares/security';
 
 const router = Router();
 
@@ -28,7 +28,7 @@ router.post('/guest-account-status', validate(guestAccountStatusValidator), asyn
 router.post('/continue-checkout', authLimiter, validate(continueCheckoutValidator), asyncHandler(authController.continueCheckout));
 router.post('/login', authLimiter, validate(loginValidator), asyncHandler(authController.login));
 router.post('/logout', optionalAuth, asyncHandler(authController.logout));
-router.post('/refresh', validate(refreshValidator), asyncHandler(authController.refresh));
+router.post('/refresh', refreshLimiter, validate(refreshValidator), asyncHandler(authController.refresh));
 router.post('/verify-email', validate(verifyEmailValidator), asyncHandler(authController.verifyEmail));
 router.get('/verify-email', validate(verifyEmailQueryValidator), asyncHandler(authController.verifyEmail));
 router.post('/forgot-password', authLimiter, validate(forgotPasswordValidator), asyncHandler(authController.forgotPassword));

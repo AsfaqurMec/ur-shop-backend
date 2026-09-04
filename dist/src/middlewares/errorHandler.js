@@ -22,11 +22,14 @@ class AppError extends Error {
 exports.AppError = AppError;
 function getMessageForError(err) {
     const code = err.code;
-    if (code === 'ECONNREFUSED') {
+    const isDbError = code === 'ECONNREFUSED' ||
+        code === 'MongoServerSelectionError' ||
+        err.name === 'MongoServerSelectionError';
+    if (isDbError) {
+        if (config_1.env.nodeEnv === 'production') {
+            return 'Service temporarily unavailable. Please try again later.';
+        }
         return 'Database unavailable. Check MONGODB_URL in .env and make sure MongoDB is reachable.';
-    }
-    if (code === 'MongoServerSelectionError') {
-        return 'MongoDB connection failed. Check MONGODB_URL in .env.';
     }
     return 'Internal server error';
 }

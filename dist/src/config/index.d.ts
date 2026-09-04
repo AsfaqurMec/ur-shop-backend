@@ -16,6 +16,8 @@ export declare const env: {
     };
     readonly jwt: {
         readonly secret: string;
+        readonly accessSecret: string;
+        readonly refreshSecret: string;
         readonly accessExpiresIn: string;
         readonly refreshExpiresIn: string;
         readonly sessionExpiryDays: number;

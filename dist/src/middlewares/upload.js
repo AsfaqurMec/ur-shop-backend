@@ -46,7 +46,7 @@ function productImageStorage() {
     return multer_1.default.diskStorage({
         destination: (_req, _file, cb) => cb(null, PRODUCT_IMAGES_DIR),
         filename: (_req, file, cb) => {
-            const ext = path_1.default.extname(file.originalname) || '.jpg';
+            const ext = path_1.default.extname(file.originalname).toLowerCase() || '.jpg';
             const base = sanitizeFileName(path_1.default.basename(file.originalname, path_1.default.extname(file.originalname)));
             const name = `${base}-${Date.now()}${ext}`;
             cb(null, name);
@@ -58,20 +58,60 @@ function productFileStorage() {
     return multer_1.default.diskStorage({
         destination: (_req, _file, cb) => cb(null, PRODUCT_FILES_DIR),
         filename: (_req, file, cb) => {
-            const ext = path_1.default.extname(file.originalname) || '';
+            const ext = path_1.default.extname(file.originalname).toLowerCase() || '';
             const base = sanitizeFileName(path_1.default.basename(file.originalname, path_1.default.extname(file.originalname)));
             const name = `${base}-${Date.now()}${ext}`;
             cb(null, name);
         },
     });
 }
+const ALLOWED_IMAGE_MIMES = new Set([
+    'image/jpeg',
+    'image/jpg',
+    'image/pjpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+]);
+const ALLOWED_IMAGE_EXTS = new Set([
+    '.jpg',
+    '.jpeg',
+    '.png',
+    '.gif',
+    '.webp',
+]);
 const imageFileFilter = (_req, file, cb) => {
-    // Some clients send image/jpg; standard is image/jpeg — allow both.
-    const allowed = /^image\/(jpeg|jpg|pjpeg|png|gif|webp)$/i;
-    if (allowed.test(file.mimetype))
+    const mime = (file.mimetype || '').toLowerCase();
+    const ext = path_1.default.extname(file.originalname || '').toLowerCase();
+    if (ALLOWED_IMAGE_MIMES.has(mime) && ALLOWED_IMAGE_EXTS.has(ext)) {
         cb(null, true);
-    else
-        cb(new errorHandler_1.AppError(400, 'Only image files (jpeg, png, gif, webp) are allowed'));
+    }
+    else {
+        cb(new errorHandler_1.AppError(400, 'Only image files (.jpg, .jpeg, .png, .gif, .webp) are allowed'));
+    }
+};
+const ALLOWED_TICKET_EXTS = new Set([
+    '.pdf',
+    '.png',
+    '.jpg',
+    '.jpeg',
+    '.webp',
+    '.txt',
+    '.doc',
+    '.docx',
+    '.xls',
+    '.xlsx',
+    '.zip',
+    '.csv',
+]);
+const ticketAttachmentFileFilter = (_req, file, cb) => {
+    const ext = path_1.default.extname(file.originalname || '').toLowerCase();
+    if (ALLOWED_TICKET_EXTS.has(ext)) {
+        cb(null, true);
+    }
+    else {
+        cb(new errorHandler_1.AppError(400, 'Invalid attachment file type. Allowed formats: PDF, PNG, JPG, WEBP, TXT, DOC, DOCX, XLS, XLSX, CSV, ZIP.'));
+    }
 };
 const anyFileFilter = (_req, _file, cb) => {
     cb(null, true);
@@ -96,7 +136,7 @@ function paymentProofStorage() {
     return multer_1.default.diskStorage({
         destination: (_req, _file, cb) => cb(null, PAYMENT_PROOFS_DIR),
         filename: (_req, file, cb) => {
-            const ext = path_1.default.extname(file.originalname) || '.jpg';
+            const ext = path_1.default.extname(file.originalname).toLowerCase() || '.jpg';
             const base = sanitizeFileName(path_1.default.basename(file.originalname, path_1.default.extname(file.originalname)));
             const name = `${base}-${Date.now()}${ext}`;
             cb(null, name);
@@ -113,7 +153,7 @@ function reviewImageStorage() {
     return multer_1.default.diskStorage({
         destination: (_req, _file, cb) => cb(null, REVIEW_IMAGES_DIR),
         filename: (_req, file, cb) => {
-            const ext = path_1.default.extname(file.originalname) || '.jpg';
+            const ext = path_1.default.extname(file.originalname).toLowerCase() || '.jpg';
             const base = sanitizeFileName(path_1.default.basename(file.originalname, path_1.default.extname(file.originalname)));
             cb(null, `${base}-${Date.now()}${ext}`);
         },
@@ -141,20 +181,38 @@ function getProductFileRelativePath(filename) {
 function getPaymentProofRelativePath(filename) {
     return path_1.default.join('payments', 'proofs', filename).replace(/\\/g, '/');
 }
+/**
+ * Validates and normalizes relative paths against UPLOAD_BASE to prevent directory traversal attacks.
+ */
+function assertSafeUploadPath(relativePath) {
+    if (!relativePath || typeof relativePath !== 'string') {
+        throw new errorHandler_1.AppError(400, 'Invalid file path');
+    }
+    const resolvedBase = path_1.default.resolve(UPLOAD_BASE);
+    const resolvedPath = path_1.default.isAbsolute(relativePath)
+        ? path_1.default.resolve(relativePath)
+        : path_1.default.resolve(UPLOAD_BASE, relativePath);
+    const normalizedBase = path_1.default.normalize(resolvedBase);
+    const normalizedPath = path_1.default.normalize(resolvedPath);
+    if (!normalizedPath.startsWith(normalizedBase + path_1.default.sep) && normalizedPath !== normalizedBase) {
+        throw new errorHandler_1.AppError(403, 'Invalid file path: path traversal detected');
+    }
+    return normalizedPath;
+}
 /** Absolute path for a product file from DB file_path (relative to upload base). */
 function getProductFileAbsolutePath(relativePath) {
-    return path_1.default.join(UPLOAD_BASE, relativePath);
+    return assertSafeUploadPath(relativePath);
 }
 /** Absolute path for a payment proof file from DB file_path (relative to upload base). */
 function getPaymentProofAbsolutePath(relativePath) {
-    return path_1.default.join(UPLOAD_BASE, relativePath);
+    return assertSafeUploadPath(relativePath);
 }
 function ticketAttachmentStorage() {
     ensureDir(TICKET_ATTACHMENTS_DIR);
     return multer_1.default.diskStorage({
         destination: (_req, _file, cb) => cb(null, TICKET_ATTACHMENTS_DIR),
         filename: (_req, file, cb) => {
-            const ext = path_1.default.extname(file.originalname) || '';
+            const ext = path_1.default.extname(file.originalname).toLowerCase() || '';
             const base = sanitizeFileName(path_1.default.basename(file.originalname, path_1.default.extname(file.originalname)));
             const name = `${base}-${Date.now()}${ext}`;
             cb(null, name);
@@ -164,14 +222,14 @@ function ticketAttachmentStorage() {
 exports.uploadTicketAttachment = (0, multer_1.default)({
     storage: ticketAttachmentStorage(),
     limits: { fileSize: maxSizeBytes },
-    fileFilter: anyFileFilter,
+    fileFilter: ticketAttachmentFileFilter,
 }).single('attachment');
 function settingsLogoStorage() {
     ensureDir(SETTINGS_LOGOS_DIR);
     return multer_1.default.diskStorage({
         destination: (_req, _file, cb) => cb(null, SETTINGS_LOGOS_DIR),
         filename: (_req, file, cb) => {
-            const ext = path_1.default.extname(file.originalname) || '.png';
+            const ext = path_1.default.extname(file.originalname).toLowerCase() || '.png';
             const base = sanitizeFileName(path_1.default.basename(file.originalname, path_1.default.extname(file.originalname)));
             const name = `${base}-${Date.now()}${ext}`;
             cb(null, name);
@@ -188,7 +246,7 @@ function bannerImageStorage() {
     return multer_1.default.diskStorage({
         destination: (_req, _file, cb) => cb(null, BANNER_IMAGES_DIR),
         filename: (_req, file, cb) => {
-            const ext = path_1.default.extname(file.originalname) || '.jpg';
+            const ext = path_1.default.extname(file.originalname).toLowerCase() || '.jpg';
             const base = sanitizeFileName(path_1.default.basename(file.originalname, path_1.default.extname(file.originalname)));
             const name = `${base}-${Date.now()}${ext}`;
             cb(null, name);
@@ -206,7 +264,7 @@ function getTicketAttachmentRelativePath(filename) {
 }
 /** Absolute path for ticket attachment (stream download). */
 function getTicketAttachmentAbsolutePath(relativePath) {
-    return path_1.default.join(UPLOAD_BASE, relativePath);
+    return assertSafeUploadPath(relativePath);
 }
 /** Relative path for settings logo (store in DB). */
 function getSettingsLogoRelativePath(filename) {
@@ -226,7 +284,7 @@ function categoryFilesStorage() {
             cb(null, file.fieldname === 'banner_image' ? CATEGORY_BANNERS_DIR : CATEGORY_IMAGES_DIR);
         },
         filename: (_req, file, cb) => {
-            const ext = path_1.default.extname(file.originalname) || '.jpg';
+            const ext = path_1.default.extname(file.originalname).toLowerCase() || '.jpg';
             const base = sanitizeFileName(path_1.default.basename(file.originalname, path_1.default.extname(file.originalname)));
             const name = `${base}-${Date.now()}${ext}`;
             cb(null, name);

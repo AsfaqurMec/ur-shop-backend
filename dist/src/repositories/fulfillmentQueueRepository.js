@@ -21,7 +21,7 @@ function row(doc) {
         order_item_id: Number(doc.order_item_id),
         product_id: Number(doc.product_id),
         product_type: doc.product_type,
-        user_id: Number(doc.user_id),
+        user_id: doc.user_id != null ? Number(doc.user_id) : null,
         status: (doc.status ?? 'pending'),
         notes: doc.notes ?? null,
         due_at: doc.due_at ? date(doc.due_at) : null,

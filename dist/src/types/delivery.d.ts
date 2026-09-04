@@ -12,7 +12,7 @@ export interface FulfillmentQueueRow {
     order_item_id: number;
     product_id: number;
     product_type: FulfillmentQueueProductType;
-    user_id: number;
+    user_id: number | null;
     status: FulfillmentQueueStatus;
     notes: string | null;
     due_at: Date | null;
@@ -35,7 +35,7 @@ export interface FulfillmentQueuePublic {
     order_item_id: number;
     product_id: number;
     product_type: FulfillmentQueueProductType;
-    user_id: number;
+    user_id: number | null;
     status: FulfillmentQueueStatus;
     notes: string | null;
     due_at: string | null;

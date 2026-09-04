@@ -4,21 +4,60 @@ import { sendSuccess, sendError } from '../utils/apiResponse';
 import * as authService from '../services/authService';
 import { setAuthCookies, clearAuthCookies } from '../utils/cookieHelpers';
 
+function isTrustedUrl(candidate: string): boolean {
+  try {
+    const parsed = new URL(candidate);
+    const origin = parsed.origin;
+    const trusted = [
+      env.frontendUrl?.replace(/\/$/, ''),
+      process.env.APP_BASE_URL?.replace(/\/$/, ''),
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://127.0.0.1:3000',
+    ].filter((x): x is string => Boolean(x));
+
+    if (trusted.includes(origin)) return true;
+    if (env.nodeEnv !== 'production') {
+      if (
+        parsed.hostname === 'localhost' ||
+        parsed.hostname === '127.0.0.1' ||
+        parsed.hostname.endsWith('.vercel.app')
+      ) {
+        return true;
+      }
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 function pickVerificationBaseUrl(req: Request): string | undefined {
-  const fromBody = typeof req.body?.verificationBaseUrl === 'string' ? req.body.verificationBaseUrl.trim() : '';
-  const fromQuery =
-    typeof req.query?.verificationBaseUrl === 'string' ? req.query.verificationBaseUrl.trim() : '';
-  if (fromBody) return fromBody.replace(/\/$/, '');
-  if (fromQuery) return fromQuery.replace(/\/$/, '');
+  const candidate = (
+    typeof req.body?.verificationBaseUrl === 'string'
+      ? req.body.verificationBaseUrl.trim()
+      : typeof req.query?.verificationBaseUrl === 'string'
+      ? req.query.verificationBaseUrl.trim()
+      : ''
+  );
+  if (candidate && isTrustedUrl(candidate)) {
+    return candidate.replace(/\/$/, '');
+  }
   if (env.frontendUrl) return `${env.frontendUrl}/verify-email`;
   return undefined;
 }
 
 function pickResetBaseUrl(req: Request): string | undefined {
-  const fromBody = typeof req.body?.resetBaseUrl === 'string' ? req.body.resetBaseUrl.trim() : '';
-  const fromQuery = typeof req.query?.resetBaseUrl === 'string' ? req.query.resetBaseUrl.trim() : '';
-  if (fromBody) return fromBody.replace(/\/$/, '');
-  if (fromQuery) return fromQuery.replace(/\/$/, '');
+  const candidate = (
+    typeof req.body?.resetBaseUrl === 'string'
+      ? req.body.resetBaseUrl.trim()
+      : typeof req.query?.resetBaseUrl === 'string'
+      ? req.query.resetBaseUrl.trim()
+      : ''
+  );
+  if (candidate && isTrustedUrl(candidate)) {
+    return candidate.replace(/\/$/, '');
+  }
   if (env.frontendUrl) return `${env.frontendUrl}/reset-password`;
   return undefined;
 }
@@ -111,18 +150,7 @@ export async function updateProfile(req: Request, res: Response): Promise<Respon
 }
 
 export async function guestCheckout(req: Request, res: Response): Promise<Response> {
-  const { name, mobile, address } = req.body as {
-    name: string;
-    mobile: string;
-    address: string;
-  };
-  const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? req.socket?.remoteAddress ?? null;
-  const userAgent = req.headers['user-agent'] ?? null;
-  const result = await authService.guestCheckout(name, mobile, address, ip, userAgent);
-  if (result.accessToken) {
-    setAuthCookies(res, result.accessToken, result.refreshToken);
-  }
-  return sendSuccess(res, result, 201, 'Guest account ready');
+  return sendError(res, 'Guest account creation is disabled. Please checkout as a guest directly.', 410);
 }
 
 export async function changePassword(req: Request, res: Response): Promise<Response> {
@@ -139,12 +167,5 @@ export async function guestAccountStatus(req: Request, res: Response): Promise<R
 }
 
 export async function continueCheckout(req: Request, res: Response): Promise<Response> {
-  const { mobile } = req.body as { mobile: string };
-  const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? req.socket?.remoteAddress ?? null;
-  const userAgent = req.headers['user-agent'] ?? null;
-  const result = await authService.continueCheckout(mobile, ip, userAgent);
-  if (result.accessToken) {
-    setAuthCookies(res, result.accessToken, result.refreshToken);
-  }
-  return sendSuccess(res, result, 200, 'Signed in to continue checkout');
+  return sendError(res, 'Guest continue checkout is disabled. Please checkout as a guest directly.', 410);
 }

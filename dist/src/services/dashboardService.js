@@ -157,7 +157,7 @@ async function getOrderDetailsAdmin(orderId) {
         orderRepo.findOrderItems(orderId),
         orderRepo.findPaymentByOrderId(orderId),
         deliveryRepo.findByOrderId(orderId),
-        authRepo.findUserById(order.user_id),
+        order.user_id != null ? authRepo.findUserById(order.user_id) : Promise.resolve(null),
     ]);
     const orderItems = await toDashboardOrderItems(items);
     let paymentDto = null;

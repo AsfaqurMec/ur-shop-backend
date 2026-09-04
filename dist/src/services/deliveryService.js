@@ -267,6 +267,8 @@ async function markFulfillmentFulfilled(id, adminId, notes) {
     return toFulfillmentPublic(updated);
 }
 async function notifySubscriptionActivated(row) {
+    if (row.user_id == null)
+        return;
     const [order, user, sub] = await Promise.all([
         orderRepo.findOrderById(row.order_id),
         authRepo.findUserById(row.user_id),

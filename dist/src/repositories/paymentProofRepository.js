@@ -16,7 +16,7 @@ function row(doc) {
     return {
         id: Number(doc.id),
         order_id: Number(doc.order_id),
-        user_id: Number(doc.user_id),
+        user_id: doc.user_id != null ? Number(doc.user_id) : null,
         sender_number: doc.sender_number ?? null,
         transaction_id: doc.transaction_id ?? null,
         paid_amount: doc.paid_amount != null ? Number(doc.paid_amount) : null,
@@ -27,7 +27,7 @@ function row(doc) {
     };
 }
 async function withAdminContext(proofs) {
-    const userIds = [...new Set(proofs.map((p) => Number(p.user_id)))];
+    const userIds = [...new Set(proofs.map((p) => (p.user_id != null ? Number(p.user_id) : null)).filter((id) => id != null))];
     const orderIds = [...new Set(proofs.map((p) => Number(p.order_id)))];
     const [users, orders] = await Promise.all([
         models_1.UserModel.find({ id: { $in: userIds }, deleted_at: null }).lean(),
@@ -36,13 +36,13 @@ async function withAdminContext(proofs) {
     const userById = new Map(users.map((u) => [Number(u.id), u]));
     const orderById = new Map(orders.map((o) => [Number(o.id), o]));
     return proofs.flatMap((proof) => {
-        const user = userById.get(Number(proof.user_id));
+        const user = proof.user_id != null ? userById.get(Number(proof.user_id)) : null;
         const order = orderById.get(Number(proof.order_id));
-        if (!user || !order)
+        if (!order)
             return [];
         return [{
                 ...row(proof),
-                user_email: String(user.email),
+                user_email: user?.email ? String(user.email) : (order.shipping_mobile ? String(order.shipping_mobile) : 'Guest'),
                 order_number: String(order.order_number),
                 order_total: Number(order.total ?? 0),
                 order_currency: String(order.currency ?? 'BDT'),

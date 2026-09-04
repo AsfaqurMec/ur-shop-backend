@@ -4,6 +4,7 @@ export interface JwtPayload {
     email: string;
     role: string;
     sessionId: number;
+    type?: string;
 }
 /**
  * Auth middleware: verifies JWT and attaches user to req.

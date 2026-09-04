@@ -32,8 +32,12 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createOrder = createOrder;
+const crypto_1 = __importDefault(require("crypto"));
 const config_1 = require("../config");
 const errorHandler_1 = require("../middlewares/errorHandler");
 const cartRepo = __importStar(require("../repositories/cartRepository"));
@@ -108,6 +112,57 @@ async function buildOrderItemsFromCart(items) {
     }
     return out;
 }
+async function buildOrderItemsFromGuestInput(items) {
+    if (!items || items.length === 0) {
+        throw new errorHandler_1.AppError(400, 'Cart is empty');
+    }
+    const out = [];
+    const summary = [];
+    for (const item of items) {
+        if (!item.quantity || item.quantity < 1) {
+            throw new errorHandler_1.AppError(400, 'Invalid item quantity');
+        }
+        const product = await productRepo.findProductById(item.product_id);
+        if (!product || !product.is_active) {
+            throw new errorHandler_1.AppError(400, `Product "${product?.name || item.product_id}" is no longer available`);
+        }
+        await cartService.assertLineQuantityAllowed(item.product_id, item.quantity, item.product_variation_id ?? null);
+        let basePrice = Number(product.price);
+        if (item.product_variation_id != null) {
+            const v = await variationRepo.findVariationById(item.product_variation_id);
+            if (v?.price != null)
+                basePrice = Number(v.price);
+        }
+        const resolved = await purchaseSelectionService.resolveLinePricing(item.product_id, basePrice, item.selections, item.product_variation_id ?? null);
+        const unitPrice = resolved.unit_price;
+        const totalPrice = Math.round(unitPrice * item.quantity * 100) / 100;
+        let itemSku = null;
+        const effectiveVarId = resolved.effective_variation_id ?? item.product_variation_id;
+        if (effectiveVarId != null) {
+            const v = await variationRepo.findVariationById(effectiveVarId);
+            if (v?.sku)
+                itemSku = v.sku;
+        }
+        if (!itemSku && product.sku)
+            itemSku = product.sku;
+        out.push({
+            product_id: item.product_id,
+            product_variation_id: effectiveVarId ?? null,
+            sku: itemSku,
+            product_name: product.name,
+            product_type: product.product_type,
+            quantity: item.quantity,
+            unit_price: unitPrice,
+            total_price: totalPrice,
+            purchase_selections: resolved.normalized_selections && Object.keys(resolved.normalized_selections).length > 0
+                ? resolved.normalized_selections
+                : null,
+            purchase_selections_summary: resolved.summary && resolved.summary.length > 0 ? resolved.summary : null,
+        });
+        summary.push({ category_id: product.category_id ?? null });
+    }
+    return { orderItems: out, cartItemsSummary: summary };
+}
 function toOrderPublic(order, orderItems, payment) {
     return {
         id: order.id,
@@ -124,6 +179,7 @@ function toOrderPublic(order, orderItems, payment) {
         items: orderItems,
         ...(payment && { payment }),
         created_at: order.created_at.toISOString(),
+        ...(order.guest_token ? { guest_token: order.guest_token } : {}),
     };
 }
 /** Undo reserved variation / product quantity when a pending order is deleted (e.g. bKash session failed). */
@@ -156,7 +212,7 @@ async function createOrder(userId, couponCode, paymentInput = { method: 'manual_
         throw new errorHandler_1.AppError(400, 'Mobile number is required');
     if (!shippingAddress)
         throw new errorHandler_1.AppError(400, 'Address is required');
-    const user = await authRepo.findUserById(userId);
+    const user = userId != null ? await authRepo.findUserById(userId) : null;
     const rawName = paymentInput.name?.trim() || paymentInput.shippingName?.trim() || '';
     const shippingName = rawName || user?.name?.trim() || null;
     const storeSettings = await storeSettingsService.getStoreSettings();
@@ -192,8 +248,18 @@ async function createOrder(userId, couponCode, paymentInput = { method: 'manual_
             throw new errorHandler_1.AppError(503, 'bKash requires FRONTEND_URL or callback_base_url in payment options / BKASH_CALLBACK_BASE_URL so customers can return after payment.');
         }
     }
-    const { items: cartItems } = await validateCartItemsForCheckout(userId);
-    const orderItemsInput = await buildOrderItemsFromCart(cartItems);
+    let orderItemsInput;
+    let cartCategories;
+    if (userId != null) {
+        const { items: cartItems } = await validateCartItemsForCheckout(userId);
+        orderItemsInput = await buildOrderItemsFromCart(cartItems);
+        cartCategories = cartItems.map((c) => ({ category_id: c.category_id ?? null }));
+    }
+    else {
+        const guestResult = await buildOrderItemsFromGuestInput(paymentInput.items || []);
+        orderItemsInput = guestResult.orderItems;
+        cartCategories = guestResult.cartItemsSummary;
+    }
     const subtotal = orderItemsInput.reduce((sum, i) => sum + i.total_price, 0);
     const subtotalRounded = Math.round(subtotal * 100) / 100;
     let discountAmount = 0;
@@ -202,7 +268,7 @@ async function createOrder(userId, couponCode, paymentInput = { method: 'manual_
     if (couponCode?.trim()) {
         const eligibleItems = orderItemsInput.map((i, idx) => ({
             product_id: i.product_id,
-            category_id: cartItems[idx]?.category_id ?? null,
+            category_id: cartCategories[idx]?.category_id ?? null,
             quantity: i.quantity,
             unit_price: i.unit_price,
         }));
@@ -218,10 +284,12 @@ async function createOrder(userId, couponCode, paymentInput = { method: 'manual_
     const shippingFeeRounded = Math.round(shippingFee * 100) / 100;
     const total = Math.round((subtotalRounded - discount + tax + shippingFeeRounded) * 100) / 100;
     const gateway = isCashOnDelivery ? 'cash_on_delivery' : optionRow.gateway_key;
+    const guestToken = userId == null ? crypto_1.default.randomBytes(32).toString('hex') : null;
     let orderId;
     let paymentId;
     orderId = await orderRepo.createOrder(null, {
         user_id: userId,
+        guest_token: guestToken,
         status: 'pending',
         payment_status: 'unpaid',
         subtotal: subtotalRounded,
@@ -325,7 +393,9 @@ async function createOrder(userId, couponCode, paymentInput = { method: 'manual_
             file_path: null,
         });
     }
-    await cartService.clearCart(userId);
+    if (userId != null) {
+        await cartService.clearCart(userId);
+    }
     const order = await orderRepo.findOrderById(orderId);
     if (!order)
         throw new errorHandler_1.AppError(500, 'Order could not be retrieved');
@@ -358,12 +428,7 @@ async function createOrder(userId, couponCode, paymentInput = { method: 'manual_
     return orderPublic;
 }
 async function notifyAfterOrderPlaced(userId, order) {
-    const user = await authRepo.findUserById(userId);
-    if (!user) {
-        if (config_1.env.nodeEnv !== 'test')
-            console.warn('[Mail] Order placed: user not found, skipping emails userId=', userId);
-        return;
-    }
+    const user = userId != null ? await authRepo.findUserById(userId) : null;
     const gw = order.payment?.gateway ?? '';
     const isBank = await paymentOptionService.isBankProofGateway(gw);
     const isMfs = await paymentOptionService.isMfsReferenceGateway(gw);
@@ -396,20 +461,22 @@ async function notifyAfterOrderPlaced(userId, order) {
             : isBkashMerchant
                 ? 'Complete payment on bKash when redirected. If you do not pay within the time limit, the order will be cancelled automatically.'
                 : undefined;
-    const resolvedCustomerName = order.shipping_name || user.name?.trim() || undefined;
-    const customerResult = await emailService.sendOrderPlacedEmail(user.email, {
-        orderNumber: order.order_number,
-        customerName: resolvedCustomerName,
-        total: fmt(order.total),
-        currency: order.currency,
-        subtotal: fmt(order.subtotal),
-        discount: fmt(order.discount),
-        lines: userLines,
-        paymentInstructions,
-        dashboardUrl,
-    });
-    if (!customerResult.sent && config_1.env.nodeEnv !== 'test') {
-        console.error('[Mail] Order placed email to customer failed:', user.email, customerResult.error ?? 'unknown');
+    const resolvedCustomerName = order.shipping_name || user?.name?.trim() || undefined;
+    if (user?.email) {
+        const customerResult = await emailService.sendOrderPlacedEmail(user.email, {
+            orderNumber: order.order_number,
+            customerName: resolvedCustomerName,
+            total: fmt(order.total),
+            currency: order.currency,
+            subtotal: fmt(order.subtotal),
+            discount: fmt(order.discount),
+            lines: userLines,
+            paymentInstructions,
+            dashboardUrl,
+        });
+        if (!customerResult.sent && config_1.env.nodeEnv !== 'test') {
+            console.error('[Mail] Order placed email to customer failed:', user.email, customerResult.error ?? 'unknown');
+        }
     }
     const adminRecipients = config_1.env.mail.adminNotificationEmails;
     if (adminRecipients.length === 0) {
@@ -421,8 +488,8 @@ async function notifyAfterOrderPlaced(userId, order) {
     const adminOrdersUrl = config_1.env.frontendUrl ? `${config_1.env.frontendUrl}/admin/orders/${order.id}` : undefined;
     const adminPayload = {
         orderNumber: order.order_number,
-        customerEmail: user.email,
-        customerName: resolvedCustomerName || user.email,
+        customerEmail: user?.email || order.shipping_mobile || 'Guest Customer',
+        customerName: resolvedCustomerName || user?.email || 'Guest Customer',
         total: fmt(order.total),
         currency: order.currency,
         subtotal: fmt(order.subtotal),

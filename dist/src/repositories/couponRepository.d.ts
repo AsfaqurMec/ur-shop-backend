@@ -27,8 +27,8 @@ export declare function update(id: number, data: {
 export declare function softDelete(id: number): Promise<boolean>;
 export declare function countUsagesByUser(couponId: number, userId: number): Promise<number>;
 export declare function incrementUsedCount(couponId: number): Promise<void>;
-export declare function recordUsage(couponId: number, orderId: number, userId: number, discountAmount: number): Promise<number>;
-export declare function recordUsageWithConnection(_conn: unknown, couponId: number, orderId: number, userId: number, discountAmount: number): Promise<number>;
+export declare function recordUsage(couponId: number, orderId: number, userId: number | null, discountAmount: number): Promise<number>;
+export declare function recordUsageWithConnection(_conn: unknown, couponId: number, orderId: number, userId: number | null, discountAmount: number): Promise<number>;
 export declare function incrementUsedCountWithConnection(_conn: unknown, couponId: number): Promise<void>;
 export declare function findCouponIdsUsedByOrderId(orderId: number): Promise<number[]>;
 export declare function deleteCouponUsagesForOrder(orderId: number): Promise<void>;

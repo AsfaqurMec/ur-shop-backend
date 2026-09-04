@@ -78,7 +78,7 @@ export async function processOrderDelivery(orderId: number): Promise<{
 /** Process a single order item by product_type. Reusable from processOrderDelivery. */
 async function processOrderItem(
   orderId: number,
-  userId: number,
+  userId: number | null,
   item: OrderItemRow & { quantity: number }
 ): Promise<ItemFulfillmentOutcome> {
   const productType = item.product_type as OrderItemProductType;
@@ -208,7 +208,7 @@ export async function markFulfillmentFulfilled(
   let queueSnapshot: {
     order_id: number;
     order_item_id: number;
-    user_id: number;
+    user_id: number | null;
     product_type: string;
   } | null = null;
 
@@ -276,8 +276,9 @@ export async function markFulfillmentFulfilled(
 async function notifySubscriptionActivated(row: {
   order_id: number;
   order_item_id: number;
-  user_id: number;
+  user_id: number | null;
 }): Promise<void> {
+  if (row.user_id == null) return;
   const [order, user, sub] = await Promise.all([
     orderRepo.findOrderById(row.order_id),
     authRepo.findUserById(row.user_id),

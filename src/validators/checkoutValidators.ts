@@ -14,4 +14,5 @@ export const createOrderValidator = [
   body('postal_code').optional({ values: 'null' }).trim().isLength({ max: 32 }),
   body('address_line2').optional({ values: 'null' }).trim().isLength({ max: 255 }),
   body('shipping_method_id').optional({ values: 'null' }).trim().isLength({ max: 64 }),
+  body('items').optional().isArray(),
 ];

@@ -7,6 +7,7 @@ exports.ROLE_ADMIN = void 0;
 exports.hashToken = hashToken;
 exports.generateAccessToken = generateAccessToken;
 exports.generateRefreshToken = generateRefreshToken;
+exports.verifyAccessToken = verifyAccessToken;
 exports.verifyRefreshToken = verifyRefreshToken;
 exports.getRefreshTokenExpiry = getRefreshTokenExpiry;
 const crypto_1 = __importDefault(require("crypto"));
@@ -18,13 +19,24 @@ function hashToken(token) {
     return crypto_1.default.createHash('sha256').update(token).digest('hex');
 }
 function generateAccessToken(payload, role = ROLE_USER) {
-    return jsonwebtoken_1.default.sign({ ...payload, role }, config_1.env.jwt.secret, { expiresIn: config_1.env.jwt.accessExpiresIn });
+    return jsonwebtoken_1.default.sign({ ...payload, role, type: 'access' }, config_1.env.jwt.accessSecret, { expiresIn: config_1.env.jwt.accessExpiresIn });
 }
 function generateRefreshToken(payload, role = ROLE_USER) {
-    return jsonwebtoken_1.default.sign({ ...payload, role }, config_1.env.jwt.secret, { expiresIn: config_1.env.jwt.refreshExpiresIn });
+    return jsonwebtoken_1.default.sign({ ...payload, role, type: 'refresh' }, config_1.env.jwt.refreshSecret, { expiresIn: config_1.env.jwt.refreshExpiresIn });
+}
+function verifyAccessToken(token) {
+    const decoded = jsonwebtoken_1.default.verify(token, config_1.env.jwt.accessSecret);
+    if (decoded.type !== 'access') {
+        throw new Error('Invalid token type: expected access token');
+    }
+    return decoded;
 }
 function verifyRefreshToken(token) {
-    return jsonwebtoken_1.default.verify(token, config_1.env.jwt.secret);
+    const decoded = jsonwebtoken_1.default.verify(token, config_1.env.jwt.refreshSecret);
+    if (decoded.type !== 'refresh') {
+        throw new Error('Invalid token type: expected refresh token');
+    }
+    return decoded;
 }
 function getRefreshTokenExpiry() {
     const match = config_1.env.jwt.refreshExpiresIn.match(/^(\d+)([dm])$/);

@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createOrder = createOrder;
+exports.findOrderByGuestToken = findOrderByGuestToken;
 exports.createOrderItems = createOrderItems;
 exports.createPayment = createPayment;
 exports.findOrderById = findOrderById;
@@ -79,7 +80,7 @@ function generateOrderNumber() {
 function orderRow(doc) {
     return {
         id: Number(doc.id),
-        user_id: Number(doc.user_id),
+        user_id: doc.user_id != null ? Number(doc.user_id) : null,
         order_number: String(doc.order_number),
         status: doc.status,
         payment_status: doc.payment_status || 'unpaid',
@@ -115,6 +116,7 @@ function orderRow(doc) {
             ? String(doc.shipping_method_title).trim()
             : null,
         shipping_fee: Number(doc.shipping_fee ?? 0),
+        guest_token: doc.guest_token != null ? String(doc.guest_token) : null,
         created_at: date(doc.created_at),
         updated_at: date(doc.updated_at),
     };
@@ -155,6 +157,10 @@ async function createOrder(_conn, data) {
     const id = await (0, counter_1.nextId)('orders');
     await models_1.OrderModel.create({ id, ...data, order_number: data.order_number || generateOrderNumber() });
     return id;
+}
+async function findOrderByGuestToken(orderId, guestToken) {
+    const row = await models_1.OrderModel.findOne({ id: orderId, guest_token: guestToken.trim(), deleted_at: null }).lean();
+    return row ? orderRow(row) : null;
 }
 async function createOrderItems(_conn, orderId, items) {
     for (const item of items) {

@@ -1,12 +1,8 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.auth = auth;
 exports.optionalAuth = optionalAuth;
-const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-const config_1 = require("../config");
+const tokenHelpers_1 = require("../utils/tokenHelpers");
 const apiResponse_1 = require("../utils/apiResponse");
 function extractToken(req) {
     const cookieToken = req.cookies?.auth_token;
@@ -30,7 +26,7 @@ function auth(req, res, next) {
         return;
     }
     try {
-        const decoded = jsonwebtoken_1.default.verify(token, config_1.env.jwt.secret);
+        const decoded = (0, tokenHelpers_1.verifyAccessToken)(token);
         req.userId = String(decoded.id);
         req.user = {
             id: decoded.id,
@@ -54,7 +50,7 @@ function optionalAuth(req, _res, next) {
         return;
     }
     try {
-        const decoded = jsonwebtoken_1.default.verify(token, config_1.env.jwt.secret);
+        const decoded = (0, tokenHelpers_1.verifyAccessToken)(token);
         req.userId = String(decoded.id);
         req.user = {
             id: decoded.id,

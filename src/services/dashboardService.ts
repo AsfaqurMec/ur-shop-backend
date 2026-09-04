@@ -141,7 +141,7 @@ export async function getOrderDetailsAdmin(orderId: number): Promise<DashboardOr
     orderRepo.findOrderItems(orderId),
     orderRepo.findPaymentByOrderId(orderId),
     deliveryRepo.findByOrderId(orderId),
-    authRepo.findUserById(order.user_id),
+    order.user_id != null ? authRepo.findUserById(order.user_id) : Promise.resolve(null),
   ]);
 
   const orderItems = await toDashboardOrderItems(items);

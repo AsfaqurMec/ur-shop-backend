@@ -50,24 +50,54 @@ const config_1 = require("../config");
 const apiResponse_1 = require("../utils/apiResponse");
 const authService = __importStar(require("../services/authService"));
 const cookieHelpers_1 = require("../utils/cookieHelpers");
+function isTrustedUrl(candidate) {
+    try {
+        const parsed = new URL(candidate);
+        const origin = parsed.origin;
+        const trusted = [
+            config_1.env.frontendUrl?.replace(/\/$/, ''),
+            process.env.APP_BASE_URL?.replace(/\/$/, ''),
+            'http://localhost:3000',
+            'http://localhost:3001',
+            'http://127.0.0.1:3000',
+        ].filter((x) => Boolean(x));
+        if (trusted.includes(origin))
+            return true;
+        if (config_1.env.nodeEnv !== 'production') {
+            if (parsed.hostname === 'localhost' ||
+                parsed.hostname === '127.0.0.1' ||
+                parsed.hostname.endsWith('.vercel.app')) {
+                return true;
+            }
+        }
+        return false;
+    }
+    catch {
+        return false;
+    }
+}
 function pickVerificationBaseUrl(req) {
-    const fromBody = typeof req.body?.verificationBaseUrl === 'string' ? req.body.verificationBaseUrl.trim() : '';
-    const fromQuery = typeof req.query?.verificationBaseUrl === 'string' ? req.query.verificationBaseUrl.trim() : '';
-    if (fromBody)
-        return fromBody.replace(/\/$/, '');
-    if (fromQuery)
-        return fromQuery.replace(/\/$/, '');
+    const candidate = (typeof req.body?.verificationBaseUrl === 'string'
+        ? req.body.verificationBaseUrl.trim()
+        : typeof req.query?.verificationBaseUrl === 'string'
+            ? req.query.verificationBaseUrl.trim()
+            : '');
+    if (candidate && isTrustedUrl(candidate)) {
+        return candidate.replace(/\/$/, '');
+    }
     if (config_1.env.frontendUrl)
         return `${config_1.env.frontendUrl}/verify-email`;
     return undefined;
 }
 function pickResetBaseUrl(req) {
-    const fromBody = typeof req.body?.resetBaseUrl === 'string' ? req.body.resetBaseUrl.trim() : '';
-    const fromQuery = typeof req.query?.resetBaseUrl === 'string' ? req.query.resetBaseUrl.trim() : '';
-    if (fromBody)
-        return fromBody.replace(/\/$/, '');
-    if (fromQuery)
-        return fromQuery.replace(/\/$/, '');
+    const candidate = (typeof req.body?.resetBaseUrl === 'string'
+        ? req.body.resetBaseUrl.trim()
+        : typeof req.query?.resetBaseUrl === 'string'
+            ? req.query.resetBaseUrl.trim()
+            : '');
+    if (candidate && isTrustedUrl(candidate)) {
+        return candidate.replace(/\/$/, '');
+    }
     if (config_1.env.frontendUrl)
         return `${config_1.env.frontendUrl}/reset-password`;
     return undefined;
@@ -145,14 +175,7 @@ async function updateProfile(req, res) {
     return (0, apiResponse_1.sendSuccess)(res, { user }, 200, 'Profile updated');
 }
 async function guestCheckout(req, res) {
-    const { name, mobile, address } = req.body;
-    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() ?? req.socket?.remoteAddress ?? null;
-    const userAgent = req.headers['user-agent'] ?? null;
-    const result = await authService.guestCheckout(name, mobile, address, ip, userAgent);
-    if (result.accessToken) {
-        (0, cookieHelpers_1.setAuthCookies)(res, result.accessToken, result.refreshToken);
-    }
-    return (0, apiResponse_1.sendSuccess)(res, result, 201, 'Guest account ready');
+    return (0, apiResponse_1.sendError)(res, 'Guest account creation is disabled. Please checkout as a guest directly.', 410);
 }
 async function changePassword(req, res) {
     if (!req.user)
@@ -168,13 +191,6 @@ async function guestAccountStatus(req, res) {
     return (0, apiResponse_1.sendSuccess)(res, { exists });
 }
 async function continueCheckout(req, res) {
-    const { mobile } = req.body;
-    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() ?? req.socket?.remoteAddress ?? null;
-    const userAgent = req.headers['user-agent'] ?? null;
-    const result = await authService.continueCheckout(mobile, ip, userAgent);
-    if (result.accessToken) {
-        (0, cookieHelpers_1.setAuthCookies)(res, result.accessToken, result.refreshToken);
-    }
-    return (0, apiResponse_1.sendSuccess)(res, result, 200, 'Signed in to continue checkout');
+    return (0, apiResponse_1.sendError)(res, 'Guest continue checkout is disabled. Please checkout as a guest directly.', 410);
 }
 //# sourceMappingURL=authController.js.map

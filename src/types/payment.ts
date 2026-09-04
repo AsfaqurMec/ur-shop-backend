@@ -28,7 +28,7 @@ export type PaymentProofStatus = 'pending' | 'verified' | 'rejected';
 export interface PaymentProofRow {
   id: number;
   order_id: number;
-  user_id: number;
+  user_id: number | null;
   sender_number: string | null;
   transaction_id: string | null;
   paid_amount: number | null;
@@ -52,7 +52,7 @@ export interface PaymentProofPublic {
 
 /** Admin list rows (includes submitter email and order snapshot for amount / context). */
 export interface PaymentProofAdmin extends PaymentProofPublic {
-  user_id: number;
+  user_id: number | null;
   user_email: string;
   order_number: string;
   order_total: number;

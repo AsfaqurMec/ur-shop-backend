@@ -1,6 +1,6 @@
 import type { OrderStatus, OrderItemProductType, OrderRow, OrderItemRow, PaymentRow } from '../types/order';
 export declare function createOrder(_conn: unknown, data: {
-    user_id: number;
+    user_id: number | null;
     order_number?: string;
     status: OrderStatus;
     payment_status?: 'paid' | 'unpaid';
@@ -20,7 +20,9 @@ export declare function createOrder(_conn: unknown, data: {
     shipping_method_id?: string | null;
     shipping_method_title?: string | null;
     shipping_fee?: number;
+    guest_token?: string | null;
 }): Promise<number>;
+export declare function findOrderByGuestToken(orderId: number, guestToken: string): Promise<OrderRow | null>;
 export interface OrderItemInput {
     product_id: number;
     product_variation_id?: number | null;

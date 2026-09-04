@@ -16,6 +16,13 @@ export interface CreateOrderPaymentDetails {
     postalCode?: string | null;
     addressLine2?: string | null;
     shippingMethodId?: string | null;
+    /** Guest cart lines passed directly when checking out without an account. */
+    items?: Array<{
+        product_id: number;
+        product_variation_id?: number | null;
+        quantity: number;
+        selections?: Record<string, string>;
+    }>;
 }
-export declare function createOrder(userId: number, couponCode?: string | null, paymentInput?: CreateOrderPaymentDetails): Promise<OrderPublic>;
+export declare function createOrder(userId: number | null, couponCode?: string | null, paymentInput?: CreateOrderPaymentDetails): Promise<OrderPublic>;
 //# sourceMappingURL=checkoutService.d.ts.map

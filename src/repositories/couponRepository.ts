@@ -103,7 +103,7 @@ export async function incrementUsedCount(couponId: number): Promise<void> {
   await CouponModel.updateOne({ id: couponId }, { $inc: { used_count: 1 } });
 }
 
-export async function recordUsage(couponId: number, orderId: number, userId: number, discountAmount: number): Promise<number> {
+export async function recordUsage(couponId: number, orderId: number, userId: number | null, discountAmount: number): Promise<number> {
   const id = await nextId('coupon_usages');
   await CouponUsageModel.create({ id, coupon_id: couponId, order_id: orderId, user_id: userId, discount_amount: discountAmount });
   return id;
@@ -113,7 +113,7 @@ export async function recordUsageWithConnection(
   _conn: unknown,
   couponId: number,
   orderId: number,
-  userId: number,
+  userId: number | null,
   discountAmount: number
 ): Promise<number> {
   return recordUsage(couponId, orderId, userId, discountAmount);

@@ -182,6 +182,8 @@ export async function deleteSessionsByUserId(userId: number): Promise<void> {
   await UserSessionModel.deleteMany({ user_id: userId });
 }
 
+import { hashToken } from '../utils/tokenHelpers';
+
 export async function createEmailVerification(
   userId: number,
   email: string,
@@ -193,7 +195,8 @@ export async function createEmailVerification(
     id,
     user_id: userId,
     email,
-    token,
+    token_hash: hashToken(token),
+    token, // preserved for backward-compatibility during transition
     expires_at: expiresAt,
     verified_at: null,
   });
@@ -201,7 +204,11 @@ export async function createEmailVerification(
 }
 
 export async function findEmailVerificationByToken(token: string): Promise<EmailVerificationRow | null> {
-  const row = await EmailVerificationModel.findOne({ token }).lean();
+  const tokenTrimmed = token.trim();
+  const hashed = hashToken(tokenTrimmed);
+  const row = await EmailVerificationModel.findOne({
+    $or: [{ token_hash: hashed }, { token: tokenTrimmed }],
+  }).lean();
   return row ? verificationRow(row) : null;
 }
 
@@ -218,7 +225,8 @@ export async function createPasswordReset(
   await PasswordResetModel.create({
     id,
     user_id: userId,
-    token,
+    token_hash: hashToken(token),
+    token, // preserved for backward-compatibility during transition
     expires_at: expiresAt,
     used_at: null,
   });
@@ -226,7 +234,12 @@ export async function createPasswordReset(
 }
 
 export async function findPasswordResetByToken(token: string): Promise<PasswordResetRow | null> {
-  const row = await PasswordResetModel.findOne({ token, used_at: null }).lean();
+  const tokenTrimmed = token.trim();
+  const hashed = hashToken(tokenTrimmed);
+  const row = await PasswordResetModel.findOne({
+    $or: [{ token_hash: hashed }, { token: tokenTrimmed }],
+    used_at: null,
+  }).lean();
   return row ? resetRow(row) : null;
 }
 

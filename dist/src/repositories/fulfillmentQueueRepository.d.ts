@@ -5,7 +5,7 @@ export interface FulfillmentQueueRow {
     order_item_id: number;
     product_id: number;
     product_type: FulfillmentQueueProductType;
-    user_id: number;
+    user_id: number | null;
     status: FulfillmentQueueStatus;
     notes: string | null;
     due_at: Date | null;
@@ -19,7 +19,7 @@ export declare function create(_conn: unknown, data: {
     order_item_id: number;
     product_id: number;
     product_type: FulfillmentQueueProductType;
-    user_id: number;
+    user_id: number | null;
     due_at?: Date | null;
 }): Promise<number>;
 export declare function findPending(): Promise<FulfillmentQueueRow[]>;

@@ -6,9 +6,14 @@ import { Request, Response, NextFunction } from 'express';
 export declare function sanitizeNoSql(req: Request, _res: Response, next: NextFunction): void;
 /**
  * Rate limiter for auth endpoints (login, register, password reset).
- * Takes limit amount and window duration from environment variables.
+ * In development, allows a generous limit so testing is not blocked.
  */
 export declare const authLimiter: import("express-rate-limit").RateLimitRequestHandler;
+/**
+ * Dedicated rate limiter for token refresh.
+ * Separate from authLimiter so background refreshes never starve login/register attempts.
+ */
+export declare const refreshLimiter: import("express-rate-limit").RateLimitRequestHandler;
 /**
  * General API rate limiter.
  * Takes limit amount and window duration from environment variables.

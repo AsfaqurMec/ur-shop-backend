@@ -217,7 +217,7 @@ async function refresh(refreshToken, ip, userAgent) {
         if (!session || new Date() > session.expires_at) {
             throw new errorHandler_1.AppError(401, 'Session expired or invalid');
         }
-        if (session.id !== payload.sessionId) {
+        if (session.id !== payload.sessionId || session.admin_id !== payload.id) {
             throw new errorHandler_1.AppError(401, 'Invalid refresh token');
         }
         const admin = await adminAuthRepo.findAdminById(payload.id);
@@ -252,7 +252,7 @@ async function refresh(refreshToken, ip, userAgent) {
     if (!session || new Date() > session.expires_at) {
         throw new errorHandler_1.AppError(401, 'Session expired or invalid');
     }
-    if (session.id !== payload.sessionId) {
+    if (session.id !== payload.sessionId || session.user_id !== payload.id) {
         throw new errorHandler_1.AppError(401, 'Invalid refresh token');
     }
     const user = await authRepo.findUserById(payload.id);
@@ -334,6 +334,7 @@ async function resetPassword(token, newPassword) {
     const passwordHash = await (0, passwordHelpers_1.hashPassword)(newPassword);
     await authRepo.updateUserPassword(reset.user_id, passwordHash);
     await authRepo.markPasswordResetUsed(reset.id);
+    await authRepo.deleteSessionsByUserId(reset.user_id);
     const user = await authRepo.findUserById(reset.user_id);
     if (user) {
         const loginUrl = config_1.env.frontendUrl ? `${config_1.env.frontendUrl}/login` : undefined;
@@ -437,35 +438,9 @@ async function createUserSession(user, ip, userAgent) {
         expiresAt: expiresAt.toISOString(),
     };
 }
-/** Register or sign in a guest shopper (password = email) and return auth tokens. */
-async function guestCheckout(name, mobile, address, ip, userAgent) {
-    const rawMobile = (0, bengali_1.normalizeBengaliNumerals)(mobile.trim());
-    const trimmedMobile = (0, bengali_1.normalizeBdMobile)(rawMobile) || rawMobile;
-    const generatedEmail = `${trimmedMobile}@guest.local`;
-    const trimmedName = name.trim() || trimmedMobile;
-    const trimmedAddress = address.trim();
-    if (!trimmedMobile)
-        throw new errorHandler_1.AppError(400, 'Mobile number is required');
-    if (!trimmedAddress)
-        throw new errorHandler_1.AppError(400, 'Address is required');
-    const existing = await authRepo.findUserByMobile(trimmedMobile);
-    if (existing) {
-        const valid = await (0, passwordHelpers_1.comparePassword)(trimmedMobile.slice(0, 5), existing.password_hash);
-        if (!valid) {
-            throw new errorHandler_1.AppError(409, 'An account with this email already exists. Please log in to continue.');
-        }
-        return createUserSession(existing, ip, userAgent);
-    }
-    const passwordHash = await (0, passwordHelpers_1.hashPassword)(trimmedMobile.slice(0, 5));
-    const userId = await authRepo.createUser(generatedEmail, passwordHash, trimmedName, {
-        mobile: trimmedMobile,
-        address: trimmedAddress,
-        needsPasswordChange: true,
-    });
-    const user = await authRepo.findUserById(userId);
-    if (!user)
-        throw new errorHandler_1.AppError(500, 'Failed to create user');
-    return createUserSession(user, ip, userAgent);
+/** @deprecated Guest checkout no longer creates accounts. Place orders directly via POST /checkout/orders */
+async function guestCheckout(_name, _mobile, _address, _ip, _userAgent) {
+    throw new errorHandler_1.AppError(410, 'Guest account creation is disabled. Please checkout as a guest directly.');
 }
 async function changePassword(userId, role, currentPassword, newPassword) {
     if (role === tokenHelpers_1.ROLE_ADMIN)
@@ -478,24 +453,15 @@ async function changePassword(userId, role, currentPassword, newPassword) {
     if (currentPassword === newPassword)
         throw new errorHandler_1.AppError(400, 'Choose a different new password');
     await authRepo.updateUserPassword(userId, await (0, passwordHelpers_1.hashPassword)(newPassword));
+    await authRepo.deleteSessionsByUserId(userId);
 }
 async function hasAccountForMobile(mobile) {
     const rawMobile = (0, bengali_1.normalizeBengaliNumerals)(mobile.trim());
     const trimmedMobile = (0, bengali_1.normalizeBdMobile)(rawMobile) || rawMobile;
     return Boolean(await authRepo.findUserByMobile(trimmedMobile));
 }
-/** Sign in an existing account by mobile for guest checkout continuation (no password required). */
-async function continueCheckout(mobile, ip, userAgent) {
-    const rawMobile = (0, bengali_1.normalizeBengaliNumerals)(mobile.trim());
-    const trimmedMobile = (0, bengali_1.normalizeBdMobile)(rawMobile) || rawMobile;
-    if (!trimmedMobile)
-        throw new errorHandler_1.AppError(400, 'Mobile number is required');
-    const existing = await authRepo.findUserByMobile(trimmedMobile);
-    if (!existing)
-        throw new errorHandler_1.AppError(404, 'No account found for this mobile number');
-    if (!existing.address?.trim()) {
-        throw new errorHandler_1.AppError(400, 'This account has no saved address. Please log in to update your profile.');
-    }
-    return createUserSession(existing, ip, userAgent);
+/** @deprecated Removed due to authentication bypass risks. */
+async function continueCheckout(_mobile, _ip, _userAgent) {
+    throw new errorHandler_1.AppError(410, 'Direct continuation is disabled. Please sign in or checkout as a guest.');
 }
 //# sourceMappingURL=authService.js.map

@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
-import { env } from '../config';
+import { verifyAccessToken } from '../utils/tokenHelpers';
 import { sendError } from '../utils/apiResponse';
 
 export interface JwtPayload {
@@ -8,6 +7,7 @@ export interface JwtPayload {
   email: string;
   role: string;
   sessionId: number;
+  type?: string;
 }
 
 function extractToken(req: Request): string | null {
@@ -35,7 +35,7 @@ export function auth(req: Request, res: Response, next: NextFunction): void {
   }
 
   try {
-    const decoded = jwt.verify(token, env.jwt.secret) as JwtPayload;
+    const decoded = verifyAccessToken(token);
     req.userId = String(decoded.id);
     req.user = {
       id: decoded.id,
@@ -59,7 +59,7 @@ export function optionalAuth(req: Request, _res: Response, next: NextFunction): 
     return;
   }
   try {
-    const decoded = jwt.verify(token, env.jwt.secret) as JwtPayload;
+    const decoded = verifyAccessToken(token);
     req.userId = String(decoded.id);
     req.user = {
       id: decoded.id,

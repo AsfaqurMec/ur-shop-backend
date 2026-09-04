@@ -17,7 +17,14 @@ export const loginValidator = [
 ];
 
 export const refreshValidator = [
-  body('refreshToken').notEmpty().withMessage('Refresh token is required'),
+  body('refreshToken')
+    .custom((value, { req }) => {
+      const token = value || req.cookies?.refresh_token;
+      if (!token || typeof token !== 'string' || !token.trim()) {
+        throw new Error('Refresh token is required');
+      }
+      return true;
+    }),
 ];
 
 export const verifyEmailValidator = [

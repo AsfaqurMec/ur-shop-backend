@@ -47,7 +47,7 @@ router.post('/guest-account-status', (0, validate_1.validate)(authValidators_1.g
 router.post('/continue-checkout', security_1.authLimiter, (0, validate_1.validate)(authValidators_1.continueCheckoutValidator), (0, asyncHandler_1.asyncHandler)(authController.continueCheckout));
 router.post('/login', security_1.authLimiter, (0, validate_1.validate)(authValidators_1.loginValidator), (0, asyncHandler_1.asyncHandler)(authController.login));
 router.post('/logout', auth_1.optionalAuth, (0, asyncHandler_1.asyncHandler)(authController.logout));
-router.post('/refresh', (0, validate_1.validate)(authValidators_1.refreshValidator), (0, asyncHandler_1.asyncHandler)(authController.refresh));
+router.post('/refresh', security_1.refreshLimiter, (0, validate_1.validate)(authValidators_1.refreshValidator), (0, asyncHandler_1.asyncHandler)(authController.refresh));
 router.post('/verify-email', (0, validate_1.validate)(authValidators_1.verifyEmailValidator), (0, asyncHandler_1.asyncHandler)(authController.verifyEmail));
 router.get('/verify-email', (0, validate_1.validate)(authValidators_1.verifyEmailQueryValidator), (0, asyncHandler_1.asyncHandler)(authController.verifyEmail));
 router.post('/forgot-password', security_1.authLimiter, (0, validate_1.validate)(authValidators_1.forgotPasswordValidator), (0, asyncHandler_1.asyncHandler)(authController.forgotPassword));

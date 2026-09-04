@@ -47,15 +47,30 @@ async function loadCompanyLogo(url: string): Promise<Buffer | null> {
 }
 
 /** Creates a customer-owned or admin printable invoice. Amounts are taken only from the stored order. */
-export async function createInvoicePdf(userId: number | null, orderId: number, isAdmin = false): Promise<{ filename: string; buffer: Buffer }> {
+export async function createInvoicePdf(
+  userId: number | null,
+  orderId: number,
+  isAdmin = false,
+  guestToken?: string | null
+): Promise<{ filename: string; buffer: Buffer }> {
   const order = await orderRepo.findOrderById(orderId);
   if (!order) throw new AppError(404, 'Order not found');
-  if (!isAdmin && userId != null && order.user_id !== userId) throw new AppError(403, 'Forbidden');
+
+  const isGuestMatch =
+    order.user_id == null &&
+    Boolean(order.guest_token) &&
+    Boolean(guestToken) &&
+    order.guest_token?.trim() === guestToken?.trim();
+  const isOwner = userId != null && order.user_id === userId;
+
+  if (!isAdmin && !isOwner && !isGuestMatch) {
+    throw new AppError(403, 'Forbidden');
+  }
 
   const [items, payment, customer, settings] = await Promise.all([
     orderRepo.findOrderItems(orderId),
     orderRepo.findPaymentByOrderId(orderId),
-    authRepo.findUserById(order.user_id),
+    order.user_id != null ? authRepo.findUserById(order.user_id) : null,
     storeSettingsService.getStoreSettings(),
   ]);
 

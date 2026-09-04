@@ -17,11 +17,16 @@ export class AppError extends Error {
 
 function getMessageForError(err: Error): string {
   const code = (err as NodeJS.ErrnoException).code;
-  if (code === 'ECONNREFUSED') {
+  const isDbError =
+    code === 'ECONNREFUSED' ||
+    code === 'MongoServerSelectionError' ||
+    err.name === 'MongoServerSelectionError';
+
+  if (isDbError) {
+    if (env.nodeEnv === 'production') {
+      return 'Service temporarily unavailable. Please try again later.';
+    }
     return 'Database unavailable. Check MONGODB_URL in .env and make sure MongoDB is reachable.';
-  }
-  if (code === 'MongoServerSelectionError') {
-    return 'MongoDB connection failed. Check MONGODB_URL in .env.';
   }
   return 'Internal server error';
 }

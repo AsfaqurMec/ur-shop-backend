@@ -40,13 +40,15 @@ app.use(
     origin: (origin, callback) => {
       // Allow requests with no origin (e.g. server-side Next.js rewrites / mobile / curl)
       if (!origin) return callback(null, true);
-      if (env.nodeEnv !== 'production' || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+      if (allowedOrigins.length > 0 && allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
-      if (origin.endsWith('.vercel.app') || origin.includes('localhost') || origin.includes('127.0.0.1')) {
-        return callback(null, true);
+      if (env.nodeEnv !== 'production') {
+        if (origin.endsWith('.vercel.app') || origin.includes('localhost') || origin.includes('127.0.0.1')) {
+          return callback(null, true);
+        }
       }
-      return callback(null, true);
+      return callback(null, false);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

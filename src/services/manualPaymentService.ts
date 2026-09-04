@@ -153,7 +153,7 @@ export async function approveProof(adminId: number, proofId: number, ip: string 
 /** After payment approval: confirmation email to customer, with downloadable files attached when present. */
 async function sendOrderConfirmationEmail(orderId: number): Promise<void> {
   const order = await orderRepo.findOrderById(orderId);
-  if (!order) return;
+  if (!order || order.user_id == null) return;
   const user = await authRepo.findUserById(order.user_id);
   if (!user) return;
 

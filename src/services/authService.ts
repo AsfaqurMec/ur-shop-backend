@@ -248,7 +248,7 @@ export async function refresh(
     if (!session || new Date() > session.expires_at) {
       throw new AppError(401, 'Session expired or invalid');
     }
-    if (session.id !== payload.sessionId) {
+    if (session.id !== payload.sessionId || session.admin_id !== payload.id) {
       throw new AppError(401, 'Invalid refresh token');
     }
     const admin = await adminAuthRepo.findAdminById(payload.id);
@@ -299,7 +299,7 @@ export async function refresh(
   if (!session || new Date() > session.expires_at) {
     throw new AppError(401, 'Session expired or invalid');
   }
-  if (session.id !== payload.sessionId) {
+  if (session.id !== payload.sessionId || session.user_id !== payload.id) {
     throw new AppError(401, 'Invalid refresh token');
   }
   const user = await authRepo.findUserById(payload.id);
@@ -393,6 +393,7 @@ export async function resetPassword(token: string, newPassword: string): Promise
   const passwordHash = await hashPassword(newPassword);
   await authRepo.updateUserPassword(reset.user_id, passwordHash);
   await authRepo.markPasswordResetUsed(reset.id);
+  await authRepo.deleteSessionsByUserId(reset.user_id);
 
   const user = await authRepo.findUserById(reset.user_id);
   if (user) {
@@ -516,45 +517,15 @@ async function createUserSession(
   };
 }
 
-/** Register or sign in a guest shopper (password = email) and return auth tokens. */
+/** @deprecated Guest checkout no longer creates accounts. Place orders directly via POST /checkout/orders */
 export async function guestCheckout(
-  name: string,
-  mobile: string,
-  address: string,
-  ip: string | null,
-  userAgent: string | null
-): Promise<{
-  user: SafeUser;
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: string;
-}> {
-  const rawMobile = normalizeBengaliNumerals(mobile.trim());
-  const trimmedMobile = normalizeBdMobile(rawMobile) || rawMobile;
-  const generatedEmail = `${trimmedMobile}@guest.local`;
-  const trimmedName = name.trim() || trimmedMobile;
-  const trimmedAddress = address.trim();
-  if (!trimmedMobile) throw new AppError(400, 'Mobile number is required');
-  if (!trimmedAddress) throw new AppError(400, 'Address is required');
-
-  const existing = await authRepo.findUserByMobile(trimmedMobile);
-  if (existing) {
-    const valid = await comparePassword(trimmedMobile.slice(0, 5), existing.password_hash);
-    if (!valid) {
-      throw new AppError(409, 'An account with this email already exists. Please log in to continue.');
-    }
-    return createUserSession(existing, ip, userAgent);
-  }
-
-  const passwordHash = await hashPassword(trimmedMobile.slice(0, 5));
-  const userId = await authRepo.createUser(generatedEmail, passwordHash, trimmedName, {
-    mobile: trimmedMobile,
-    address: trimmedAddress,
-    needsPasswordChange: true,
-  });
-  const user = await authRepo.findUserById(userId);
-  if (!user) throw new AppError(500, 'Failed to create user');
-  return createUserSession(user, ip, userAgent);
+  _name?: string,
+  _mobile?: string,
+  _address?: string,
+  _ip?: string | null,
+  _userAgent?: string | null
+): Promise<never> {
+  throw new AppError(410, 'Guest account creation is disabled. Please checkout as a guest directly.');
 }
 
 export async function changePassword(userId: number, role: string, currentPassword: string, newPassword: string): Promise<void> {
@@ -564,6 +535,7 @@ export async function changePassword(userId: number, role: string, currentPasswo
   if (!(await comparePassword(currentPassword, user.password_hash))) throw new AppError(400, 'Current password is incorrect');
   if (currentPassword === newPassword) throw new AppError(400, 'Choose a different new password');
   await authRepo.updateUserPassword(userId, await hashPassword(newPassword));
+  await authRepo.deleteSessionsByUserId(userId);
 }
 
 export async function hasAccountForMobile(mobile: string): Promise<boolean> {
@@ -572,26 +544,11 @@ export async function hasAccountForMobile(mobile: string): Promise<boolean> {
   return Boolean(await authRepo.findUserByMobile(trimmedMobile));
 }
 
-/** Sign in an existing account by mobile for guest checkout continuation (no password required). */
+/** @deprecated Removed due to authentication bypass risks. */
 export async function continueCheckout(
-  mobile: string,
-  ip: string | null,
-  userAgent: string | null
-): Promise<{
-  user: SafeUser;
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: string;
-}> {
-  const rawMobile = normalizeBengaliNumerals(mobile.trim());
-  const trimmedMobile = normalizeBdMobile(rawMobile) || rawMobile;
-  if (!trimmedMobile) throw new AppError(400, 'Mobile number is required');
-
-  const existing = await authRepo.findUserByMobile(trimmedMobile);
-  if (!existing) throw new AppError(404, 'No account found for this mobile number');
-  if (!existing.address?.trim()) {
-    throw new AppError(400, 'This account has no saved address. Please log in to update your profile.');
-  }
-
-  return createUserSession(existing, ip, userAgent);
+  _mobile?: string,
+  _ip?: string | null,
+  _userAgent?: string | null
+): Promise<never> {
+  throw new AppError(410, 'Direct continuation is disabled. Please sign in or checkout as a guest.');
 }

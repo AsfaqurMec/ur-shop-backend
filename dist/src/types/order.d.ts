@@ -2,7 +2,7 @@ export type OrderStatus = 'pending' | 'placed' | 'delivered' | 'complete' | 'com
 export type OrderItemProductType = 'downloadable' | 'license_key' | 'subscription_manual' | 'digital_service';
 export interface OrderRow {
     id: number;
-    user_id: number;
+    user_id: number | null;
     order_number: string;
     status: OrderStatus;
     payment_status?: 'paid' | 'unpaid';
@@ -22,6 +22,7 @@ export interface OrderRow {
     shipping_method_id: string | null;
     shipping_method_title: string | null;
     shipping_fee: number;
+    guest_token?: string | null;
     created_at: Date;
     updated_at: Date;
 }
@@ -80,6 +81,8 @@ export interface OrderPublic {
     created_at: string;
     /** Present only when checkout created a bKash redirect URL. */
     bkash_checkout_url?: string | null;
+    /** Present for guest purchases to allow secure invoice downloading without an account. */
+    guest_token?: string | null;
 }
 export interface PaymentRow {
     id: number;

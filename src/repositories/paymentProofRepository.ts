@@ -17,7 +17,7 @@ function row(doc: any): PaymentProofRow {
   return {
     id: Number(doc.id),
     order_id: Number(doc.order_id),
-    user_id: Number(doc.user_id),
+    user_id: doc.user_id != null ? Number(doc.user_id) : null,
     sender_number: doc.sender_number ?? null,
     transaction_id: doc.transaction_id ?? null,
     paid_amount: doc.paid_amount != null ? Number(doc.paid_amount) : null,
@@ -29,7 +29,7 @@ function row(doc: any): PaymentProofRow {
 }
 
 async function withAdminContext(proofs: any[]): Promise<PaymentProofWithUserEmail[]> {
-  const userIds = [...new Set(proofs.map((p) => Number(p.user_id)))];
+  const userIds = [...new Set(proofs.map((p) => (p.user_id != null ? Number(p.user_id) : null)).filter((id): id is number => id != null))];
   const orderIds = [...new Set(proofs.map((p) => Number(p.order_id)))];
   const [users, orders] = await Promise.all([
     UserModel.find({ id: { $in: userIds }, deleted_at: null }).lean(),
@@ -38,12 +38,12 @@ async function withAdminContext(proofs: any[]): Promise<PaymentProofWithUserEmai
   const userById = new Map(users.map((u: any) => [Number(u.id), u]));
   const orderById = new Map(orders.map((o: any) => [Number(o.id), o]));
   return proofs.flatMap((proof) => {
-    const user = userById.get(Number(proof.user_id)) as any;
+    const user = proof.user_id != null ? (userById.get(Number(proof.user_id)) as any) : null;
     const order = orderById.get(Number(proof.order_id)) as any;
-    if (!user || !order) return [];
+    if (!order) return [];
     return [{
       ...row(proof),
-      user_email: String(user.email),
+      user_email: user?.email ? String(user.email) : (order.shipping_mobile ? String(order.shipping_mobile) : 'Guest'),
       order_number: String(order.order_number),
       order_total: Number(order.total ?? 0),
       order_currency: String(order.currency ?? 'BDT'),
@@ -53,7 +53,7 @@ async function withAdminContext(proofs: any[]): Promise<PaymentProofWithUserEmai
 
 export async function create(data: {
   order_id: number;
-  user_id: number;
+  user_id: number | null;
   sender_number: string | null;
   transaction_id: string | null;
   paid_amount: number | null;

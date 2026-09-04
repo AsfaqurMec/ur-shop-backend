@@ -16,7 +16,14 @@ exports.loginValidator = [
     (0, express_validator_1.body)('password').notEmpty().withMessage('Password is required'),
 ];
 exports.refreshValidator = [
-    (0, express_validator_1.body)('refreshToken').notEmpty().withMessage('Refresh token is required'),
+    (0, express_validator_1.body)('refreshToken')
+        .custom((value, { req }) => {
+        const token = value || req.cookies?.refresh_token;
+        if (!token || typeof token !== 'string' || !token.trim()) {
+            throw new Error('Refresh token is required');
+        }
+        return true;
+    }),
 ];
 exports.verifyEmailValidator = [
     (0, express_validator_1.body)('token').notEmpty().withMessage('Verification token is required'),

@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { env } from '../config';
 import { AppError } from '../middlewares/errorHandler';
 import * as cartRepo from '../repositories/cartRepository';
@@ -38,6 +39,13 @@ export interface CreateOrderPaymentDetails {
   postalCode?: string | null;
   addressLine2?: string | null;
   shippingMethodId?: string | null;
+  /** Guest cart lines passed directly when checking out without an account. */
+  items?: Array<{
+    product_id: number;
+    product_variation_id?: number | null;
+    quantity: number;
+    selections?: Record<string, string>;
+  }>;
 }
 
 async function validateCartItemsForCheckout(
@@ -101,8 +109,72 @@ async function buildOrderItemsFromCart(items: CartItemWithProduct[]): Promise<or
   return out;
 }
 
+async function buildOrderItemsFromGuestInput(
+  items: Array<{
+    product_id: number;
+    product_variation_id?: number | null;
+    quantity: number;
+    selections?: Record<string, string>;
+  }>
+): Promise<{ orderItems: orderRepo.OrderItemInput[]; cartItemsSummary: Array<{ category_id: number | null }> }> {
+  if (!items || items.length === 0) {
+    throw new AppError(400, 'Cart is empty');
+  }
+  const out: orderRepo.OrderItemInput[] = [];
+  const summary: Array<{ category_id: number | null }> = [];
+  for (const item of items) {
+    if (!item.quantity || item.quantity < 1) {
+      throw new AppError(400, 'Invalid item quantity');
+    }
+    const product = await productRepo.findProductById(item.product_id);
+    if (!product || !product.is_active) {
+      throw new AppError(400, `Product "${product?.name || item.product_id}" is no longer available`);
+    }
+    await cartService.assertLineQuantityAllowed(item.product_id, item.quantity, item.product_variation_id ?? null);
+
+    let basePrice = Number(product.price);
+    if (item.product_variation_id != null) {
+      const v = await variationRepo.findVariationById(item.product_variation_id);
+      if (v?.price != null) basePrice = Number(v.price);
+    }
+    const resolved = await purchaseSelectionService.resolveLinePricing(
+      item.product_id,
+      basePrice,
+      item.selections,
+      item.product_variation_id ?? null
+    );
+    const unitPrice = resolved.unit_price;
+    const totalPrice = Math.round(unitPrice * item.quantity * 100) / 100;
+    let itemSku: string | null = null;
+    const effectiveVarId = resolved.effective_variation_id ?? item.product_variation_id;
+    if (effectiveVarId != null) {
+      const v = await variationRepo.findVariationById(effectiveVarId);
+      if (v?.sku) itemSku = v.sku;
+    }
+    if (!itemSku && product.sku) itemSku = product.sku;
+
+    out.push({
+      product_id: item.product_id,
+      product_variation_id: effectiveVarId ?? null,
+      sku: itemSku,
+      product_name: product.name,
+      product_type: product.product_type as OrderItemProductType,
+      quantity: item.quantity,
+      unit_price: unitPrice,
+      total_price: totalPrice,
+      purchase_selections:
+        resolved.normalized_selections && Object.keys(resolved.normalized_selections).length > 0
+          ? resolved.normalized_selections
+          : null,
+      purchase_selections_summary: resolved.summary && resolved.summary.length > 0 ? resolved.summary : null,
+    });
+    summary.push({ category_id: product.category_id ?? null });
+  }
+  return { orderItems: out, cartItemsSummary: summary };
+}
+
 function toOrderPublic(
-  order: { id: number; order_number: string; status: string; subtotal: number; discount: number; coupon_code?: string | null; coupon_name?: string | null; tax: number; total: number; currency: string; shipping_name?: string | null; created_at: Date },
+  order: { id: number; order_number: string; status: string; subtotal: number; discount: number; coupon_code?: string | null; coupon_name?: string | null; tax: number; total: number; currency: string; shipping_name?: string | null; guest_token?: string | null; created_at: Date },
   orderItems: OrderItemPublic[],
   payment: { id: number; gateway: string; status: string; amount: number } | null
 ): OrderPublic {
@@ -121,6 +193,7 @@ function toOrderPublic(
     items: orderItems,
     ...(payment && { payment }),
     created_at: order.created_at.toISOString(),
+    ...(order.guest_token ? { guest_token: order.guest_token } : {}),
   };
 }
 
@@ -138,7 +211,7 @@ async function restoreVariationQuantityForOrder(orderId: number): Promise<void> 
 }
 
 export async function createOrder(
-  userId: number,
+  userId: number | null,
   couponCode?: string | null,
   paymentInput: CreateOrderPaymentDetails = { method: 'manual_bkash' }
 ): Promise<OrderPublic> {
@@ -157,7 +230,7 @@ export async function createOrder(
   if (!shippingMobile) throw new AppError(400, 'Mobile number is required');
   if (!shippingAddress) throw new AppError(400, 'Address is required');
 
-  const user = await authRepo.findUserById(userId);
+  const user = userId != null ? await authRepo.findUserById(userId) : null;
   const rawName = paymentInput.name?.trim() || paymentInput.shippingName?.trim() || '';
   const shippingName = rawName || user?.name?.trim() || null;
 
@@ -203,8 +276,19 @@ export async function createOrder(
     }
   }
 
-  const { items: cartItems } = await validateCartItemsForCheckout(userId);
-  const orderItemsInput = await buildOrderItemsFromCart(cartItems);
+  let orderItemsInput: orderRepo.OrderItemInput[];
+  let cartCategories: Array<{ category_id: number | null }>;
+
+  if (userId != null) {
+    const { items: cartItems } = await validateCartItemsForCheckout(userId);
+    orderItemsInput = await buildOrderItemsFromCart(cartItems);
+    cartCategories = cartItems.map((c) => ({ category_id: c.category_id ?? null }));
+  } else {
+    const guestResult = await buildOrderItemsFromGuestInput(paymentInput.items || []);
+    orderItemsInput = guestResult.orderItems;
+    cartCategories = guestResult.cartItemsSummary;
+  }
+
   const subtotal = orderItemsInput.reduce((sum, i) => sum + i.total_price, 0);
   const subtotalRounded = Math.round(subtotal * 100) / 100;
 
@@ -214,7 +298,7 @@ export async function createOrder(
   if (couponCode?.trim()) {
     const eligibleItems = orderItemsInput.map((i, idx) => ({
       product_id: i.product_id,
-      category_id: cartItems[idx]?.category_id ?? null,
+      category_id: cartCategories[idx]?.category_id ?? null,
       quantity: i.quantity,
       unit_price: i.unit_price,
     }));
@@ -237,10 +321,13 @@ export async function createOrder(
 
   const gateway = isCashOnDelivery ? 'cash_on_delivery' : optionRow!.gateway_key;
 
+  const guestToken = userId == null ? crypto.randomBytes(32).toString('hex') : null;
+
   let orderId: number;
   let paymentId: number;
   orderId = await orderRepo.createOrder(null, {
     user_id: userId,
+    guest_token: guestToken,
     status: 'pending',
     payment_status: 'unpaid',
     subtotal: subtotalRounded,
@@ -345,7 +432,9 @@ export async function createOrder(
     });
   }
 
-  await cartService.clearCart(userId);
+  if (userId != null) {
+    await cartService.clearCart(userId);
+  }
 
   const order = await orderRepo.findOrderById(orderId);
   if (!order) throw new AppError(500, 'Order could not be retrieved');
@@ -379,12 +468,8 @@ export async function createOrder(
   return orderPublic;
 }
 
-async function notifyAfterOrderPlaced(userId: number, order: OrderPublic): Promise<void> {
-  const user = await authRepo.findUserById(userId);
-  if (!user) {
-    if (env.nodeEnv !== 'test') console.warn('[Mail] Order placed: user not found, skipping emails userId=', userId);
-    return;
-  }
+async function notifyAfterOrderPlaced(userId: number | null, order: OrderPublic): Promise<void> {
+  const user = userId != null ? await authRepo.findUserById(userId) : null;
 
   const gw = order.payment?.gateway ?? '';
   const isBank = await paymentOptionService.isBankProofGateway(gw);
@@ -421,21 +506,23 @@ async function notifyAfterOrderPlaced(userId: number, order: OrderPublic): Promi
         ? 'Complete payment on bKash when redirected. If you do not pay within the time limit, the order will be cancelled automatically.'
         : undefined;
 
-  const resolvedCustomerName = order.shipping_name || user.name?.trim() || undefined;
+  const resolvedCustomerName = order.shipping_name || user?.name?.trim() || undefined;
 
-  const customerResult = await emailService.sendOrderPlacedEmail(user.email, {
-    orderNumber: order.order_number,
-    customerName: resolvedCustomerName,
-    total: fmt(order.total),
-    currency: order.currency,
-    subtotal: fmt(order.subtotal),
-    discount: fmt(order.discount),
-    lines: userLines,
-    paymentInstructions,
-    dashboardUrl,
-  });
-  if (!customerResult.sent && env.nodeEnv !== 'test') {
-    console.error('[Mail] Order placed email to customer failed:', user.email, customerResult.error ?? 'unknown');
+  if (user?.email) {
+    const customerResult = await emailService.sendOrderPlacedEmail(user.email, {
+      orderNumber: order.order_number,
+      customerName: resolvedCustomerName,
+      total: fmt(order.total),
+      currency: order.currency,
+      subtotal: fmt(order.subtotal),
+      discount: fmt(order.discount),
+      lines: userLines,
+      paymentInstructions,
+      dashboardUrl,
+    });
+    if (!customerResult.sent && env.nodeEnv !== 'test') {
+      console.error('[Mail] Order placed email to customer failed:', user.email, customerResult.error ?? 'unknown');
+    }
   }
 
   const adminRecipients = env.mail.adminNotificationEmails;
@@ -449,8 +536,8 @@ async function notifyAfterOrderPlaced(userId: number, order: OrderPublic): Promi
   const adminOrdersUrl = env.frontendUrl ? `${env.frontendUrl}/admin/orders/${order.id}` : undefined;
   const adminPayload = {
     orderNumber: order.order_number,
-    customerEmail: user.email,
-    customerName: resolvedCustomerName || user.email,
+    customerEmail: user?.email || (order as any).shipping_mobile || 'Guest Customer',
+    customerName: resolvedCustomerName || user?.email || 'Guest Customer',
     total: fmt(order.total),
     currency: order.currency,
     subtotal: fmt(order.subtotal),

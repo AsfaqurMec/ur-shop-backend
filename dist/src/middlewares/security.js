@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.checkoutLimiter = exports.apiLimiter = exports.authLimiter = void 0;
+exports.checkoutLimiter = exports.apiLimiter = exports.refreshLimiter = exports.authLimiter = void 0;
 exports.sanitizeNoSql = sanitizeNoSql;
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const config_1 = require("../config");
@@ -34,16 +34,31 @@ function sanitizeNoSql(req, _res, next) {
 }
 /**
  * Rate limiter for auth endpoints (login, register, password reset).
- * Takes limit amount and window duration from environment variables.
+ * In development, allows a generous limit so testing is not blocked.
  */
 exports.authLimiter = (0, express_rate_limit_1.default)({
     windowMs: config_1.env.rateLimit.authWindowMinutes * 60 * 1000,
-    max: config_1.env.rateLimit.authMax,
+    max: config_1.env.nodeEnv === 'development' ? Math.max(config_1.env.rateLimit.authMax, 200) : config_1.env.rateLimit.authMax,
     standardHeaders: true,
     legacyHeaders: false,
     message: {
         success: false,
         error: `Too many authentication attempts. Please try again in ${config_1.env.rateLimit.authWindowMinutes} minutes.`,
+    },
+    skip: () => config_1.env.nodeEnv === 'test',
+});
+/**
+ * Dedicated rate limiter for token refresh.
+ * Separate from authLimiter so background refreshes never starve login/register attempts.
+ */
+exports.refreshLimiter = (0, express_rate_limit_1.default)({
+    windowMs: config_1.env.rateLimit.authWindowMinutes * 60 * 1000,
+    max: config_1.env.nodeEnv === 'development' ? 500 : Math.max(config_1.env.rateLimit.authMax * 5, 100),
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+        success: false,
+        error: 'Too many token refresh attempts. Please try again later.',
     },
     skip: () => config_1.env.nodeEnv === 'test',
 });

@@ -189,6 +189,8 @@ export async function downloadAttachment(req: Request, res: Response): Promise<v
     return;
   }
   const safeName = path.basename(file_name) || 'attachment';
+  res.setHeader('Content-Type', 'application/octet-stream');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Content-Disposition', `attachment; filename="${safeName.replace(/"/g, '\\"')}"`);
   const stream = fs.createReadStream(absolutePath);
   stream.on('error', () => {

@@ -3,7 +3,7 @@ export declare function getCookieOptions(maxAgeMs?: number): {
     maxAge?: number | undefined;
     httpOnly: boolean;
     secure: boolean;
-    sameSite: "none" | "lax";
+    sameSite: "none" | "lax" | "strict";
     path: string;
 };
 export declare function setAuthCookies(res: Response, accessToken: string, refreshToken?: string): void;

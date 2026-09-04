@@ -76,8 +76,8 @@ exports.env = {
     port: getEnvNumber('PORT', 5000),
     apiPrefix: getEnv('API_PREFIX', '/api'),
     rateLimit: {
-        authMax: getFirstEnvNumber(['AUTH_RATE_LIMIT_MAX', 'AUTH_LIMIT_AMOUNT', 'AUTH_LIMIT', 'AUTH_RATE_LIMIT'], 20),
-        authWindowMinutes: getFirstEnvNumber(['AUTH_RATE_LIMIT_WINDOW_MINUTES', 'AUTH_WINDOW_MINUTES', 'AUTH_LIMIT_WINDOW'], 15),
+        authMax: getFirstEnvNumber(['AUTH_RATE_LIMIT_MAX', 'AUTH_LIMIT_AMOUNT', 'AUTH_LIMIT', 'AUTH_RATE_LIMIT'], 100),
+        authWindowMinutes: getFirstEnvNumber(['AUTH_RATE_LIMIT_WINDOW_MINUTES', 'AUTH_WINDOW_MINUTES', 'AUTH_LIMIT_WINDOW'], 20),
         checkoutMax: getFirstEnvNumber(['CHECKOUT_RATE_LIMIT_MAX', 'CHECKOUT_LIMIT_AMOUNT', 'CHECKOUT_LIMIT', 'CHECKOUT_RATE_LIMIT'], 30),
         checkoutWindowMinutes: getFirstEnvNumber(['CHECKOUT_RATE_LIMIT_WINDOW_MINUTES', 'CHECKOUT_WINDOW_MINUTES', 'CHECKOUT_LIMIT_WINDOW'], 10),
         apiMax: getFirstEnvNumber(['API_RATE_LIMIT_MAX', 'API_LIMIT_AMOUNT', 'API_LIMIT', 'API_RATE_LIMIT'], 600),
@@ -88,10 +88,12 @@ exports.env = {
         database: (process.env.MONGODB_DB || process.env.DB_NAME || 'ur_shop').trim(),
     },
     jwt: {
-        secret: getEnv('JWT_SECRET', 'change-me-in-production'),
-        accessExpiresIn: getEnv('JWT_ACCESS_EXPIRES_IN', '15d'),
-        refreshExpiresIn: getEnv('JWT_REFRESH_EXPIRES_IN', '15d'),
-        sessionExpiryDays: getEnvNumber('SESSION_EXPIRY_DAYS', 15),
+        secret: getEnv('JWT_SECRET'),
+        accessSecret: getEnv('JWT_ACCESS_SECRET'),
+        refreshSecret: getEnv('JWT_REFRESH_SECRET'),
+        accessExpiresIn: getEnv('JWT_ACCESS_EXPIRES_IN'),
+        refreshExpiresIn: getEnv('JWT_REFRESH_EXPIRES_IN'),
+        sessionExpiryDays: getEnvNumber('SESSION_EXPIRY_DAYS', 7),
     },
     upload: {
         dir: getEnv('UPLOAD_DIR', 'uploads'),

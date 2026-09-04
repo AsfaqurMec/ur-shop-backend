@@ -84,16 +84,22 @@ async function loadCompanyLogo(url) {
     }
 }
 /** Creates a customer-owned or admin printable invoice. Amounts are taken only from the stored order. */
-async function createInvoicePdf(userId, orderId, isAdmin = false) {
+async function createInvoicePdf(userId, orderId, isAdmin = false, guestToken) {
     const order = await orderRepo.findOrderById(orderId);
     if (!order)
         throw new errorHandler_1.AppError(404, 'Order not found');
-    if (!isAdmin && userId != null && order.user_id !== userId)
+    const isGuestMatch = order.user_id == null &&
+        Boolean(order.guest_token) &&
+        Boolean(guestToken) &&
+        order.guest_token?.trim() === guestToken?.trim();
+    const isOwner = userId != null && order.user_id === userId;
+    if (!isAdmin && !isOwner && !isGuestMatch) {
         throw new errorHandler_1.AppError(403, 'Forbidden');
+    }
     const [items, payment, customer, settings] = await Promise.all([
         orderRepo.findOrderItems(orderId),
         orderRepo.findPaymentByOrderId(orderId),
-        authRepo.findUserById(order.user_id),
+        order.user_id != null ? authRepo.findUserById(order.user_id) : null,
         storeSettingsService.getStoreSettings(),
     ]);
     const doc = new pdfkit_1.default({ size: 'A4', margin: MARGIN, info: { Title: `Invoice ${order.order_number}` } });

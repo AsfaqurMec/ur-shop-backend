@@ -1,10 +1,10 @@
 import { Request, Response } from 'express';
-import { sendSuccess, sendError } from '../utils/apiResponse';
+import { sendSuccess } from '../utils/apiResponse';
 import * as checkoutService from '../services/checkoutService';
+import * as invoiceService from '../services/invoiceService';
 
 export async function createOrder(req: Request, res: Response): Promise<Response> {
-  if (!req.user) return sendError(res, 'Unauthorized', 401);
-  const userId = req.user.id;
+  const userId = req.user?.id ?? null;
   const couponCode = req.body.coupon_code ?? null;
   const rawMethod = req.body.payment_method;
   const method =
@@ -32,6 +32,8 @@ export async function createOrder(req: Request, res: Response): Promise<Response
   const shippingMethodId =
     typeof req.body.shipping_method_id === 'string' ? req.body.shipping_method_id.trim() || null : null;
 
+  const items = Array.isArray(req.body.items) ? req.body.items : undefined;
+
   const order = await checkoutService.createOrder(userId, couponCode, {
     method,
     transactionId: transactionIdRaw,
@@ -43,6 +45,21 @@ export async function createOrder(req: Request, res: Response): Promise<Response
     postalCode,
     addressLine2,
     shippingMethodId,
+    items,
   });
   return sendSuccess(res, { order }, 201, 'Order created successfully');
+}
+
+export async function downloadOrderInvoice(req: Request, res: Response): Promise<void> {
+  const orderId = Number(req.params.orderId);
+  const token = typeof req.query.token === 'string' ? req.query.token.trim() : null;
+  const userId = req.user?.id ?? null;
+  const isAdmin = req.user?.role === 'admin';
+
+  const invoice = await invoiceService.createInvoicePdf(userId, orderId, isAdmin, token);
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename="${invoice.filename.replace(/[^a-zA-Z0-9._-]/g, '_')}"`
+  );
+  res.status(200).send(invoice.buffer);
 }

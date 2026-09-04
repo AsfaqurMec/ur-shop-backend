@@ -8,7 +8,7 @@ export interface FulfillmentQueueRow {
   order_item_id: number;
   product_id: number;
   product_type: FulfillmentQueueProductType;
-  user_id: number;
+  user_id: number | null;
   status: FulfillmentQueueStatus;
   notes: string | null;
   due_at: Date | null;
@@ -29,7 +29,7 @@ function row(doc: any): FulfillmentQueueRow {
     order_item_id: Number(doc.order_item_id),
     product_id: Number(doc.product_id),
     product_type: doc.product_type as FulfillmentQueueProductType,
-    user_id: Number(doc.user_id),
+    user_id: doc.user_id != null ? Number(doc.user_id) : null,
     status: (doc.status ?? 'pending') as FulfillmentQueueStatus,
     notes: doc.notes ?? null,
     due_at: doc.due_at ? date(doc.due_at) : null,
@@ -47,7 +47,7 @@ export async function create(
     order_item_id: number;
     product_id: number;
     product_type: FulfillmentQueueProductType;
-    user_id: number;
+    user_id: number | null;
     due_at?: Date | null;
   }
 ): Promise<number> {

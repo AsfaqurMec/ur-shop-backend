@@ -84,7 +84,7 @@ export async function createWithConnection(
   data: {
     order_id: number;
     order_item_id: number;
-    user_id: number;
+    user_id: number | null;
     product_id: number;
     status?: 'pending_activation' | 'active' | 'cancelled' | 'expired';
     current_period_start: Date;

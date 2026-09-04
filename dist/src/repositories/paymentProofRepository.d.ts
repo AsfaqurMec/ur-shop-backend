@@ -7,7 +7,7 @@ export type PaymentProofWithUserEmail = PaymentProofRow & {
 };
 export declare function create(data: {
     order_id: number;
-    user_id: number;
+    user_id: number | null;
     sender_number: string | null;
     transaction_id: string | null;
     paid_amount: number | null;
