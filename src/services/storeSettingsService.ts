@@ -82,7 +82,8 @@ function normalizeShippingMethods(input: unknown): ShippingMethod[] {
 }
 
 function defaults(): StoreSettings {
-  const name = env.store.name || 'Digital Store';
+  const envName = env.store.name?.trim();
+  const name = envName && !/^digital (store|products?|product(s)? selling)$/i.test(envName) ? envName : 'UR Shop';
   const supportEmail = env.store.supportEmail || '';
   return {
     siteTitle: name,
@@ -116,15 +117,17 @@ function normalizeSettings(input?: Partial<StoreSettings> | null): StoreSettings
   const merged = { ...base, ...(input ?? {}) };
   const currency = CURRENCIES.has(merged.currency) ? merged.currency : base.currency;
   const timezone = TIMEZONES.has(merged.timezone) ? merged.timezone : base.timezone;
+  const siteTitle = cleanString(merged.siteTitle, 255) || base.siteTitle;
+  const storeName = cleanString(merged.storeName, 255) || siteTitle || base.storeName;
   return {
-    siteTitle: cleanString(merged.siteTitle, 255) || base.siteTitle,
+    siteTitle,
     siteLogo: cleanString(merged.siteLogo, 2_000_000),
     emailHeaderLogo: cleanString(merged.emailHeaderLogo, 2_000_000),
     emailHeaderSlogan: cleanString(merged.emailHeaderSlogan, 255),
     emailHeaderSubtitle: cleanString(merged.emailHeaderSubtitle, 255),
     emailFooterSupportEmail: cleanString(merged.emailFooterSupportEmail, 255),
     emailFooterSupportNumber: cleanString(merged.emailFooterSupportNumber, 100),
-    storeName: cleanString(merged.storeName, 255) || base.storeName,
+    storeName,
     contactEmail: cleanString(merged.contactEmail, 255),
     address: cleanString(merged.address, 1000),
     currency,
